@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/enable-it/nextchapter/backend/internal/models"
 	gen "github.com/enable-it/nextchapter/backend/internal/store/generated"
 )
 
@@ -15,7 +16,7 @@ func NewRepository(q *gen.Queries) Repository {
 	return &repository{q: q}
 }
 
-func (r *repository) InsertSeries(ctx context.Context, p InsertSeriesParams) (Series, error) {
+func (r *repository) InsertSeries(ctx context.Context, p InsertSeriesParams) (models.Series, error) {
 	row, err := r.q.CreateSeries(ctx, gen.CreateSeriesParams{
 		UserID:    p.UserID,
 		Title:     p.Title,
@@ -26,23 +27,23 @@ func (r *repository) InsertSeries(ctx context.Context, p InsertSeriesParams) (Se
 		UpdatedAt: p.UpdatedAt,
 	})
 	if err != nil {
-		return Series{}, fmt.Errorf("series: insert: %w", err)
+		return models.Series{}, fmt.Errorf("series: insert: %w", err)
 	}
 	return seriesFromGen(row), nil
 }
 
-func (r *repository) GetSeriesByID(ctx context.Context, userID, id int64) (Series, error) {
+func (r *repository) GetSeriesByID(ctx context.Context, userID, id int64) (models.Series, error) {
 	row, err := r.q.GetSeriesByID(ctx, gen.GetSeriesByIDParams{ID: id, UserID: userID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return Series{}, ErrNotFound
+			return models.Series{}, ErrNotFound
 		}
-		return Series{}, fmt.Errorf("series: get by id: %w", err)
+		return models.Series{}, fmt.Errorf("series: get by id: %w", err)
 	}
 	return seriesFromGen(row), nil
 }
 
-func (r *repository) UpdateSeries(ctx context.Context, p UpdateSeriesParams) (Series, error) {
+func (r *repository) UpdateSeries(ctx context.Context, p UpdateSeriesParams) (models.Series, error) {
 	row, err := r.q.UpdateSeries(ctx, gen.UpdateSeriesParams{
 		Title:     p.Title,
 		Status:    p.Status,
@@ -54,9 +55,9 @@ func (r *repository) UpdateSeries(ctx context.Context, p UpdateSeriesParams) (Se
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return Series{}, ErrNotFound
+			return models.Series{}, ErrNotFound
 		}
-		return Series{}, fmt.Errorf("series: update: %w", err)
+		return models.Series{}, fmt.Errorf("series: update: %w", err)
 	}
 	return seriesFromGen(row), nil
 }
@@ -69,7 +70,7 @@ func (r *repository) DeleteSeries(ctx context.Context, userID, id int64) (int64,
 	return n, nil
 }
 
-func (r *repository) ListSummariesAll(ctx context.Context, p ListSummariesAllParams) ([]Summary, error) {
+func (r *repository) ListSummariesAll(ctx context.Context, p ListSummariesAllParams) ([]models.SeriesSummary, error) {
 	rows, err := r.q.ListSeriesAll(ctx, gen.ListSeriesAllParams{
 		UserID: p.UserID,
 		Limit:  p.Limit,
@@ -78,14 +79,14 @@ func (r *repository) ListSummariesAll(ctx context.Context, p ListSummariesAllPar
 	if err != nil {
 		return nil, fmt.Errorf("series: list all: %w", err)
 	}
-	out := make([]Summary, 0, len(rows))
+	out := make([]models.SeriesSummary, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, summaryFromAllRow(row))
 	}
 	return out, nil
 }
 
-func (r *repository) ListSummariesByStatus(ctx context.Context, p ListSummariesByStatusParams) ([]Summary, error) {
+func (r *repository) ListSummariesByStatus(ctx context.Context, p ListSummariesByStatusParams) ([]models.SeriesSummary, error) {
 	rows, err := r.q.ListSeriesByStatus(ctx, gen.ListSeriesByStatusParams{
 		UserID: p.UserID,
 		Status: p.Status,
@@ -95,20 +96,20 @@ func (r *repository) ListSummariesByStatus(ctx context.Context, p ListSummariesB
 	if err != nil {
 		return nil, fmt.Errorf("series: list by status: %w", err)
 	}
-	out := make([]Summary, 0, len(rows))
+	out := make([]models.SeriesSummary, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, summaryFromStatusRow(row))
 	}
 	return out, nil
 }
 
-func (r *repository) GetSummary(ctx context.Context, userID, id int64) (Summary, error) {
+func (r *repository) GetSummary(ctx context.Context, userID, id int64) (models.SeriesSummary, error) {
 	row, err := r.q.GetSeriesSummary(ctx, gen.GetSeriesSummaryParams{ID: id, UserID: userID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return Summary{}, ErrNotFound
+			return models.SeriesSummary{}, ErrNotFound
 		}
-		return Summary{}, fmt.Errorf("series: get summary: %w", err)
+		return models.SeriesSummary{}, fmt.Errorf("series: get summary: %w", err)
 	}
 	return summaryFromSummaryRow(row), nil
 }
@@ -131,8 +132,8 @@ func (r *repository) CountByStatus(ctx context.Context, userID int64, status str
 
 // --- conversion helpers --------------------------------------------------
 
-func seriesFromGen(r gen.Series) Series {
-	return Series{
+func seriesFromGen(r gen.Series) models.Series {
+	return models.Series{
 		ID:        r.ID,
 		UserID:    r.UserID,
 		Title:     r.Title,
@@ -144,8 +145,8 @@ func seriesFromGen(r gen.Series) Series {
 	}
 }
 
-func summaryFromAllRow(r gen.ListSeriesAllRow) Summary {
-	return Summary{
+func summaryFromAllRow(r gen.ListSeriesAllRow) models.SeriesSummary {
+	return models.SeriesSummary{
 		ID:             r.ID,
 		UserID:         r.UserID,
 		Title:          r.Title,
@@ -160,8 +161,8 @@ func summaryFromAllRow(r gen.ListSeriesAllRow) Summary {
 	}
 }
 
-func summaryFromStatusRow(r gen.ListSeriesByStatusRow) Summary {
-	return Summary{
+func summaryFromStatusRow(r gen.ListSeriesByStatusRow) models.SeriesSummary {
+	return models.SeriesSummary{
 		ID:             r.ID,
 		UserID:         r.UserID,
 		Title:          r.Title,
@@ -176,8 +177,8 @@ func summaryFromStatusRow(r gen.ListSeriesByStatusRow) Summary {
 	}
 }
 
-func summaryFromSummaryRow(r gen.GetSeriesSummaryRow) Summary {
-	return Summary{
+func summaryFromSummaryRow(r gen.GetSeriesSummaryRow) models.SeriesSummary {
+	return models.SeriesSummary{
 		ID:             r.ID,
 		UserID:         r.UserID,
 		Title:          r.Title,
@@ -208,8 +209,8 @@ func intPtrToNullInt64(p *int) sql.NullInt64 {
 }
 
 // anyToFloatPtr handles the sqlc-generated `interface{}` columns from
-// correlated subqueries. modernc.org/sqlite returns nil, int64, float64,
-// or string depending on affinity; we accept all of them.
+// correlated subqueries. modernc.org/sqlite returns nil, int64,
+// float64, or string depending on affinity; we accept all of them.
 func anyToFloatPtr(v interface{}) *float64 {
 	switch x := v.(type) {
 	case nil:

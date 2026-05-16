@@ -7,7 +7,21 @@ import (
 	"time"
 
 	"github.com/enable-it/nextchapter/backend/constants"
+	"github.com/enable-it/nextchapter/backend/internal/models"
 )
+
+// Service owns mint/revoke flows over auth_tokens plus the read-side
+// resolve/touch that the middleware in this package depends on. All
+// SQL access goes through [Repository]; this type does not import the
+// sqlc-generated package directly.
+type Service struct {
+	repo Repository
+	now  func() time.Time
+}
+
+// Compile-time check: the concrete Service satisfies the
+// models.AuthService surface that handlers consume.
+var _ models.AuthService = (*Service)(nil)
 
 // NewService constructs a Service. If now is nil, time.Now is used.
 func NewService(repo Repository, now func() time.Time) *Service {
@@ -17,12 +31,12 @@ func NewService(repo Repository, now func() time.Time) *Service {
 	return &Service{repo: repo, now: now}
 }
 
-// CreateSession mints a session token, stores its hash, and returns the
-// raw token to the caller (who must put it in a Set-Cookie header).
-func (s *Service) CreateSession(ctx context.Context, userID int64) (SessionToken, error) {
+// CreateSession mints a session token, stores its hash, and returns
+// the raw token to the caller (who must put it in a Set-Cookie header).
+func (s *Service) CreateSession(ctx context.Context, userID int64) (models.SessionToken, error) {
 	raw, err := MintToken(constants.TokenKindSession)
 	if err != nil {
-		return SessionToken{}, err
+		return models.SessionToken{}, err
 	}
 	now := s.now().UTC()
 	exp := now.Add(SessionDuration)
@@ -35,17 +49,17 @@ func (s *Service) CreateSession(ctx context.Context, userID int64) (SessionToken
 		ExpiresAt:  &exp,
 	})
 	if err != nil {
-		return SessionToken{}, fmt.Errorf("auth: create session token: %w", err)
+		return models.SessionToken{}, fmt.Errorf("auth: create session token: %w", err)
 	}
-	return SessionToken{Raw: raw, Token: row}, nil
+	return models.SessionToken{Raw: raw, Token: row}, nil
 }
 
 // CreateAPI mints a user-labelled bearer token for the extension.
 // p.ExpiresAt may be nil (= never expires).
-func (s *Service) CreateAPI(ctx context.Context, userID int64, p CreateTokenParams) (APIToken, error) {
+func (s *Service) CreateAPI(ctx context.Context, userID int64, p models.NewToken) (models.APIToken, error) {
 	raw, err := MintToken(constants.TokenKindAPI)
 	if err != nil {
-		return APIToken{}, err
+		return models.APIToken{}, err
 	}
 	now := s.now().UTC()
 	var exp *time.Time
@@ -63,9 +77,9 @@ func (s *Service) CreateAPI(ctx context.Context, userID int64, p CreateTokenPara
 		ExpiresAt:  exp,
 	})
 	if err != nil {
-		return APIToken{}, fmt.Errorf("auth: create api token: %w", err)
+		return models.APIToken{}, fmt.Errorf("auth: create api token: %w", err)
 	}
-	return APIToken{Raw: raw, Token: row}, nil
+	return models.APIToken{Raw: raw, Token: row}, nil
 }
 
 // DeleteAPI revokes an API token. Returns false if no row was matched
@@ -78,7 +92,7 @@ func (s *Service) DeleteAPI(ctx context.Context, userID, tokenID int64) (bool, e
 	return n > 0, nil
 }
 
-// DeleteSession invalidates a session token by its hash. Used by
+// DeleteSession invalidates a session token by its raw value. Used by
 // /auth/logout. Returns nil if the row was already gone.
 func (s *Service) DeleteSession(ctx context.Context, rawToken string) error {
 	return s.repo.DeleteTokenByHash(ctx, HashToken(rawToken))
@@ -86,9 +100,9 @@ func (s *Service) DeleteSession(ctx context.Context, rawToken string) error {
 
 // Resolve looks up a raw token, returns the owning user and token
 // metadata, and rejects expired rows. It does *not* mutate
-// last_used_at; the middleware calls [Service.Touch] after a successful
-// authorisation. Hashing happens here so callers do not need to remember
-// to hash themselves.
+// last_used_at; the middleware calls [Service.Touch] after a
+// successful authorisation. Hashing happens here so callers do not
+// need to remember to hash themselves.
 func (s *Service) Resolve(ctx context.Context, rawToken string, now time.Time) (Resolved, error) {
 	tokHash := HashToken(rawToken)
 	row, err := s.repo.GetTokenByHash(ctx, tokHash)
@@ -112,7 +126,7 @@ func (s *Service) Resolve(ctx context.Context, rawToken string, now time.Time) (
 		return Resolved{}, fmt.Errorf("auth: unknown stored kind %q", row.Token.Kind)
 	}
 	return Resolved{
-		User: User{
+		User: models.User{
 			ID:        row.UserID,
 			Username:  row.Username,
 			CreatedAt: row.UserCreated,
@@ -124,9 +138,10 @@ func (s *Service) Resolve(ctx context.Context, rawToken string, now time.Time) (
 	}, nil
 }
 
-// Touch updates last_used_at and, for session tokens, extends expires_at
-// by [SessionDuration] from now. API tokens have their last_used_at
-// touched but their expires_at is left alone (user-configured).
+// Touch updates last_used_at and, for session tokens, extends
+// expires_at by [SessionDuration] from now. API tokens have their
+// last_used_at touched but their expires_at is left alone
+// (user-configured).
 func (s *Service) Touch(ctx context.Context, r Resolved, now time.Time) error {
 	p := TouchParams{ID: r.TokenID, LastUsedAt: &now}
 	if r.Kind == constants.TokenKindSession {

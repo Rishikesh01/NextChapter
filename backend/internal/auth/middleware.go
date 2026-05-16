@@ -11,28 +11,22 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/enable-it/nextchapter/backend/constants"
-	"github.com/enable-it/nextchapter/backend/internal/httpapi/api"
+	"github.com/enable-it/nextchapter/backend/internal/httpapi/handlers"
+	"github.com/enable-it/nextchapter/backend/internal/models"
 )
 
-// ctxKey is unexported so callers must go through [UserFromContext] and
-// [RequireUser]. This avoids collisions with other packages' context keys.
+// ctxKey is unexported so callers must go through [ResolvedFromContext].
+// The authenticated user is exposed via [models.UserFromContext].
 type ctxKey int
 
 const (
-	ctxUserKey ctxKey = iota + 1
-	ctxResolvedKey
+	ctxResolvedKey ctxKey = iota + 1
 )
 
-// UserFromContext returns the authenticated user attached to ctx by the
-// middleware, plus a bool indicating presence. Domain code can call this
-// without knowing about gin.
-func UserFromContext(ctx context.Context) (User, bool) {
-	u, ok := ctx.Value(ctxUserKey).(User)
-	return u, ok
-}
-
-// ResolvedFromContext returns the auth lookup metadata for callers that
-// need to know the token id / kind (e.g. /auth/logout).
+// ResolvedFromContext returns the auth lookup metadata for callers
+// inside this package that need to know the token id / kind. The
+// authenticated user is exposed via [models.UserFromContext] to keep
+// handlers off the auth-package import.
 func ResolvedFromContext(ctx context.Context) (Resolved, bool) {
 	r, ok := ctx.Value(ctxResolvedKey).(Resolved)
 	return r, ok
@@ -45,8 +39,9 @@ type MiddlewareConfig struct {
 }
 
 // Middleware returns a gin handler that resolves a session cookie or
-// bearer token to a user and attaches it to the request context. Routes
-// behind this middleware can assume [UserFromContext] returns ok=true.
+// bearer token to a user and attaches it to the request context.
+// Routes behind this middleware can assume [models.UserFromContext]
+// returns ok=true.
 func Middleware(cfg MiddlewareConfig) gin.HandlerFunc {
 	if cfg.Logger == nil {
 		cfg.Logger = zap.NewNop()
@@ -57,8 +52,8 @@ func Middleware(cfg MiddlewareConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		raw, source, ok := extractToken(c)
 		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, api.ErrorBody{Error: api.ErrorDetail{
-				Code:    api.CodeUnauthorized,
+			c.AbortWithStatusJSON(http.StatusUnauthorized, handlers.ErrorBody{Error: handlers.ErrorDetail{
+				Code:    handlers.CodeUnauthorized,
 				Message: "missing or invalid credentials",
 			}})
 			return
@@ -68,8 +63,8 @@ func Middleware(cfg MiddlewareConfig) gin.HandlerFunc {
 			if !errors.Is(err, ErrTokenNotFound) {
 				cfg.Logger.Warn("auth lookup failed", zap.Error(err))
 			}
-			c.AbortWithStatusJSON(http.StatusUnauthorized, api.ErrorBody{Error: api.ErrorDetail{
-				Code:    api.CodeUnauthorized,
+			c.AbortWithStatusJSON(http.StatusUnauthorized, handlers.ErrorBody{Error: handlers.ErrorDetail{
+				Code:    handlers.CodeUnauthorized,
 				Message: "missing or invalid credentials",
 			}})
 			return
@@ -79,8 +74,8 @@ func Middleware(cfg MiddlewareConfig) gin.HandlerFunc {
 		// Prevents a leaked session cookie from being replayed as a
 		// long-lived Bearer credential.
 		if !sourceMatchesKind(source, resolved.Kind) {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, api.ErrorBody{Error: api.ErrorDetail{
-				Code:    api.CodeUnauthorized,
+			c.AbortWithStatusJSON(http.StatusUnauthorized, handlers.ErrorBody{Error: handlers.ErrorDetail{
+				Code:    handlers.CodeUnauthorized,
 				Message: "missing or invalid credentials",
 			}})
 			return
@@ -89,7 +84,7 @@ func Middleware(cfg MiddlewareConfig) gin.HandlerFunc {
 			cfg.Logger.Warn("auth touch failed", zap.Error(err))
 			// Don't fail the request — touching is best-effort.
 		}
-		ctx := context.WithValue(c.Request.Context(), ctxUserKey, resolved.User)
+		ctx := models.WithUser(c.Request.Context(), resolved.User)
 		ctx = context.WithValue(ctx, ctxResolvedKey, resolved)
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()

@@ -15,11 +15,9 @@ import (
 
 	"github.com/enable-it/nextchapter/backend/constants"
 	"github.com/enable-it/nextchapter/backend/internal/auth"
-	"github.com/enable-it/nextchapter/backend/internal/entries"
 	"github.com/enable-it/nextchapter/backend/internal/httpapi/handlers"
-	"github.com/enable-it/nextchapter/backend/internal/series"
+	"github.com/enable-it/nextchapter/backend/internal/models"
 	gen "github.com/enable-it/nextchapter/backend/internal/store/generated"
-	"github.com/enable-it/nextchapter/backend/internal/users"
 )
 
 // intPtr is a tiny helper for expected-body DTO literals where a *int
@@ -58,7 +56,7 @@ func TestSelfHostedOperatorBootsAndRegistersFirstUser(t *testing.T) {
 		Name:           "first /auth/register on fresh DB returns 201",
 		Method:         http.MethodPost,
 		Path:           "/auth/register",
-		Body:           users.RegisterParams{Username: "alice", Password: "correct horse battery"},
+		Body:           models.Registration{Username: "alice", Password: "correct horse battery"},
 		ExpectedStatus: http.StatusCreated,
 		ExpectedBody:   handlers.UserResponse{Username: "alice"},
 		SentinelPaths:  []string{"id", "created_at"},
@@ -72,7 +70,7 @@ func TestSelfHostedOperatorBootsAndRegistersFirstUser(t *testing.T) {
 		Name:           "second /auth/register call closes the window with 404",
 		Method:         http.MethodPost,
 		Path:           "/auth/register",
-		Body:           users.RegisterParams{Username: "mallory", Password: "another password"},
+		Body:           models.Registration{Username: "mallory", Password: "another password"},
 		ExpectedStatus: http.StatusNotFound,
 		ExpectedBody:   notFoundBody,
 	}).do(t, h)
@@ -142,7 +140,7 @@ func TestEnvVarBootstrapClosesRegistrationFromTheStart(t *testing.T) {
 		Name:           "/auth/register is closed",
 		Method:         http.MethodPost,
 		Path:           "/auth/register",
-		Body:           users.RegisterParams{Username: "mallory", Password: "another password"},
+		Body:           models.Registration{Username: "mallory", Password: "another password"},
 		ExpectedStatus: http.StatusNotFound,
 		ExpectedBody:   notFoundBody,
 	}).do(t, h)
@@ -151,7 +149,7 @@ func TestEnvVarBootstrapClosesRegistrationFromTheStart(t *testing.T) {
 		Name:           "/auth/login with the bootstrap creds succeeds",
 		Method:         http.MethodPost,
 		Path:           "/auth/login",
-		Body:           auth.LoginParams{Username: "alice", Password: "correct horse battery"},
+		Body:           models.Credentials{Username: "alice", Password: "correct horse battery"},
 		ExpectedStatus: http.StatusOK,
 		ExpectedBody:   handlers.UserResponse{Username: "alice"},
 		SentinelPaths:  []string{"id", "created_at"},
@@ -193,7 +191,7 @@ func TestUserCapturesChapterProgressAcrossSites(t *testing.T) {
 	_, seriesBody := (testRequest{
 		Method:         http.MethodPost,
 		Path:           "/series",
-		Body:           series.CreateParams{Title: "Solo Leveling", Status: constants.StatusReading},
+		Body:           models.SeriesNew{Title: "Solo Leveling", Status: constants.StatusReading},
 		ExpectedStatus: http.StatusCreated,
 		ExpectedBody:   handlers.SeriesResponse{Title: "Solo Leveling", Status: constants.StatusReading},
 		SentinelPaths:  []string{"id", "created_at", "updated_at"},
@@ -214,7 +212,7 @@ func TestUserCapturesChapterProgressAcrossSites(t *testing.T) {
 		Name:   "first capture creates an entry",
 		Method: http.MethodPost,
 		Path:   "/entries/capture",
-		Body: entries.CaptureParams{
+		Body: models.EntryCapture{
 			SiteHost:   "reader.example.com",
 			SeriesSlug: "solo-leveling",
 			SiteTitle:  "Solo Leveling",
@@ -245,7 +243,7 @@ func TestUserCapturesChapterProgressAcrossSites(t *testing.T) {
 		Name:   "re-capture at higher chapter advances last_chapter",
 		Method: http.MethodPost,
 		Path:   "/entries/capture",
-		Body: entries.CaptureParams{
+		Body: models.EntryCapture{
 			SiteHost:   "reader.example.com",
 			SeriesSlug: "solo-leveling",
 			SiteTitle:  "Solo Leveling",
@@ -277,7 +275,7 @@ func TestUserCapturesChapterProgressAcrossSites(t *testing.T) {
 		Name:   "rewind capture is a no-op on last_chapter",
 		Method: http.MethodPost,
 		Path:   "/entries/capture",
-		Body: entries.CaptureParams{
+		Body: models.EntryCapture{
 			SiteHost:   "reader.example.com",
 			SeriesSlug: "solo-leveling",
 			SiteTitle:  "Solo Leveling",
@@ -305,7 +303,7 @@ func TestUserCapturesChapterProgressAcrossSites(t *testing.T) {
 		Name:   "second-site capture allocates a new entry row",
 		Method: http.MethodPost,
 		Path:   "/entries/capture",
-		Body: entries.CaptureParams{
+		Body: models.EntryCapture{
 			SiteHost:   "comics.example.org",
 			SeriesSlug: "solo-leveling-i-alone-level-up",
 			SiteTitle:  "Solo Leveling (I Alone Level Up)",
@@ -382,7 +380,7 @@ func TestUserReassignsEntryBetweenSeries(t *testing.T) {
 		Name:           "seed series 1",
 		Method:         http.MethodPost,
 		Path:           "/series",
-		Body:           series.CreateParams{Title: "Solo Leveling"},
+		Body:           models.SeriesNew{Title: "Solo Leveling"},
 		ExpectedStatus: http.StatusCreated,
 		ExpectedBody:   handlers.SeriesResponse{Title: "Solo Leveling", Status: constants.StatusReading},
 		SentinelPaths:  []string{"id", "created_at", "updated_at"},
@@ -393,7 +391,7 @@ func TestUserReassignsEntryBetweenSeries(t *testing.T) {
 		Name:           "seed series 2",
 		Method:         http.MethodPost,
 		Path:           "/series",
-		Body:           series.CreateParams{Title: "Solo Leveling (continuation)"},
+		Body:           models.SeriesNew{Title: "Solo Leveling (continuation)"},
 		ExpectedStatus: http.StatusCreated,
 		ExpectedBody:   handlers.SeriesResponse{Title: "Solo Leveling (continuation)", Status: constants.StatusReading},
 		SentinelPaths:  []string{"id", "created_at", "updated_at"},
@@ -405,7 +403,7 @@ func TestUserReassignsEntryBetweenSeries(t *testing.T) {
 		Name:   "seed entry on series 1",
 		Method: http.MethodPost,
 		Path:   "/entries/capture",
-		Body: entries.CaptureParams{
+		Body: models.EntryCapture{
 			SiteHost:   "reader.example.com",
 			SeriesSlug: "solo-leveling",
 			SiteTitle:  "Solo Leveling",
@@ -430,7 +428,7 @@ func TestUserReassignsEntryBetweenSeries(t *testing.T) {
 		Name:           "PATCH /entries/{id} returns the updated entry with the new series_id",
 		Method:         http.MethodPatch,
 		Path:           fmt.Sprintf("/entries/%d", entryID),
-		Body:           entries.UpdateParams{SeriesID: &s2ID},
+		Body:           models.EntryPatch{SeriesID: &s2ID},
 		ExpectedStatus: http.StatusOK,
 		ExpectedBody: handlers.EntryResponse{
 			ID:          entryID,
@@ -517,7 +515,7 @@ func TestAPITokenBearerFlow(t *testing.T) {
 		Name:           "minting a token via cookie session returns raw token once",
 		Method:         http.MethodPost,
 		Path:           "/auth/tokens",
-		Body:           auth.CreateTokenParams{Label: "extension"},
+		Body:           models.NewToken{Label: "extension"},
 		ExpectedStatus: http.StatusCreated,
 		ExpectedBody: handlers.APITokenCreatedResponse{
 			APITokenResponse: handlers.APITokenResponse{
@@ -657,7 +655,7 @@ func TestTokenKindSeparationIsEnforced(t *testing.T) {
 // PATCH /series/{id}: an absent field is left alone, a present field
 // updates the column, and `rating: null` on the wire is a no-op
 // (matches "absent"). The v1 API does not allow clearing rating via
-// PATCH — see [series.UpdateParams].
+// PATCH — see [models.SeriesPatch].
 func TestPatchSeriesFieldSemantics(t *testing.T) {
 	t.Parallel()
 	r := require.New(t)
@@ -669,7 +667,7 @@ func TestPatchSeriesFieldSemantics(t *testing.T) {
 		Name:   "seed series with rating + notes",
 		Method: http.MethodPost,
 		Path:   "/series",
-		Body: series.CreateParams{
+		Body: models.SeriesNew{
 			Title:  "Omniscient Reader's Viewpoint",
 			Status: constants.StatusReading,
 			Rating: intPtr(8),
@@ -693,7 +691,7 @@ func TestPatchSeriesFieldSemantics(t *testing.T) {
 		Name:           "updating notes leaves rating and status untouched",
 		Method:         http.MethodPatch,
 		Path:           patchPath,
-		Body:           series.UpdateParams{Notes: &notes},
+		Body:           models.SeriesPatch{Notes: &notes},
 		ExpectedStatus: http.StatusOK,
 		ExpectedBody: handlers.SeriesResponse{
 			ID:     seriesID,
@@ -742,7 +740,7 @@ func TestPatchSeriesFieldSemantics(t *testing.T) {
 		Name:           "status update flips the column",
 		Method:         http.MethodPatch,
 		Path:           patchPath,
-		Body:           series.UpdateParams{Status: &status},
+		Body:           models.SeriesPatch{Status: &status},
 		ExpectedStatus: http.StatusOK,
 		ExpectedBody: handlers.SeriesResponse{
 			ID:     seriesID,
@@ -775,7 +773,7 @@ func TestCaptureNormalisesSiteHost(t *testing.T) {
 		Name:           "seed series for host-normalisation capture",
 		Method:         http.MethodPost,
 		Path:           "/series",
-		Body:           series.CreateParams{Title: "Solo Leveling (host-norm)", Status: constants.StatusReading},
+		Body:           models.SeriesNew{Title: "Solo Leveling (host-norm)", Status: constants.StatusReading},
 		ExpectedStatus: http.StatusCreated,
 		ExpectedBody:   handlers.SeriesResponse{Title: "Solo Leveling (host-norm)", Status: constants.StatusReading},
 		SentinelPaths:  []string{"id", "created_at", "updated_at"},
@@ -788,7 +786,7 @@ func TestCaptureNormalisesSiteHost(t *testing.T) {
 		Name:   "first capture normalises SiteHost to lowercase no-www",
 		Method: http.MethodPost,
 		Path:   "/entries/capture",
-		Body: entries.CaptureParams{
+		Body: models.EntryCapture{
 			SiteHost:   "WWW.reader.example.com",
 			SeriesSlug: "solo-leveling-host-norm",
 			SiteTitle:  "Solo Leveling",
@@ -821,7 +819,7 @@ func TestCaptureNormalisesSiteHost(t *testing.T) {
 		Name:   "second capture with canonical host hits the same entry",
 		Method: http.MethodPost,
 		Path:   "/entries/capture",
-		Body: entries.CaptureParams{
+		Body: models.EntryCapture{
 			SiteHost:   "reader.example.com",
 			SeriesSlug: "solo-leveling-host-norm",
 			SiteTitle:  "Solo Leveling",

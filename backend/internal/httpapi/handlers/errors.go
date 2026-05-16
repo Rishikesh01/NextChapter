@@ -1,11 +1,4 @@
-// Package api holds the JSON wire types shared between the handlers
-// package and middleware that emits the same error envelope. It exists
-// solely to break the import cycle that arises when middleware in
-// internal/auth needs to write the openapi "Error" shape — and the
-// handlers package, which also writes it, already imports
-// internal/auth. Keeping these types here lets both sides import a
-// neutral package without a render-helper layer.
-package api
+package handlers
 
 // Error codes used in the ErrorBody envelope. The set matches the
 // openapi schema description.

@@ -13,7 +13,6 @@ import (
 
 	"github.com/enable-it/nextchapter/backend/internal/auth"
 	"github.com/enable-it/nextchapter/backend/internal/entries"
-	"github.com/enable-it/nextchapter/backend/internal/httpapi/api"
 	"github.com/enable-it/nextchapter/backend/internal/httpapi/handlers"
 	"github.com/enable-it/nextchapter/backend/internal/httpapi/middleware"
 	"github.com/enable-it/nextchapter/backend/internal/series"
@@ -21,7 +20,9 @@ import (
 )
 
 // Deps is everything the router needs to build itself. The cmd/server
-// main wires this struct up once.
+// main wires this struct up once. Service fields are typed against
+// the concrete domain packages here because the router is the seam
+// where wiring happens; handlers receive them as [models] interfaces.
 type Deps struct {
 	Users          *users.Service
 	Auth           *auth.Service
@@ -78,10 +79,11 @@ func New(d Deps) *gin.Engine {
 	}))
 	authed.POST("/auth/logout", authDeps.Logout)
 	authed.GET("/auth/me", authDeps.Me)
-	// /auth/tokens: POST mints, DELETE/:id revokes. No list endpoint —
-	// the raw token is only ever returned once on mint, so a listing
-	// adds attack surface (revealing label/last-used-at metadata) for
-	// no product benefit the operator can't get via the DB directly.
+	// /auth/tokens: POST mints, DELETE/:id revokes. No list endpoint
+	// — the raw token is only ever returned once on mint, so a
+	// listing adds attack surface (revealing label/last-used-at
+	// metadata) for no product benefit the operator can't get via
+	// the DB directly.
 	authed.POST("/auth/tokens", authDeps.CreateToken)
 	authed.DELETE("/auth/tokens/:id", authDeps.DeleteToken)
 
@@ -102,11 +104,11 @@ func New(d Deps) *gin.Engine {
 	authed.PATCH("/entries/:id", entriesDeps.Patch)
 	authed.DELETE("/entries/:id", entriesDeps.Delete)
 
-	// Method-mismatch / unknown-route fallback. We do not advertise the
-	// /auth/register endpoint to closed-window callers.
+	// Method-mismatch / unknown-route fallback. We do not advertise
+	// the /auth/register endpoint to closed-window callers.
 	r.NoRoute(func(c *gin.Context) {
-		c.AbortWithStatusJSON(http.StatusNotFound, api.ErrorBody{Error: api.ErrorDetail{
-			Code:    api.CodeNotFound,
+		c.AbortWithStatusJSON(http.StatusNotFound, handlers.ErrorBody{Error: handlers.ErrorDetail{
+			Code:    handlers.CodeNotFound,
 			Message: "not found",
 		}})
 	})
@@ -114,7 +116,7 @@ func New(d Deps) *gin.Engine {
 	return r
 }
 
-// seriesCreatorAdapter adapts *series.Service to entries.SeriesCreator.
+// seriesCreatorAdapter adapts *series.Service to models.SeriesCreator.
 type seriesCreatorAdapter struct{ s *series.Service }
 
 func (a seriesCreatorAdapter) Create(ctx context.Context, userID int64, title string) (int64, error) {

@@ -26,6 +26,7 @@ import (
 	"github.com/enable-it/nextchapter/backend/internal/entries"
 	"github.com/enable-it/nextchapter/backend/internal/httpapi"
 	"github.com/enable-it/nextchapter/backend/internal/httpapi/handlers"
+	"github.com/enable-it/nextchapter/backend/internal/models"
 	"github.com/enable-it/nextchapter/backend/internal/series"
 	"github.com/enable-it/nextchapter/backend/internal/store"
 	gen "github.com/enable-it/nextchapter/backend/internal/store/generated"
@@ -79,7 +80,7 @@ func startServer(t *testing.T, cfg config.Config) *harness {
 		n, err := usrSvc.Count(ctx)
 		r.NoError(err)
 		if n == 0 {
-			_, err := usrSvc.Create(ctx, users.RegisterParams{
+			_, err := usrSvc.Create(ctx, models.Registration{
 				Username: cfg.BootstrapUsername,
 				Password: cfg.BootstrapPassword,
 			})
@@ -151,7 +152,7 @@ func newAuthenticatedHarness(t *testing.T) *harness {
 	(testRequest{
 		Method:         http.MethodPost,
 		Path:           "/auth/login",
-		Body:           auth.LoginParams{Username: "alice", Password: "correct horse battery"},
+		Body:           models.Credentials{Username: "alice", Password: "correct horse battery"},
 		ExpectedStatus: http.StatusOK,
 		ExpectedBody:   handlers.UserResponse{Username: "alice"},
 		SentinelPaths:  []string{"id", "created_at"},
@@ -243,8 +244,8 @@ func decodeMintedToken(t *testing.T, body []byte) (id int64, token string) {
 //     request; leave it empty for single-request tests so the runner
 //     doesn't add a noisy extra layer in -v output. When Name is
 //     empty, do runs inline on the passed *testing.T.
-//   - Body / ExpectedBody: typed values from the service/handlers
-//     packages (e.g. series.CreateParams for requests,
+//   - Body / ExpectedBody: typed values from the models / handlers
+//     packages (e.g. models.SeriesNew for requests,
 //     handlers.SeriesResponse for responses). Marshalled to JSON for
 //     both wire payload and JSONEq comparison.
 //   - ExpectedBody == nil: assert the response body is empty

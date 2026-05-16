@@ -11,7 +11,18 @@ import (
 	"time"
 
 	"github.com/enable-it/nextchapter/backend/constants"
+	"github.com/enable-it/nextchapter/backend/internal/models"
 )
+
+// Service exposes the entries domain to handlers.
+type Service struct {
+	repo Repository
+	now  func() time.Time
+}
+
+// Compile-time check: the concrete Service satisfies the
+// models.EntriesService surface that handlers consume.
+var _ models.EntriesService = (*Service)(nil)
 
 // NewService builds a Service.
 func NewService(repo Repository, now func() time.Time) *Service {
@@ -28,10 +39,24 @@ func NewService(repo Repository, now func() time.Time) *Service {
 //   - Else: create a new row attached to either p.SeriesID (must exist
 //     and belong to the user) or a fresh series titled
 //     *p.NewSeriesTitle. 201 Created.
-func (s *Service) Capture(ctx context.Context, userID int64, p CaptureParams, sc SeriesCreator) (CaptureResult, error) {
-	// p.Chapter is *float64 because the wire treats 0 as a valid chapter
-	// (binding:"required" rejects the missing case). Once we're past
-	// ShouldBindJSON it's safe to deref.
+//
+// The bool return is "was-created": true => 201, false => 200.
+func (s *Service) Capture(ctx context.Context, userID int64, p models.EntryCapture, sc models.SeriesCreator) (models.Entry, bool, error) {
+	res, err := s.capture(ctx, userID, p, sc)
+	if err != nil {
+		return models.Entry{}, false, err
+	}
+	return res.Entry, res.Created, nil
+}
+
+// capture is the unwrapped core; it returns the package-internal
+// captureResult and is kept separate from [Service.Capture] for
+// readability. The public surface is the (entry, created, err) shape
+// on the interface.
+func (s *Service) capture(ctx context.Context, userID int64, p models.EntryCapture, sc models.SeriesCreator) (captureResult, error) {
+	// p.Chapter is *float64 because the wire treats 0 as a valid
+	// chapter (binding:"required" rejects the missing case). Once
+	// we're past ShouldBindJSON it's safe to deref.
 	chapter := *p.Chapter
 	existing, err := s.repo.GetEntryByKey(ctx, GetEntryByKeyParams{
 		UserID:     userID,
@@ -49,9 +74,9 @@ func (s *Service) Capture(ctx context.Context, userID int64, p CaptureParams, sc
 			newURL = p.URL
 			newTitle = p.SiteTitle
 		}
-		// Even a no-op click bumps last_captured_at, per "where was I"
-		// product framing: the user clicked again so they're reading
-		// it again right now.
+		// Even a no-op click bumps last_captured_at, per "where was
+		// I" product framing: the user clicked again so they're
+		// reading it again right now.
 		row, err := s.repo.AdvanceEntry(ctx, AdvanceEntryParams{
 			ID:             existing.ID,
 			UserID:         userID,
@@ -62,12 +87,12 @@ func (s *Service) Capture(ctx context.Context, userID int64, p CaptureParams, sc
 			UpdatedAt:      now,
 		})
 		if err != nil {
-			return CaptureResult{}, err
+			return captureResult{}, err
 		}
-		return CaptureResult{Entry: row, Created: false}, nil
+		return captureResult{Entry: row, Created: false}, nil
 	}
 	if !errors.Is(err, ErrNotFound) {
-		return CaptureResult{}, err
+		return captureResult{}, err
 	}
 
 	// Create path.
@@ -76,20 +101,20 @@ func (s *Service) Capture(ctx context.Context, userID int64, p CaptureParams, sc
 	case p.SeriesID != nil:
 		ok, err := s.repo.SeriesExists(ctx, userID, *p.SeriesID)
 		if err != nil {
-			return CaptureResult{}, err
+			return captureResult{}, err
 		}
 		if !ok {
-			return CaptureResult{}, ErrSeriesNotFound
+			return captureResult{}, ErrSeriesNotFound
 		}
 		seriesID = *p.SeriesID
 	case p.NewSeriesTitle != nil && *p.NewSeriesTitle != "":
 		id, err := sc.Create(ctx, userID, *p.NewSeriesTitle)
 		if err != nil {
-			return CaptureResult{}, fmt.Errorf("entries: create implicit series: %w", err)
+			return captureResult{}, fmt.Errorf("entries: create implicit series: %w", err)
 		}
 		seriesID = id
 	default:
-		return CaptureResult{}, ErrSeriesRequired
+		return captureResult{}, ErrSeriesRequired
 	}
 
 	now := s.now().UTC()
@@ -106,13 +131,13 @@ func (s *Service) Capture(ctx context.Context, userID int64, p CaptureParams, sc
 		UpdatedAt:      now,
 	})
 	if err != nil {
-		return CaptureResult{}, err
+		return captureResult{}, err
 	}
-	return CaptureResult{Entry: row, Created: true}, nil
+	return captureResult{Entry: row, Created: true}, nil
 }
 
 // List returns a page of entries plus the total count for the user.
-func (s *Service) List(ctx context.Context, userID int64, p ListParams) ([]Entry, int64, error) {
+func (s *Service) List(ctx context.Context, userID int64, p models.EntryFilter) ([]models.Entry, int64, error) {
 	limit := p.Limit
 	if limit <= 0 {
 		limit = constants.ListLimitDefault
@@ -156,32 +181,34 @@ func (s *Service) List(ctx context.Context, userID int64, p ListParams) ([]Entry
 }
 
 // ListForSeries returns every entry attached to seriesID. Used by
-// series.Service.Detail to embed the per-site breakdown.
-func (s *Service) ListForSeries(ctx context.Context, userID, seriesID int64) ([]Entry, error) {
+// series.Service.Detail to embed the per-site breakdown. Off the
+// public models.EntriesService interface because it's an
+// internal-only cross-service call.
+func (s *Service) ListForSeries(ctx context.Context, userID, seriesID int64) ([]models.Entry, error) {
 	return s.repo.ListEntriesAllForSeries(ctx, userID, seriesID)
 }
 
 // Get returns one entry, scoped to the owning user.
-func (s *Service) Get(ctx context.Context, userID, id int64) (Entry, error) {
+func (s *Service) Get(ctx context.Context, userID, id int64) (models.Entry, error) {
 	return s.repo.GetEntryByID(ctx, userID, id)
 }
 
-// Update applies a partial patch. Reassignment is just SeriesID being
+// Patch applies a partial update. Reassignment is just SeriesID being
 // set to a different (existing, owned) series. Manual correction is
 // LastChapter / LastURL / SiteTitle.
-func (s *Service) Update(ctx context.Context, userID, id int64, p UpdateParams) (Entry, error) {
+func (s *Service) Patch(ctx context.Context, userID, id int64, p models.EntryPatch) (models.Entry, error) {
 	current, err := s.Get(ctx, userID, id)
 	if err != nil {
-		return Entry{}, err
+		return models.Entry{}, err
 	}
 	seriesID := current.SeriesID
 	if p.SeriesID != nil && *p.SeriesID != seriesID {
 		ok, err := s.repo.SeriesExists(ctx, userID, *p.SeriesID)
 		if err != nil {
-			return Entry{}, err
+			return models.Entry{}, err
 		}
 		if !ok {
-			return Entry{}, ErrSeriesNotFound
+			return models.Entry{}, ErrSeriesNotFound
 		}
 		seriesID = *p.SeriesID
 	}

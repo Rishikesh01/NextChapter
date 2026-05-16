@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/enable-it/nextchapter/backend/internal/models"
 	gen "github.com/enable-it/nextchapter/backend/internal/store/generated"
 )
 
@@ -15,7 +16,7 @@ func NewRepository(q *gen.Queries) Repository {
 	return &repository{q: q}
 }
 
-func (r *repository) CreateToken(ctx context.Context, p InsertTokenParams) (Token, error) {
+func (r *repository) CreateToken(ctx context.Context, p InsertTokenParams) (models.Token, error) {
 	var label sql.NullString
 	if p.LabelValid {
 		label = sql.NullString{String: p.Label, Valid: true}
@@ -30,7 +31,7 @@ func (r *repository) CreateToken(ctx context.Context, p InsertTokenParams) (Toke
 		ExpiresAt:  timePtrToNullTime(p.ExpiresAt),
 	})
 	if err != nil {
-		return Token{}, fmt.Errorf("auth: create token: %w", err)
+		return models.Token{}, fmt.Errorf("auth: create token: %w", err)
 	}
 	return tokenFromGen(row), nil
 }
@@ -44,7 +45,7 @@ func (r *repository) GetTokenByHash(ctx context.Context, tokenHash string) (Look
 		return LookupRow{}, fmt.Errorf("auth: lookup token: %w", err)
 	}
 	return LookupRow{
-		Token: Token{
+		Token: models.Token{
 			ID:         row.ID,
 			UserID:     row.UserID,
 			Kind:       row.Kind,
@@ -96,24 +97,24 @@ func (r *repository) DeleteTokenByHash(ctx context.Context, tokenHash string) er
 	return nil
 }
 
-func (r *repository) ListAPITokens(ctx context.Context, userID int64) ([]Token, error) {
+func (r *repository) ListAPITokens(ctx context.Context, userID int64) ([]models.Token, error) {
 	rows, err := r.q.ListAPITokens(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("auth: list api tokens: %w", err)
 	}
-	out := make([]Token, 0, len(rows))
+	out := make([]models.Token, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, tokenFromGen(row))
 	}
 	return out, nil
 }
 
-func (r *repository) ListSessionTokens(ctx context.Context, userID int64) ([]Token, error) {
+func (r *repository) ListSessionTokens(ctx context.Context, userID int64) ([]models.Token, error) {
 	rows, err := r.q.ListSessionTokens(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("auth: list session tokens: %w", err)
 	}
-	out := make([]Token, 0, len(rows))
+	out := make([]models.Token, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, tokenFromGen(row))
 	}
@@ -122,8 +123,8 @@ func (r *repository) ListSessionTokens(ctx context.Context, userID int64) ([]Tok
 
 // --- conversion helpers --------------------------------------------------
 
-func tokenFromGen(t gen.AuthToken) Token {
-	return Token{
+func tokenFromGen(t gen.AuthToken) models.Token {
+	return models.Token{
 		ID:         t.ID,
 		UserID:     t.UserID,
 		Kind:       t.Kind,

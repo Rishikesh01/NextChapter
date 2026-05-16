@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/enable-it/nextchapter/backend/internal/models"
 	gen "github.com/enable-it/nextchapter/backend/internal/store/generated"
 )
 
@@ -14,18 +15,18 @@ func NewRepository(q *gen.Queries) Repository {
 	return &repository{q: q}
 }
 
-func (r *repository) GetEntryByID(ctx context.Context, userID, id int64) (Entry, error) {
+func (r *repository) GetEntryByID(ctx context.Context, userID, id int64) (models.Entry, error) {
 	row, err := r.q.GetEntryByID(ctx, gen.GetEntryByIDParams{ID: id, UserID: userID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return Entry{}, ErrNotFound
+			return models.Entry{}, ErrNotFound
 		}
-		return Entry{}, fmt.Errorf("entries: get by id: %w", err)
+		return models.Entry{}, fmt.Errorf("entries: get by id: %w", err)
 	}
 	return entryFromGen(row), nil
 }
 
-func (r *repository) GetEntryByKey(ctx context.Context, p GetEntryByKeyParams) (Entry, error) {
+func (r *repository) GetEntryByKey(ctx context.Context, p GetEntryByKeyParams) (models.Entry, error) {
 	row, err := r.q.GetEntryByKey(ctx, gen.GetEntryByKeyParams{
 		UserID:     p.UserID,
 		SiteHost:   p.SiteHost,
@@ -33,14 +34,14 @@ func (r *repository) GetEntryByKey(ctx context.Context, p GetEntryByKeyParams) (
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return Entry{}, ErrNotFound
+			return models.Entry{}, ErrNotFound
 		}
-		return Entry{}, fmt.Errorf("entries: get by key: %w", err)
+		return models.Entry{}, fmt.Errorf("entries: get by key: %w", err)
 	}
 	return entryFromGen(row), nil
 }
 
-func (r *repository) InsertEntry(ctx context.Context, p InsertEntryParams) (Entry, error) {
+func (r *repository) InsertEntry(ctx context.Context, p InsertEntryParams) (models.Entry, error) {
 	row, err := r.q.CreateEntry(ctx, gen.CreateEntryParams{
 		UserID:         p.UserID,
 		SeriesID:       p.SeriesID,
@@ -54,12 +55,12 @@ func (r *repository) InsertEntry(ctx context.Context, p InsertEntryParams) (Entr
 		UpdatedAt:      p.UpdatedAt,
 	})
 	if err != nil {
-		return Entry{}, fmt.Errorf("entries: insert: %w", err)
+		return models.Entry{}, fmt.Errorf("entries: insert: %w", err)
 	}
 	return entryFromGen(row), nil
 }
 
-func (r *repository) AdvanceEntry(ctx context.Context, p AdvanceEntryParams) (Entry, error) {
+func (r *repository) AdvanceEntry(ctx context.Context, p AdvanceEntryParams) (models.Entry, error) {
 	row, err := r.q.AdvanceEntry(ctx, gen.AdvanceEntryParams{
 		LastChapter:    p.LastChapter,
 		LastUrl:        p.LastURL,
@@ -70,12 +71,12 @@ func (r *repository) AdvanceEntry(ctx context.Context, p AdvanceEntryParams) (En
 		UserID:         p.UserID,
 	})
 	if err != nil {
-		return Entry{}, fmt.Errorf("entries: advance: %w", err)
+		return models.Entry{}, fmt.Errorf("entries: advance: %w", err)
 	}
 	return entryFromGen(row), nil
 }
 
-func (r *repository) UpdateEntry(ctx context.Context, p UpdateEntryParams) (Entry, error) {
+func (r *repository) UpdateEntry(ctx context.Context, p UpdateEntryParams) (models.Entry, error) {
 	row, err := r.q.UpdateEntry(ctx, gen.UpdateEntryParams{
 		SeriesID:    p.SeriesID,
 		LastChapter: p.LastChapter,
@@ -87,9 +88,9 @@ func (r *repository) UpdateEntry(ctx context.Context, p UpdateEntryParams) (Entr
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return Entry{}, ErrNotFound
+			return models.Entry{}, ErrNotFound
 		}
-		return Entry{}, fmt.Errorf("entries: update: %w", err)
+		return models.Entry{}, fmt.Errorf("entries: update: %w", err)
 	}
 	return entryFromGen(row), nil
 }
@@ -102,7 +103,7 @@ func (r *repository) DeleteEntry(ctx context.Context, userID, id int64) (int64, 
 	return n, nil
 }
 
-func (r *repository) ListEntriesAll(ctx context.Context, p ListEntriesAllParams) ([]Entry, error) {
+func (r *repository) ListEntriesAll(ctx context.Context, p ListEntriesAllParams) ([]models.Entry, error) {
 	rows, err := r.q.ListEntriesAll(ctx, gen.ListEntriesAllParams{
 		UserID: p.UserID,
 		Limit:  p.Limit,
@@ -111,14 +112,14 @@ func (r *repository) ListEntriesAll(ctx context.Context, p ListEntriesAllParams)
 	if err != nil {
 		return nil, fmt.Errorf("entries: list all: %w", err)
 	}
-	out := make([]Entry, 0, len(rows))
+	out := make([]models.Entry, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, entryFromGen(row))
 	}
 	return out, nil
 }
 
-func (r *repository) ListEntriesBySeries(ctx context.Context, p ListEntriesBySeriesParams) ([]Entry, error) {
+func (r *repository) ListEntriesBySeries(ctx context.Context, p ListEntriesBySeriesParams) ([]models.Entry, error) {
 	rows, err := r.q.ListEntriesBySeries(ctx, gen.ListEntriesBySeriesParams{
 		UserID:   p.UserID,
 		SeriesID: p.SeriesID,
@@ -128,14 +129,14 @@ func (r *repository) ListEntriesBySeries(ctx context.Context, p ListEntriesBySer
 	if err != nil {
 		return nil, fmt.Errorf("entries: list by series: %w", err)
 	}
-	out := make([]Entry, 0, len(rows))
+	out := make([]models.Entry, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, entryFromGen(row))
 	}
 	return out, nil
 }
 
-func (r *repository) ListEntriesAllForSeries(ctx context.Context, userID, seriesID int64) ([]Entry, error) {
+func (r *repository) ListEntriesAllForSeries(ctx context.Context, userID, seriesID int64) ([]models.Entry, error) {
 	rows, err := r.q.ListEntriesAllForSeries(ctx, gen.ListEntriesAllForSeriesParams{
 		UserID:   userID,
 		SeriesID: seriesID,
@@ -143,7 +144,7 @@ func (r *repository) ListEntriesAllForSeries(ctx context.Context, userID, series
 	if err != nil {
 		return nil, fmt.Errorf("entries: list all for series: %w", err)
 	}
-	out := make([]Entry, 0, len(rows))
+	out := make([]models.Entry, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, entryFromGen(row))
 	}
@@ -177,8 +178,8 @@ func (r *repository) SeriesExists(ctx context.Context, userID, seriesID int64) (
 	return v != 0, nil
 }
 
-func entryFromGen(r gen.Entry) Entry {
-	return Entry{
+func entryFromGen(r gen.Entry) models.Entry {
+	return models.Entry{
 		ID:             r.ID,
 		UserID:         r.UserID,
 		SeriesID:       r.SeriesID,

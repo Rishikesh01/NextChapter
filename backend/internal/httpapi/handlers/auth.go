@@ -1,5 +1,12 @@
 // Package handlers contains the gin route handlers. One file per
 // resource, matching the openapi tags (auth, series, entries, meta).
+//
+// Import discipline: handlers depend only on [internal/models] for
+// cross-package types and on [constants]. Domain packages (auth,
+// users, series, entries) are NOT imported here — services arrive
+// pre-wired via the *Deps structs from [internal/httpapi/router.go],
+// and error comparisons go through the canonical sentinels in
+// [internal/models].
 package handlers
 
 import (
@@ -12,15 +19,21 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/enable-it/nextchapter/backend/constants"
-	"github.com/enable-it/nextchapter/backend/internal/auth"
-	"github.com/enable-it/nextchapter/backend/internal/httpapi/api"
-	"github.com/enable-it/nextchapter/backend/internal/users"
+	"github.com/enable-it/nextchapter/backend/internal/models"
 )
 
-// AuthDeps groups the dependencies the auth handlers need.
+// sessionCookieMaxAge is the Max-Age set on the session cookie. Kept
+// here (not in [internal/auth]) so handlers do not import the auth
+// package; the value mirrors auth.SessionDuration (30 days). If they
+// drift the integration tests will pin the bug.
+const sessionCookieMaxAge = 30 * 24 * 60 * 60 // seconds
+
+// AuthDeps groups the dependencies the auth handlers need. The
+// service fields are typed against [models] interfaces so handlers
+// stay decoupled from the auth / users packages.
 type AuthDeps struct {
-	Users        *users.Service
-	Auth         *auth.Service
+	Users        models.UsersService
+	Auth         models.AuthService
 	Logger       *zap.Logger
 	HasEnvBoot   bool // env-var bootstrap enabled; closes /auth/register entirely.
 	CookieDomain string
@@ -28,24 +41,25 @@ type AuthDeps struct {
 	Now          func() time.Time
 }
 
-// UserResponse is the JSON shape returned for /auth/me, /auth/login, /auth/register.
+// UserResponse is the JSON shape returned for /auth/me, /auth/login,
+// /auth/register.
 type UserResponse struct {
 	ID        int64     `json:"id"`
 	Username  string    `json:"username"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func userToJSON(id int64, username string, createdAt time.Time) UserResponse {
-	return UserResponse{ID: id, Username: username, CreatedAt: createdAt}
+func userToJSON(u models.User) UserResponse {
+	return UserResponse{ID: u.ID, Username: u.Username, CreatedAt: u.CreatedAt}
 }
 
-// Register implements POST /auth/register, the open-registration window.
-// Returns 404 when the window is closed (users exist, or env-var
-// bootstrap is configured).
+// Register implements POST /auth/register, the open-registration
+// window. Returns 404 when the window is closed (users exist, or
+// env-var bootstrap is configured).
 func (d AuthDeps) Register(c *gin.Context) {
 	if d.HasEnvBoot {
-		c.AbortWithStatusJSON(http.StatusNotFound, api.ErrorBody{Error: api.ErrorDetail{
-			Code:    api.CodeNotFound,
+		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
+			Code:    CodeNotFound,
 			Message: "not found",
 		}})
 		return
@@ -53,32 +67,32 @@ func (d AuthDeps) Register(c *gin.Context) {
 	count, err := d.Users.Count(c.Request.Context())
 	if err != nil {
 		d.Logger.Error("register: count users", zap.Error(err))
-		c.AbortWithStatusJSON(http.StatusInternalServerError, api.ErrorBody{Error: api.ErrorDetail{
-			Code:    api.CodeInternal,
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
+			Code:    CodeInternal,
 			Message: "internal server error",
 		}})
 		return
 	}
 	if count > 0 {
-		c.AbortWithStatusJSON(http.StatusNotFound, api.ErrorBody{Error: api.ErrorDetail{
-			Code:    api.CodeNotFound,
+		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
+			Code:    CodeNotFound,
 			Message: "not found",
 		}})
 		return
 	}
-	var req users.RegisterParams
+	var req models.Registration
 	if err := c.ShouldBindJSON(&req); err != nil {
 		var verr validator.ValidationErrors
 		if errors.As(err, &verr) {
-			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, api.ErrorBody{Error: api.ErrorDetail{
-				Code:    api.CodeValidation,
+			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
+				Code:    CodeValidation,
 				Message: "invalid request",
 				Fields:  validationFieldsFromErr(verr),
 			}})
 			return
 		}
-		c.AbortWithStatusJSON(http.StatusBadRequest, api.ErrorBody{Error: api.ErrorDetail{
-			Code:    api.CodeBadRequest,
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorBody{Error: ErrorDetail{
+			Code:    CodeBadRequest,
 			Message: "invalid request body",
 		}})
 		return
@@ -88,17 +102,17 @@ func (d AuthDeps) Register(c *gin.Context) {
 	)
 	u, err := d.Users.Create(c.Request.Context(), req)
 	if err != nil {
-		if errors.Is(err, users.ErrUsernameTaken) {
-			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, api.ErrorBody{Error: api.ErrorDetail{
-				Code:    api.CodeValidation,
+		if errors.Is(err, models.ErrUsernameTaken) {
+			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
+				Code:    CodeValidation,
 				Message: "username already taken",
 				Fields:  map[string]string{"username": "already taken"},
 			}})
 			return
 		}
 		d.Logger.Error("register: create user", zap.Error(err))
-		c.AbortWithStatusJSON(http.StatusInternalServerError, api.ErrorBody{Error: api.ErrorDetail{
-			Code:    api.CodeInternal,
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
+			Code:    CodeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -106,69 +120,65 @@ func (d AuthDeps) Register(c *gin.Context) {
 	tok, err := d.Auth.CreateSession(c.Request.Context(), u.ID)
 	if err != nil {
 		d.Logger.Error("register: mint session", zap.Error(err))
-		c.AbortWithStatusJSON(http.StatusInternalServerError, api.ErrorBody{Error: api.ErrorDetail{
-			Code:    api.CodeInternal,
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
+			Code:    CodeInternal,
 			Message: "internal server error",
 		}})
 		return
 	}
-	d.setSessionCookie(c, tok.Raw, int(auth.SessionDuration.Seconds()))
-	c.JSON(http.StatusCreated, userToJSON(u.ID, u.Username, u.CreatedAt))
+	d.setSessionCookie(c, tok.Raw, sessionCookieMaxAge)
+	c.JSON(http.StatusCreated, userToJSON(u))
 }
 
 // Login implements POST /auth/login.
 func (d AuthDeps) Login(c *gin.Context) {
-	var req auth.LoginParams
-	if err := c.ShouldBindJSON(&req); err != nil {
+	var creds models.Credentials
+	if err := c.ShouldBindJSON(&creds); err != nil {
 		var verr validator.ValidationErrors
 		if errors.As(err, &verr) {
-			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, api.ErrorBody{Error: api.ErrorDetail{
-				Code:    api.CodeValidation,
+			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
+				Code:    CodeValidation,
 				Message: "invalid request",
 				Fields:  validationFieldsFromErr(verr),
 			}})
 			return
 		}
-		c.AbortWithStatusJSON(http.StatusBadRequest, api.ErrorBody{Error: api.ErrorDetail{
-			Code:    api.CodeBadRequest,
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorBody{Error: ErrorDetail{
+			Code:    CodeBadRequest,
 			Message: "invalid request body",
 		}})
 		return
 	}
-	u, err := d.Users.GetByUsername(c.Request.Context(), req.Username)
+	u, err := d.Users.Authenticate(c.Request.Context(), creds)
 	if err != nil {
-		if errors.Is(err, users.ErrNotFound) {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, api.ErrorBody{Error: api.ErrorDetail{
-				Code:    api.CodeUnauthorized,
+		// Username-miss and password-miss both collapse to 401 so
+		// callers cannot enumerate accounts. Anything else is logged
+		// and 500'd.
+		if errors.Is(err, models.ErrUserNotFound) || errors.Is(err, models.ErrInvalidCredentials) {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorBody{Error: ErrorDetail{
+				Code:    CodeUnauthorized,
 				Message: "invalid credentials",
 			}})
 			return
 		}
-		d.Logger.Error("login: get user", zap.Error(err))
-		c.AbortWithStatusJSON(http.StatusInternalServerError, api.ErrorBody{Error: api.ErrorDetail{
-			Code:    api.CodeInternal,
+		d.Logger.Error("login: authenticate", zap.Error(err))
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
+			Code:    CodeInternal,
 			Message: "internal server error",
-		}})
-		return
-	}
-	if err := auth.VerifyPassword(u.PasswordHash, req.Password); err != nil {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, api.ErrorBody{Error: api.ErrorDetail{
-			Code:    api.CodeUnauthorized,
-			Message: "invalid credentials",
 		}})
 		return
 	}
 	tok, err := d.Auth.CreateSession(c.Request.Context(), u.ID)
 	if err != nil {
 		d.Logger.Error("login: mint session", zap.Error(err))
-		c.AbortWithStatusJSON(http.StatusInternalServerError, api.ErrorBody{Error: api.ErrorDetail{
-			Code:    api.CodeInternal,
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
+			Code:    CodeInternal,
 			Message: "internal server error",
 		}})
 		return
 	}
-	d.setSessionCookie(c, tok.Raw, int(auth.SessionDuration.Seconds()))
-	c.JSON(http.StatusOK, userToJSON(u.ID, u.Username, u.CreatedAt))
+	d.setSessionCookie(c, tok.Raw, sessionCookieMaxAge)
+	c.JSON(http.StatusOK, userToJSON(u))
 }
 
 // Logout implements POST /auth/logout. Best-effort: invalidates the
@@ -185,15 +195,15 @@ func (d AuthDeps) Logout(c *gin.Context) {
 
 // Me implements GET /auth/me.
 func (d AuthDeps) Me(c *gin.Context) {
-	u, ok := auth.UserFromContext(c.Request.Context())
+	u, ok := models.UserFromContext(c.Request.Context())
 	if !ok {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, api.ErrorBody{Error: api.ErrorDetail{
-			Code:    api.CodeUnauthorized,
+		c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorBody{Error: ErrorDetail{
+			Code:    CodeUnauthorized,
 			Message: "missing or invalid credentials",
 		}})
 		return
 	}
-	c.JSON(http.StatusOK, userToJSON(u.ID, u.Username, u.CreatedAt))
+	c.JSON(http.StatusOK, userToJSON(u))
 }
 
 // APITokenResponse is the JSON shape for a stored API token. Used by
@@ -206,15 +216,15 @@ type APITokenResponse struct {
 	ExpiresAt  *time.Time `json:"expires_at"`
 }
 
-// APITokenCreatedResponse is the POST /auth/tokens response: the stored
-// token fields plus the raw plaintext token, which the server returns
-// exactly once.
+// APITokenCreatedResponse is the POST /auth/tokens response: the
+// stored token fields plus the raw plaintext token, which the server
+// returns exactly once.
 type APITokenCreatedResponse struct {
 	APITokenResponse
 	Token string `json:"token"`
 }
 
-func tokenToJSON(t auth.Token) APITokenResponse {
+func tokenToJSON(t models.Token) APITokenResponse {
 	return APITokenResponse{
 		ID:         t.ID,
 		Label:      t.Label,
@@ -227,20 +237,20 @@ func tokenToJSON(t auth.Token) APITokenResponse {
 // CreateToken implements POST /auth/tokens. Returns the raw token
 // exactly once.
 func (d AuthDeps) CreateToken(c *gin.Context) {
-	u, _ := auth.UserFromContext(c.Request.Context())
-	var req auth.CreateTokenParams
+	u, _ := models.UserFromContext(c.Request.Context())
+	var req models.NewToken
 	if err := c.ShouldBindJSON(&req); err != nil {
 		var verr validator.ValidationErrors
 		if errors.As(err, &verr) {
-			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, api.ErrorBody{Error: api.ErrorDetail{
-				Code:    api.CodeValidation,
+			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
+				Code:    CodeValidation,
 				Message: "invalid request",
 				Fields:  validationFieldsFromErr(verr),
 			}})
 			return
 		}
-		c.AbortWithStatusJSON(http.StatusBadRequest, api.ErrorBody{Error: api.ErrorDetail{
-			Code:    api.CodeBadRequest,
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorBody{Error: ErrorDetail{
+			Code:    CodeBadRequest,
 			Message: "invalid request body",
 		}})
 		return
@@ -248,8 +258,8 @@ func (d AuthDeps) CreateToken(c *gin.Context) {
 	tok, err := d.Auth.CreateAPI(c.Request.Context(), u.ID, req)
 	if err != nil {
 		d.Logger.Error("create token", zap.Error(err))
-		c.AbortWithStatusJSON(http.StatusInternalServerError, api.ErrorBody{Error: api.ErrorDetail{
-			Code:    api.CodeInternal,
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
+			Code:    CodeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -260,11 +270,11 @@ func (d AuthDeps) CreateToken(c *gin.Context) {
 
 // DeleteToken implements DELETE /auth/tokens/{id}.
 func (d AuthDeps) DeleteToken(c *gin.Context) {
-	u, _ := auth.UserFromContext(c.Request.Context())
+	u, _ := models.UserFromContext(c.Request.Context())
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
-		c.AbortWithStatusJSON(http.StatusNotFound, api.ErrorBody{Error: api.ErrorDetail{
-			Code:    api.CodeNotFound,
+		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
+			Code:    CodeNotFound,
 			Message: "not found",
 		}})
 		return
@@ -272,15 +282,15 @@ func (d AuthDeps) DeleteToken(c *gin.Context) {
 	ok, err := d.Auth.DeleteAPI(c.Request.Context(), u.ID, uri.ID)
 	if err != nil {
 		d.Logger.Error("delete token", zap.Error(err))
-		c.AbortWithStatusJSON(http.StatusInternalServerError, api.ErrorBody{Error: api.ErrorDetail{
-			Code:    api.CodeInternal,
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
+			Code:    CodeInternal,
 			Message: "internal server error",
 		}})
 		return
 	}
 	if !ok {
-		c.AbortWithStatusJSON(http.StatusNotFound, api.ErrorBody{Error: api.ErrorDetail{
-			Code:    api.CodeNotFound,
+		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
+			Code:    CodeNotFound,
 			Message: "not found",
 		}})
 		return

@@ -20,6 +20,7 @@ import (
 	"github.com/enable-it/nextchapter/backend/internal/config"
 	"github.com/enable-it/nextchapter/backend/internal/entries"
 	"github.com/enable-it/nextchapter/backend/internal/httpapi"
+	"github.com/enable-it/nextchapter/backend/internal/models"
 	"github.com/enable-it/nextchapter/backend/internal/series"
 	"github.com/enable-it/nextchapter/backend/internal/store"
 	gen "github.com/enable-it/nextchapter/backend/internal/store/generated"
@@ -133,7 +134,7 @@ func bootstrapFirstUser(ctx context.Context, logger *zap.Logger, svc *users.Serv
 		logger.Debug("bootstrap: users already exist, skipping")
 		return nil
 	}
-	if _, err := svc.Create(ctx, users.RegisterParams{Username: username, Password: password}); err != nil {
+	if _, err := svc.Create(ctx, models.Registration{Username: username, Password: password}); err != nil {
 		return err
 	}
 	logger.Warn("bootstrap: created first user from env vars", zap.String("username", username))

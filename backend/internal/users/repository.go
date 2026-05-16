@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/enable-it/nextchapter/backend/internal/models"
 	gen "github.com/enable-it/nextchapter/backend/internal/store/generated"
 )
 
@@ -15,7 +16,7 @@ func NewRepository(q *gen.Queries) Repository {
 	return &repository{q: q}
 }
 
-func (r *repository) InsertUser(ctx context.Context, p InsertUserParams) (User, error) {
+func (r *repository) InsertUser(ctx context.Context, p InsertUserParams) (models.User, error) {
 	u, err := r.q.CreateUser(ctx, gen.CreateUserParams{
 		Username:     p.Username,
 		PasswordHash: p.PasswordHash,
@@ -24,33 +25,47 @@ func (r *repository) InsertUser(ctx context.Context, p InsertUserParams) (User, 
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
-			return User{}, ErrUsernameTaken
+			return models.User{}, models.ErrUsernameTaken
 		}
-		return User{}, fmt.Errorf("users: insert: %w", err)
+		return models.User{}, fmt.Errorf("users: insert: %w", err)
 	}
-	return userFromGen(u), nil
+	return models.User{
+		ID:        u.ID,
+		Username:  u.Username,
+		CreatedAt: u.CreatedAt,
+	}, nil
 }
 
-func (r *repository) GetUserByID(ctx context.Context, id int64) (User, error) {
+func (r *repository) GetUserByID(ctx context.Context, id int64) (models.User, error) {
 	u, err := r.q.GetUserByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return User{}, ErrNotFound
+			return models.User{}, models.ErrUserNotFound
 		}
-		return User{}, fmt.Errorf("users: get by id: %w", err)
+		return models.User{}, fmt.Errorf("users: get by id: %w", err)
 	}
-	return userFromGen(u), nil
+	return models.User{
+		ID:        u.ID,
+		Username:  u.Username,
+		CreatedAt: u.CreatedAt,
+	}, nil
 }
 
-func (r *repository) GetUserByUsername(ctx context.Context, username string) (User, error) {
+func (r *repository) GetAuthRecordByUsername(ctx context.Context, username string) (authRecord, error) {
 	u, err := r.q.GetUserByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return User{}, ErrNotFound
+			return authRecord{}, models.ErrUserNotFound
 		}
-		return User{}, fmt.Errorf("users: get by username: %w", err)
+		return authRecord{}, fmt.Errorf("users: get by username: %w", err)
 	}
-	return userFromGen(u), nil
+	return authRecord{
+		ID:           u.ID,
+		Username:     u.Username,
+		PasswordHash: u.PasswordHash,
+		CreatedAt:    u.CreatedAt,
+		UpdatedAt:    u.UpdatedAt,
+	}, nil
 }
 
 func (r *repository) CountUsers(ctx context.Context) (int64, error) {
@@ -59,16 +74,6 @@ func (r *repository) CountUsers(ctx context.Context) (int64, error) {
 		return 0, fmt.Errorf("users: count: %w", err)
 	}
 	return n, nil
-}
-
-func userFromGen(u gen.User) User {
-	return User{
-		ID:           u.ID,
-		Username:     u.Username,
-		PasswordHash: u.PasswordHash,
-		CreatedAt:    u.CreatedAt,
-		UpdatedAt:    u.UpdatedAt,
-	}
 }
 
 // isUniqueViolation detects SQLite "UNIQUE constraint failed" errors.
