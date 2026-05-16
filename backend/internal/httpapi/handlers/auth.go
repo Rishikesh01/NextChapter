@@ -67,7 +67,7 @@ func (d AuthDeps) Register(c *gin.Context) {
 		}})
 		return
 	}
-	count, err := d.Users.Count(c.Request.Context())
+	count, err := d.Users.CountUsers(c.Request.Context())
 	if err != nil {
 		d.Logger.Error("register: count users", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
@@ -103,7 +103,7 @@ func (d AuthDeps) Register(c *gin.Context) {
 	d.Logger.Warn("open registration window: creating first user",
 		zap.String("username", req.Username),
 	)
-	u, err := d.Users.Create(c.Request.Context(), req)
+	u, err := d.Users.Register(c.Request.Context(), req)
 	if err != nil {
 		if errors.Is(err, models.ErrUsernameTaken) {
 			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{

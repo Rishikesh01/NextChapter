@@ -81,7 +81,7 @@ func (d EntriesDeps) List(c *gin.Context) {
 		}})
 		return
 	}
-	items, total, err := d.Entries.List(c.Request.Context(), u.ID, models.EntryFilter{
+	items, total, err := d.Entries.Positions(c.Request.Context(), u.ID, models.EntryFilter{
 		SeriesID: q.SeriesID, Limit: q.Limit, Offset: q.Offset,
 	})
 	if err != nil {
@@ -183,7 +183,7 @@ func (d EntriesDeps) Patch(c *gin.Context) {
 		}})
 		return
 	}
-	row, err := d.Entries.Patch(c.Request.Context(), u.ID, uri.ID, req)
+	row, err := d.Entries.Adjust(c.Request.Context(), u.ID, uri.ID, req)
 	if err != nil {
 		switch {
 		case errors.Is(err, models.ErrEntryNotFound):
@@ -221,7 +221,7 @@ func (d EntriesDeps) Delete(c *gin.Context) {
 		}})
 		return
 	}
-	if err := d.Entries.Delete(c.Request.Context(), u.ID, uri.ID); err != nil {
+	if err := d.Entries.Forget(c.Request.Context(), u.ID, uri.ID); err != nil {
 		if errors.Is(err, models.ErrEntryNotFound) {
 			c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
 				Code:    CodeNotFound,

@@ -22,14 +22,16 @@ var (
 )
 
 // SeriesService is the surface the HTTP handlers consume for the
-// series CRUD endpoints.
+// series CRUD endpoints. Method names are domain verbs (Track / Library /
+// Find / Inspect / Edit / Untrack) rather than generic CRUD so they read
+// like user actions in the product's "where was I" framing.
 type SeriesService interface {
-	Create(ctx context.Context, userID int64, p models.SeriesNew) (models.Series, error)
-	List(ctx context.Context, userID int64, p models.SeriesFilter) ([]models.SeriesSummary, int64, error)
-	Get(ctx context.Context, userID, id int64) (models.Series, error)
-	Detail(ctx context.Context, userID, id int64) (models.SeriesDetail, error)
-	Update(ctx context.Context, userID, id int64, p models.SeriesPatch) (models.Series, error)
-	Delete(ctx context.Context, userID, id int64) error
+	Track(ctx context.Context, userID int64, draft models.SeriesNew) (models.Series, error)
+	Library(ctx context.Context, userID int64, filter models.SeriesFilter) ([]models.SeriesSummary, int64, error)
+	Find(ctx context.Context, userID, id int64) (models.Series, error)
+	Inspect(ctx context.Context, userID, id int64) (models.SeriesDetail, error)
+	Edit(ctx context.Context, userID, id int64, patch models.SeriesPatch) (models.Series, error)
+	Untrack(ctx context.Context, userID, id int64) error
 }
 
 // Service exposes the series domain to handlers.
@@ -48,10 +50,10 @@ func NewService(repo Repository, e *entries.Service) *Service {
 	return &Service{repo: repo, entries: e}
 }
 
-// Create inserts a new series. Validation lives in the handler; this
-// method assumes Title is non-empty.
-func (s *Service) Create(ctx context.Context, userID int64, p models.SeriesNew) (models.Series, error) {
-	status := p.Status
+// Track inserts a new series ("start tracking this title"). Validation
+// lives in the handler; this method assumes Title is non-empty.
+func (s *Service) Track(ctx context.Context, userID int64, draft models.SeriesNew) (models.Series, error) {
+	status := draft.Status
 	if status == "" {
 		status = constants.DefaultSeriesStatus
 	}
@@ -61,49 +63,50 @@ func (s *Service) Create(ctx context.Context, userID int64, p models.SeriesNew) 
 	now := time.Now().UTC()
 	return s.repo.InsertSeries(ctx, InsertSeriesParams{
 		UserID:    userID,
-		Title:     p.Title,
+		Title:     draft.Title,
 		Status:    status,
-		Rating:    p.Rating,
-		Notes:     p.Notes,
+		Rating:    draft.Rating,
+		Notes:     draft.Notes,
 		CreatedAt: now,
 		UpdatedAt: now,
 	})
 }
 
-// Get returns a single Series row for the owning user, or ErrNotFound.
-func (s *Service) Get(ctx context.Context, userID, id int64) (models.Series, error) {
+// Find returns a single Series row for the owning user, or ErrNotFound.
+func (s *Service) Find(ctx context.Context, userID, id int64) (models.Series, error) {
 	return s.repo.GetSeriesByID(ctx, userID, id)
 }
 
-// List returns a page of summaries (with rollups) plus the total
-// count for the user, respecting the optional status filter.
-func (s *Service) List(ctx context.Context, userID int64, p models.SeriesFilter) ([]models.SeriesSummary, int64, error) {
-	limit := p.Limit
+// Library returns a page of summaries (with rollups) plus the total
+// count for the user, respecting the optional status filter. This is
+// the "user's tracked series" view.
+func (s *Service) Library(ctx context.Context, userID int64, filter models.SeriesFilter) ([]models.SeriesSummary, int64, error) {
+	limit := filter.Limit
 	if limit <= 0 {
 		limit = constants.ListLimitDefault
 	}
 	if limit > constants.ListLimitMax {
 		limit = constants.ListLimitMax
 	}
-	offset := p.Offset
+	offset := filter.Offset
 	if offset < constants.ListOffsetMin {
 		offset = constants.ListOffsetMin
 	}
 
-	if p.Status != "" {
-		if _, ok := validStatuses[p.Status]; !ok {
+	if filter.Status != "" {
+		if _, ok := validStatuses[filter.Status]; !ok {
 			return nil, 0, ErrInvalidStatus
 		}
 		rows, err := s.repo.ListSummariesByStatus(ctx, ListSummariesByStatusParams{
 			UserID: userID,
-			Status: p.Status,
+			Status: filter.Status,
 			Limit:  int64(limit),
 			Offset: int64(offset),
 		})
 		if err != nil {
 			return nil, 0, err
 		}
-		total, err := s.repo.CountByStatus(ctx, userID, p.Status)
+		total, err := s.repo.CountByStatus(ctx, userID, filter.Status)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -125,8 +128,8 @@ func (s *Service) List(ctx context.Context, userID int64, p models.SeriesFilter)
 	return rows, total, nil
 }
 
-// Detail returns the summary plus the full per-site entry list.
-func (s *Service) Detail(ctx context.Context, userID, id int64) (models.SeriesDetail, error) {
+// Inspect returns the summary plus the full per-site entry list.
+func (s *Service) Inspect(ctx context.Context, userID, id int64) (models.SeriesDetail, error) {
 	summary, err := s.repo.GetSummary(ctx, userID, id)
 	if err != nil {
 		return models.SeriesDetail{}, err
@@ -138,31 +141,31 @@ func (s *Service) Detail(ctx context.Context, userID, id int64) (models.SeriesDe
 	return models.SeriesDetail{SeriesSummary: summary, Entries: es}, nil
 }
 
-// Update applies a partial patch to a series. Fields with nil
+// Edit applies a partial patch to a series. Fields with nil
 // pointers are left untouched. Returns ErrNotFound if no row matched.
-func (s *Service) Update(ctx context.Context, userID, id int64, p models.SeriesPatch) (models.Series, error) {
-	current, err := s.Get(ctx, userID, id)
+func (s *Service) Edit(ctx context.Context, userID, id int64, patch models.SeriesPatch) (models.Series, error) {
+	current, err := s.Find(ctx, userID, id)
 	if err != nil {
 		return models.Series{}, err
 	}
 	title := current.Title
-	if p.Title != nil {
-		title = *p.Title
+	if patch.Title != nil {
+		title = *patch.Title
 	}
 	status := current.Status
-	if p.Status != nil {
-		if _, ok := validStatuses[*p.Status]; !ok {
+	if patch.Status != nil {
+		if _, ok := validStatuses[*patch.Status]; !ok {
 			return models.Series{}, ErrInvalidStatus
 		}
-		status = *p.Status
+		status = *patch.Status
 	}
 	rating := current.Rating
-	if p.Rating != nil {
-		rating = p.Rating
+	if patch.Rating != nil {
+		rating = patch.Rating
 	}
 	notes := current.Notes
-	if p.Notes != nil {
-		notes = *p.Notes
+	if patch.Notes != nil {
+		notes = *patch.Notes
 	}
 	now := time.Now().UTC()
 	return s.repo.UpdateSeries(ctx, UpdateSeriesParams{
@@ -176,9 +179,9 @@ func (s *Service) Update(ctx context.Context, userID, id int64, p models.SeriesP
 	})
 }
 
-// Delete removes a series (cascading to its entries). Returns
+// Untrack removes a series (cascading to its entries). Returns
 // ErrNotFound if no row matched.
-func (s *Service) Delete(ctx context.Context, userID, id int64) error {
+func (s *Service) Untrack(ctx context.Context, userID, id int64) error {
 	n, err := s.repo.DeleteSeries(ctx, userID, id)
 	if err != nil {
 		return err
@@ -200,7 +203,7 @@ func ValidStatus(status string) bool {
 // new_series_title. It applies defaults (status=reading, no rating,
 // no notes) and returns just the new id.
 func (s *Service) CreateImplicit(ctx context.Context, userID int64, title string) (int64, error) {
-	row, err := s.Create(ctx, userID, models.SeriesNew{Title: title})
+	row, err := s.Track(ctx, userID, models.SeriesNew{Title: title})
 	if err != nil {
 		return 0, err
 	}

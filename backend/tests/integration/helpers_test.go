@@ -77,10 +77,10 @@ func startServer(t *testing.T, cfg config.Config) *harness {
 	srsSvc := series.NewService(series.NewRepository(q), entSvc)
 
 	if cfg.HasBootstrap() {
-		n, err := usrSvc.Count(ctx)
+		n, err := usrSvc.CountUsers(ctx)
 		r.NoError(err)
 		if n == 0 {
-			_, err := usrSvc.Create(ctx, models.Registration{
+			_, err := usrSvc.Register(ctx, models.Registration{
 				Username: cfg.BootstrapUsername,
 				Password: cfg.BootstrapPassword,
 			})

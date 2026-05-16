@@ -16,12 +16,14 @@ import (
 
 // EntriesService is the surface the HTTP handlers consume for the
 // entries endpoints. Capture returns (entry, created, err) — the bool
-// distinguishes the 201 vs 200 paths on the wire.
+// distinguishes the 201 vs 200 paths on the wire. Method names are
+// domain verbs (Capture / Positions / Adjust / Forget) so they read
+// like reading-position actions rather than generic CRUD.
 type EntriesService interface {
-	Capture(ctx context.Context, userID int64, p models.EntryCapture, sc models.SeriesCreator) (models.Entry, bool, error)
-	List(ctx context.Context, userID int64, p models.EntryFilter) ([]models.Entry, int64, error)
-	Patch(ctx context.Context, userID, entryID int64, p models.EntryPatch) (models.Entry, error)
-	Delete(ctx context.Context, userID, entryID int64) error
+	Capture(ctx context.Context, userID int64, capture models.EntryCapture, sc models.SeriesCreator) (models.Entry, bool, error)
+	Positions(ctx context.Context, userID int64, filter models.EntryFilter) ([]models.Entry, int64, error)
+	Adjust(ctx context.Context, userID, entryID int64, patch models.EntryPatch) (models.Entry, error)
+	Forget(ctx context.Context, userID, entryID int64) error
 }
 
 // Service exposes the entries domain to handlers.
@@ -47,8 +49,8 @@ func NewService(repo Repository) *Service {
 //     *p.NewSeriesTitle. 201 Created.
 //
 // The bool return is "was-created": true => 201, false => 200.
-func (s *Service) Capture(ctx context.Context, userID int64, p models.EntryCapture, sc models.SeriesCreator) (models.Entry, bool, error) {
-	res, err := s.capture(ctx, userID, p, sc)
+func (s *Service) Capture(ctx context.Context, userID int64, capture models.EntryCapture, sc models.SeriesCreator) (models.Entry, bool, error) {
+	res, err := s.capture(ctx, userID, capture, sc)
 	if err != nil {
 		return models.Entry{}, false, err
 	}
@@ -59,15 +61,15 @@ func (s *Service) Capture(ctx context.Context, userID int64, p models.EntryCaptu
 // captureResult and is kept separate from [Service.Capture] for
 // readability. The public surface is the (entry, created, err) shape
 // on the interface.
-func (s *Service) capture(ctx context.Context, userID int64, p models.EntryCapture, sc models.SeriesCreator) (captureResult, error) {
-	// p.Chapter is *float64 because the wire treats 0 as a valid
+func (s *Service) capture(ctx context.Context, userID int64, capture models.EntryCapture, sc models.SeriesCreator) (captureResult, error) {
+	// capture.Chapter is *float64 because the wire treats 0 as a valid
 	// chapter (binding:"required" rejects the missing case). Once
 	// we're past ShouldBindJSON it's safe to deref.
-	chapter := *p.Chapter
+	chapter := *capture.Chapter
 	existing, err := s.repo.GetEntryByKey(ctx, GetEntryByKeyParams{
 		UserID:     userID,
-		SiteHost:   p.SiteHost,
-		SeriesSlug: p.SeriesSlug,
+		SiteHost:   capture.SiteHost,
+		SeriesSlug: capture.SeriesSlug,
 	})
 	if err == nil {
 		// Advance path. Monotonic on last_chapter.
@@ -77,8 +79,8 @@ func (s *Service) capture(ctx context.Context, userID int64, p models.EntryCaptu
 		newTitle := existing.SiteTitle
 		if chapter >= existing.LastChapter {
 			newChapter = chapter
-			newURL = p.URL
-			newTitle = p.SiteTitle
+			newURL = capture.URL
+			newTitle = capture.SiteTitle
 		}
 		// Even a no-op click bumps last_captured_at, per "where was
 		// I" product framing: the user clicked again so they're
@@ -104,17 +106,17 @@ func (s *Service) capture(ctx context.Context, userID int64, p models.EntryCaptu
 	// Create path.
 	var seriesID int64
 	switch {
-	case p.SeriesID != nil:
-		ok, err := s.repo.SeriesExists(ctx, userID, *p.SeriesID)
+	case capture.SeriesID != nil:
+		ok, err := s.repo.SeriesExists(ctx, userID, *capture.SeriesID)
 		if err != nil {
 			return captureResult{}, err
 		}
 		if !ok {
 			return captureResult{}, ErrSeriesNotFound
 		}
-		seriesID = *p.SeriesID
-	case p.NewSeriesTitle != nil && *p.NewSeriesTitle != "":
-		id, err := sc.Create(ctx, userID, *p.NewSeriesTitle)
+		seriesID = *capture.SeriesID
+	case capture.NewSeriesTitle != nil && *capture.NewSeriesTitle != "":
+		id, err := sc.Create(ctx, userID, *capture.NewSeriesTitle)
 		if err != nil {
 			return captureResult{}, fmt.Errorf("entries: create implicit series: %w", err)
 		}
@@ -127,11 +129,11 @@ func (s *Service) capture(ctx context.Context, userID int64, p models.EntryCaptu
 	row, err := s.repo.InsertEntry(ctx, InsertEntryParams{
 		UserID:         userID,
 		SeriesID:       seriesID,
-		SiteHost:       p.SiteHost,
-		SeriesSlug:     p.SeriesSlug,
-		SiteTitle:      p.SiteTitle,
+		SiteHost:       capture.SiteHost,
+		SeriesSlug:     capture.SeriesSlug,
+		SiteTitle:      capture.SiteTitle,
 		LastChapter:    chapter,
-		LastURL:        p.URL,
+		LastURL:        capture.URL,
 		LastCapturedAt: now,
 		CreatedAt:      now,
 		UpdatedAt:      now,
@@ -142,30 +144,31 @@ func (s *Service) capture(ctx context.Context, userID int64, p models.EntryCaptu
 	return captureResult{Entry: row, Created: true}, nil
 }
 
-// List returns a page of entries plus the total count for the user.
-func (s *Service) List(ctx context.Context, userID int64, p models.EntryFilter) ([]models.Entry, int64, error) {
-	limit := p.Limit
+// Positions returns a page of reading-position entries plus the total
+// count for the user.
+func (s *Service) Positions(ctx context.Context, userID int64, filter models.EntryFilter) ([]models.Entry, int64, error) {
+	limit := filter.Limit
 	if limit <= 0 {
 		limit = constants.ListLimitDefault
 	}
 	if limit > constants.ListLimitMax {
 		limit = constants.ListLimitMax
 	}
-	offset := p.Offset
+	offset := filter.Offset
 	if offset < constants.ListOffsetMin {
 		offset = constants.ListOffsetMin
 	}
-	if p.SeriesID != nil {
+	if filter.SeriesID != nil {
 		rows, err := s.repo.ListEntriesBySeries(ctx, ListEntriesBySeriesParams{
 			UserID:   userID,
-			SeriesID: *p.SeriesID,
+			SeriesID: *filter.SeriesID,
 			Limit:    int64(limit),
 			Offset:   int64(offset),
 		})
 		if err != nil {
 			return nil, 0, err
 		}
-		total, err := s.repo.CountEntriesBySeries(ctx, userID, *p.SeriesID)
+		total, err := s.repo.CountEntriesBySeries(ctx, userID, *filter.SeriesID)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -194,41 +197,43 @@ func (s *Service) ListForSeries(ctx context.Context, userID, seriesID int64) ([]
 	return s.repo.ListEntriesAllForSeries(ctx, userID, seriesID)
 }
 
-// Get returns one entry, scoped to the owning user.
-func (s *Service) Get(ctx context.Context, userID, id int64) (models.Entry, error) {
+// get returns one entry, scoped to the owning user. Unexported — only
+// [Service.Adjust] uses it. Kept off the [EntriesService] surface so
+// the interface stays domain-verb only.
+func (s *Service) get(ctx context.Context, userID, id int64) (models.Entry, error) {
 	return s.repo.GetEntryByID(ctx, userID, id)
 }
 
-// Patch applies a partial update. Reassignment is just SeriesID being
-// set to a different (existing, owned) series. Manual correction is
-// LastChapter / LastURL / SiteTitle.
-func (s *Service) Patch(ctx context.Context, userID, id int64, p models.EntryPatch) (models.Entry, error) {
-	current, err := s.Get(ctx, userID, id)
+// Adjust applies a partial update ("adjust this position"). Reassignment
+// is just SeriesID being set to a different (existing, owned) series.
+// Manual correction is LastChapter / LastURL / SiteTitle.
+func (s *Service) Adjust(ctx context.Context, userID, id int64, patch models.EntryPatch) (models.Entry, error) {
+	current, err := s.get(ctx, userID, id)
 	if err != nil {
 		return models.Entry{}, err
 	}
 	seriesID := current.SeriesID
-	if p.SeriesID != nil && *p.SeriesID != seriesID {
-		ok, err := s.repo.SeriesExists(ctx, userID, *p.SeriesID)
+	if patch.SeriesID != nil && *patch.SeriesID != seriesID {
+		ok, err := s.repo.SeriesExists(ctx, userID, *patch.SeriesID)
 		if err != nil {
 			return models.Entry{}, err
 		}
 		if !ok {
 			return models.Entry{}, ErrSeriesNotFound
 		}
-		seriesID = *p.SeriesID
+		seriesID = *patch.SeriesID
 	}
 	lastChapter := current.LastChapter
-	if p.LastChapter != nil {
-		lastChapter = *p.LastChapter
+	if patch.LastChapter != nil {
+		lastChapter = *patch.LastChapter
 	}
 	lastURL := current.LastURL
-	if p.LastURL != nil {
-		lastURL = *p.LastURL
+	if patch.LastURL != nil {
+		lastURL = *patch.LastURL
 	}
 	siteTitle := current.SiteTitle
-	if p.SiteTitle != nil {
-		siteTitle = *p.SiteTitle
+	if patch.SiteTitle != nil {
+		siteTitle = *patch.SiteTitle
 	}
 	now := time.Now().UTC()
 	return s.repo.UpdateEntry(ctx, UpdateEntryParams{
@@ -242,8 +247,8 @@ func (s *Service) Patch(ctx context.Context, userID, id int64, p models.EntryPat
 	})
 }
 
-// Delete removes an entry.
-func (s *Service) Delete(ctx context.Context, userID, id int64) error {
+// Forget removes an entry ("forget where I was on this site").
+func (s *Service) Forget(ctx context.Context, userID, id int64) error {
 	n, err := s.repo.DeleteEntry(ctx, userID, id)
 	if err != nil {
 		return err

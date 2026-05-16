@@ -127,7 +127,7 @@ func Run(ctx context.Context, cfg config.Config) error {
 }
 
 func bootstrapFirstUser(ctx context.Context, logger *zap.Logger, svc *users.Service, username, password string) error {
-	n, err := svc.Count(ctx)
+	n, err := svc.CountUsers(ctx)
 	if err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func bootstrapFirstUser(ctx context.Context, logger *zap.Logger, svc *users.Serv
 		logger.Debug("bootstrap: users already exist, skipping")
 		return nil
 	}
-	if _, err := svc.Create(ctx, models.Registration{Username: username, Password: password}); err != nil {
+	if _, err := svc.Register(ctx, models.Registration{Username: username, Password: password}); err != nil {
 		return err
 	}
 	logger.Warn("bootstrap: created first user from env vars", zap.String("username", username))

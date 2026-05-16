@@ -13,15 +13,19 @@ import (
 )
 
 // AuthService is the surface the HTTP handlers consume for auth-token
-// lifecycle (session mint/revoke on login/logout, API token mint/revoke
+// lifecycle (session create/delete on login/logout, API token create/delete
 // for the extension) and for credential verification. Resolve / Touch
-// are middleware-internal and stay off this interface.
+// are middleware-internal and stay off this interface. Method names
+// are conventional infrastructure verbs (CreateSession / DeleteSession /
+// CreateAPI / DeleteAPI) — auth is an infra service, not a product-domain
+// service, so it does not get the domain-verb treatment that series /
+// entries get.
 type AuthService interface {
 	CreateSession(ctx context.Context, userID int64) (models.SessionToken, error)
 	DeleteSession(ctx context.Context, rawToken string) error
-	CreateAPI(ctx context.Context, userID int64, p models.NewToken) (models.APIToken, error)
+	CreateAPI(ctx context.Context, userID int64, token models.NewToken) (models.APIToken, error)
 	DeleteAPI(ctx context.Context, userID, tokenID int64) (bool, error)
-	Authenticate(ctx context.Context, p models.Credentials) (models.User, error)
+	Authenticate(ctx context.Context, creds models.Credentials) (models.User, error)
 }
 
 // Service owns mint/revoke flows over auth_tokens plus the read-side
@@ -74,23 +78,23 @@ func (s *Service) CreateSession(ctx context.Context, userID int64) (models.Sessi
 }
 
 // CreateAPI mints a user-labelled bearer token for the extension.
-// p.ExpiresAt may be nil (= never expires).
-func (s *Service) CreateAPI(ctx context.Context, userID int64, p models.NewToken) (models.APIToken, error) {
+// token.ExpiresAt may be nil (= never expires).
+func (s *Service) CreateAPI(ctx context.Context, userID int64, token models.NewToken) (models.APIToken, error) {
 	raw, err := MintToken(constants.TokenKindAPI)
 	if err != nil {
 		return models.APIToken{}, err
 	}
 	now := time.Now().UTC()
 	var exp *time.Time
-	if p.ExpiresAt != nil {
-		v := p.ExpiresAt.UTC()
+	if token.ExpiresAt != nil {
+		v := token.ExpiresAt.UTC()
 		exp = &v
 	}
 	row, err := s.repo.CreateToken(ctx, InsertTokenParams{
 		UserID:     userID,
 		Kind:       constants.TokenKindAPI,
 		TokenHash:  HashToken(raw),
-		Label:      strings.TrimSpace(p.Label),
+		Label:      strings.TrimSpace(token.Label),
 		LabelValid: true,
 		CreatedAt:  now,
 		ExpiresAt:  exp,
@@ -127,12 +131,12 @@ func (s *Service) DeleteSession(ctx context.Context, rawToken string) error {
 // [models.ErrUserNotFound] when the username does not exist. Handlers
 // collapse both into the same 401 envelope so callers cannot
 // enumerate accounts.
-func (s *Service) Authenticate(ctx context.Context, p models.Credentials) (models.User, error) {
-	rec, err := s.users.GetAuthRecordByUsername(ctx, p.Username)
+func (s *Service) Authenticate(ctx context.Context, creds models.Credentials) (models.User, error) {
+	rec, err := s.users.GetAuthRecordByUsername(ctx, creds.Username)
 	if err != nil {
 		return models.User{}, err
 	}
-	if err := VerifyPassword(rec.PasswordHash, p.Password); err != nil {
+	if err := VerifyPassword(rec.PasswordHash, creds.Password); err != nil {
 		// Surface the canonical sentinel so handlers can errors.Is
 		// without importing this package.
 		if errors.Is(err, ErrInvalidCredentials) {
@@ -192,10 +196,10 @@ func (s *Service) Resolve(ctx context.Context, rawToken string, now time.Time) (
 // last_used_at touched but their expires_at is left alone
 // (user-configured).
 func (s *Service) Touch(ctx context.Context, r Resolved, now time.Time) error {
-	p := TouchParams{ID: r.TokenID, LastUsedAt: &now}
+	params := TouchParams{ID: r.TokenID, LastUsedAt: &now}
 	if r.Kind == constants.TokenKindSession {
 		ext := now.Add(SessionDuration)
-		p.ExpiresAt = &ext
+		params.ExpiresAt = &ext
 	}
-	return s.repo.TouchToken(ctx, p)
+	return s.repo.TouchToken(ctx, params)
 }

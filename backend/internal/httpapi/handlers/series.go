@@ -152,7 +152,7 @@ func (d SeriesDeps) List(c *gin.Context) {
 		}})
 		return
 	}
-	items, total, err := d.Series.List(c.Request.Context(), u.ID, models.SeriesFilter{
+	items, total, err := d.Series.Library(c.Request.Context(), u.ID, models.SeriesFilter{
 		Status: status, Limit: q.Limit, Offset: q.Offset,
 	})
 	if err != nil {
@@ -199,7 +199,7 @@ func (d SeriesDeps) Create(c *gin.Context) {
 		return
 	}
 	req.Title = strings.TrimSpace(req.Title)
-	row, err := d.Series.Create(c.Request.Context(), u.ID, req)
+	row, err := d.Series.Track(c.Request.Context(), u.ID, req)
 	if err != nil {
 		d.Logger.Error("create series", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
@@ -222,7 +222,7 @@ func (d SeriesDeps) Get(c *gin.Context) {
 		}})
 		return
 	}
-	det, err := d.Series.Detail(c.Request.Context(), u.ID, uri.ID)
+	det, err := d.Series.Inspect(c.Request.Context(), u.ID, uri.ID)
 	if err != nil {
 		if errors.Is(err, models.ErrSeriesNotFound) {
 			c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
@@ -281,7 +281,7 @@ func (d SeriesDeps) Patch(c *gin.Context) {
 		t := strings.TrimSpace(*req.Title)
 		req.Title = &t
 	}
-	row, err := d.Series.Update(c.Request.Context(), u.ID, uri.ID, req)
+	row, err := d.Series.Edit(c.Request.Context(), u.ID, uri.ID, req)
 	if err != nil {
 		if errors.Is(err, models.ErrSeriesNotFound) {
 			c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
@@ -311,7 +311,7 @@ func (d SeriesDeps) Delete(c *gin.Context) {
 		}})
 		return
 	}
-	if err := d.Series.Delete(c.Request.Context(), u.ID, uri.ID); err != nil {
+	if err := d.Series.Untrack(c.Request.Context(), u.ID, uri.ID); err != nil {
 		if errors.Is(err, models.ErrSeriesNotFound) {
 			c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
 				Code:    CodeNotFound,
