@@ -72,10 +72,8 @@ func New(d Deps) *gin.Engine {
 	// Authenticated group.
 	authed := r.Group("")
 	authed.Use(auth.Middleware(auth.MiddlewareConfig{
-		Service:      d.Auth,
-		Now:          d.Now,
-		Logger:       d.Logger,
-		Unauthorized: render.Unauthorized,
+		Service: d.Auth,
+		Logger:  d.Logger,
 	}))
 	authed.POST("/auth/logout", authDeps.Logout)
 	authed.GET("/auth/me", authDeps.Me)
