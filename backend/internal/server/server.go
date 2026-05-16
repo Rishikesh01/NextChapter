@@ -55,22 +55,24 @@ func Run(ctx context.Context, cfg config.Config) error {
 	}
 
 	queries := gen.New(db)
-	now := time.Now
 
 	// Each domain package follows the same pattern: build the
 	// repository (the only thing that touches sqlc-generated code),
-	// then build the service on top of it.
+	// then build the service on top of it. The auth service also
+	// consumes the users repository so [auth.Service.Authenticate]
+	// can read the stored password hash — that's why userRepo is
+	// built first and threaded into auth.NewService.
 	userRepo := users.NewRepository(queries)
-	userSvc := users.NewService(userRepo, now)
+	userSvc := users.NewService(userRepo)
 
 	authRepo := auth.NewRepository(queries)
-	authSvc := auth.NewService(authRepo, now)
+	authSvc := auth.NewService(authRepo, userRepo)
 
 	entryRepo := entries.NewRepository(queries)
-	entrySvc := entries.NewService(entryRepo, now)
+	entrySvc := entries.NewService(entryRepo)
 
 	seriesRepo := series.NewRepository(queries)
-	seriesSvc := series.NewService(seriesRepo, entrySvc, now)
+	seriesSvc := series.NewService(seriesRepo, entrySvc)
 
 	if cfg.HasBootstrap() {
 		if err := bootstrapFirstUser(ctx, logger, userSvc, cfg.BootstrapUsername, cfg.BootstrapPassword); err != nil {
@@ -89,7 +91,6 @@ func Run(ctx context.Context, cfg config.Config) error {
 		AllowedOrigins: cfg.AllowedOrigins,
 		CookieSecure:   isHTTPS(cfg.AllowedOrigins),
 		CookieDomain:   "",
-		Now:            now,
 	})
 
 	srv := &http.Server{

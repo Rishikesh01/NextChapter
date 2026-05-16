@@ -1,19 +1,19 @@
-// Package models holds the cross-package wire / domain types shared
-// between the HTTP handlers and the internal domain packages
+// Package models holds the cross-package wire / domain value types
+// shared between the HTTP handlers and the internal domain packages
 // ([auth], [users], [series], [entries]). It exists so that
-// [internal/httpapi/handlers] can depend on a single neutral package
-// for request / response shapes and service interfaces, breaking the
-// historical handlers -> auth -> handlers import cycle described in
-// the project conventions doc.
+// [internal/httpapi/handlers] depends on a single neutral package for
+// request / response shapes plus the four domain packages strictly
+// for their service interfaces — never for the domain value types
+// themselves.
 //
 // Rules of the road:
-//   - Only types and tiny helpers (context attach/extract) live here.
-//     No service implementations, no persistence code, no SQL.
+//   - Only value types and tiny helpers (context attach/extract) live
+//     here. No service implementations, no persistence code, no SQL.
+//   - Service interfaces live in their domain package
+//     (auth.AuthService, users.UsersService, series.SeriesService,
+//     entries.EntriesService), not here.
 //   - Persistence-layer structs (Insert*Params, Repository interfaces,
 //     conversion shims) stay in their domain packages.
-//   - The bidirectional invariant we keep in place: handlers only ever
-//     import [internal/models]; the domain packages import [models]
-//     for the wire shapes they accept/return.
 package models
 
 import (
@@ -44,32 +44,33 @@ type Token struct {
 	ExpiresAt  *time.Time
 }
 
-// SessionToken is the result of [AuthService.CreateSession]: the raw
-// token (already prefixed with constants.TokenPrefixSession) plus its
-// DB row metadata.
+// SessionToken is the result of the auth service's CreateSession
+// method: the raw token (already prefixed with
+// constants.TokenPrefixSession) plus its DB row metadata.
 type SessionToken struct {
 	Raw   string
 	Token Token
 }
 
-// APIToken is the result of [AuthService.CreateAPI]: the raw token
-// (already prefixed with constants.TokenPrefixAPI) plus its DB row.
+// APIToken is the result of the auth service's CreateAPI method: the
+// raw token (already prefixed with constants.TokenPrefixAPI) plus its
+// DB row.
 type APIToken struct {
 	Raw   string
 	Token Token
 }
 
 // Credentials is both the POST /auth/login JSON body and the input to
-// [UsersService.Authenticate]. No length bounds on the wire — the
-// credentials are matched against bcrypt and bounds-checking on input
-// length would leak info.
+// the auth service's Authenticate method. No length bounds on the
+// wire — the credentials are matched against bcrypt and
+// bounds-checking on input length would leak info.
 type Credentials struct {
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required"`
 }
 
 // NewToken is both the POST /auth/tokens JSON body and the input to
-// [AuthService.CreateAPI].
+// the auth service's CreateAPI method.
 type NewToken struct {
 	Label     string     `json:"label"                binding:"required,min=1,max=64"`
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`

@@ -10,6 +10,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"go.uber.org/zap"
 
+	"github.com/enable-it/nextchapter/backend/internal/entries"
 	"github.com/enable-it/nextchapter/backend/internal/models"
 )
 
@@ -22,7 +23,7 @@ type entriesListQuery struct {
 
 // EntriesDeps groups the dependencies the entries handlers need.
 type EntriesDeps struct {
-	Entries models.EntriesService
+	Entries entries.EntriesService
 	// SeriesCreator is used by /entries/capture when the client
 	// supplies new_series_title rather than series_id. Concretely,
 	// the series service is wired in here.

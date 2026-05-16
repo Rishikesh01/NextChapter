@@ -39,9 +39,30 @@ Everything under `server/`:
 - **`CGO_ENABLED=0` everywhere.** Pure-Go SQLite makes the cross-compile matrix trivial. Adding a CGO dependency means each target needs its own cross-compiler — don't do it without Architect approval.
 - **Cross-compile matrix**: linux, darwin, windows, freebsd × amd64, arm64, arm/v7, riscv64. Exclude combos that don't make sense (windows/arm/v7, darwin/riscv64) in `.goreleaser.yaml`.
 - **Multi-arch Docker** via `docker buildx`. Platforms: at least `linux/amd64`, `linux/arm64`, `linux/arm/v7`. Final image uses `gcr.io/distroless/static-debian12` and runs as nonroot.
-- **The fingerprint module is a pure function** with no I/O. Both languages run the same `shared/fixtures/fingerprint.json` fixture; if Go and TS disagree, that's a bug.
 - **Auth on every protected route.** Middleware, not per-handler checks. No exceptions.
 - **OpenAPI is canonical.** If you change a handler signature, the spec changes in the same commit.
+
+## Guard rails — recurring anti-patterns to NOT introduce
+
+These have been flagged by the operator more than once on this project; before opening any pull request, sweep your diff for them.
+
+- **No clock injection in services or middleware.** Don't add a `now func() time.Time` field to a `Service` struct or a `now` parameter to a `NewService(...)` constructor with the `if now == nil { now = time.Now }` nil-fallback. Call `time.Now()` inline at the use site. A regular function argument that takes a caller-supplied timestamp (e.g. `Resolve(ctx, raw, now time.Time)` where the middleware passes a per-request `time.Now()` snapshot) is fine — that's not injection. The pattern to avoid is the *defaulted optional clock field on a struct*.
+- **No speculative injection points.** Don't add `func(...)` config fields for "tests might override this" if nothing actually overrides them. Same family as the clock issue. If a hypothetical test wants to fake a free function later, that test can use `gomonkey` to patch in-place — don't carve a hole in production code for it.
+- **No wrapper helpers around gin idioms.** No `bindJSON(c, &req) bool`, no `render.BadRequest(c, msg)` helpers, no `parseBody` wrappers. Handlers call `c.ShouldBindJSON(&req)` directly and route errors inline: `validator.ValidationErrors` → 422 with `validationFieldsFromErr`, anything else → 400. The error envelope inlines `c.AbortWithStatusJSON(status, ErrorBody{Error: ErrorDetail{...}})` using the typed `ErrorBody`/`ErrorDetail` shape and the `Code*` constants in `internal/httpapi/handlers/errors.go`.
+- **No glue request DTOs in handlers.** When a handler request struct is a 1:1 mirror of the service-params struct (same fields, field-by-field copy), it's glue. The service-params struct goes in the domain package with `json:` and `binding:` tags; the handler binds directly into it and passes it straight to the service.
+- **Validation lives in `binding:` tags**, not in hand-rolled `if l := len(req.X); l < 1 || l > N { fields["x"] = "..." }` blocks. Gin's `go-playground/validator` accepts `required`, `min`, `max`, `gte`, `oneof`, `url`, `len`, etc.
+- **Nullable JSON fields use `*T`.** Absent === null === "leave alone". Don't build tri-state wrappers (`NullableInt{Set bool, Value *int}`). If a column genuinely needs clearing, that's a separate endpoint — not a PATCH overload.
+- **No named function-type aliases for self-documenting signatures.** `type Now func() time.Time` adds no information beyond `func() time.Time` — use the signature directly.
+- **No re-export shims for shared constants.** Don't write `const KindSession = constants.TokenKindSession` inside another package. Callers import `constants` directly.
+- **Service struct lives in `service.go`, not `models.go`.** `models.go` is for value/data types (param structs, DTOs, `Repository` interface, the unexported `repository` struct, package-internal records). Domain models and cross-package wire types live in `internal/models/`.
+- **Service interfaces live in their domain package**, not in `internal/models/`. Each package owns its contract: `auth.AuthService` in `internal/auth/`, etc.
+- **Service-level / wire DTOs use noun-form names** — drop the `Params` suffix. `models.SeriesNew`, `models.SeriesPatch`, `models.SeriesFilter`, `models.EntryCapture`, `models.Credentials`, `models.Registration`, etc. Persistence-layer params (`Insert*Params`) keep the suffix.
+- **Tests use `require.New(t)` once per scope**, no `require.Foo(t, ...)` style. The integration suite uses a self-asserting `testRequest` struct with a `Name` field; `do(t, h)` wraps in `t.Run(req.Name, ...)` internally. Full status + full body JSONEq with sentinel-replacement for non-deterministic fields. Every mutation test ends with a store-state assertion against the real DB. No mocking of infrastructure available locally (e.g. SQLite is in-process — that's the real driver).
+- **Logger is `go.uber.org/zap`. Never `log/slog`.** Operator hates slog; do not reintroduce it.
+- **Auth middleware lives in `internal/httpapi/middleware/auth.go`**, not in `internal/auth/`. The auth package is domain code (service + crypto helpers); middleware is HTTP plumbing.
+- **`Authenticate(ctx, Credentials) (User, error)` is an `auth.Service` method**, not a `users.Service` method. Credential verification is auth's concern; users keeps account-lifecycle methods only.
+
+Detailed rationale and supporting examples live in the operator-side memory at `~/.claude/projects/.../memory/feedback_go_conventions.md` — if a brief contradicts the above guard rails, raise it before coding.
 
 ## Storage rules
 

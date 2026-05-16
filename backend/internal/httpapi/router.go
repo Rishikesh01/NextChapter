@@ -6,7 +6,6 @@ package httpapi
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -34,15 +33,11 @@ type Deps struct {
 	AllowedOrigins []string
 	CookieSecure   bool
 	CookieDomain   string
-	Now            func() time.Time
 }
 
 // New builds the gin.Engine. It uses gin.New() (not gin.Default) so we
 // own the middleware stack and produce JSON logs via zap.
 func New(d Deps) *gin.Engine {
-	if d.Now == nil {
-		d.Now = time.Now
-	}
 	if d.Logger == nil {
 		d.Logger = zap.NewNop()
 	}
@@ -66,14 +61,13 @@ func New(d Deps) *gin.Engine {
 		HasEnvBoot:   d.HasEnvBoot,
 		CookieDomain: d.CookieDomain,
 		CookieSecure: d.CookieSecure,
-		Now:          d.Now,
 	}
 	r.POST("/auth/register", authDeps.Register)
 	r.POST("/auth/login", authDeps.Login)
 
 	// Authenticated group.
 	authed := r.Group("")
-	authed.Use(auth.Middleware(auth.MiddlewareConfig{
+	authed.Use(middleware.Auth(middleware.AuthMiddlewareConfig{
 		Service: d.Auth,
 		Logger:  d.Logger,
 	}))

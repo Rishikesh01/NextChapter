@@ -12,6 +12,7 @@ import (
 
 	"github.com/enable-it/nextchapter/backend/constants"
 	"github.com/enable-it/nextchapter/backend/internal/models"
+	"github.com/enable-it/nextchapter/backend/internal/series"
 )
 
 // statusEnumMessage is the canonical 422 message body for an
@@ -61,7 +62,7 @@ func validSeriesStatus(s string) bool {
 
 // SeriesDeps groups the dependencies the series handlers need.
 type SeriesDeps struct {
-	Series models.SeriesService
+	Series series.SeriesService
 	Logger *zap.Logger
 }
 

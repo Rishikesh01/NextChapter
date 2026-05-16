@@ -38,9 +38,9 @@ type SeriesDetail struct {
 	Entries []Entry
 }
 
-// SeriesNew is both the POST /series JSON body and the input to
-// [SeriesService.Create]. Field bounds duplicate the numbers in
-// [constants.SeriesTitleMin] / [constants.SeriesTitleMax] /
+// SeriesNew is both the POST /series JSON body and the input to the
+// series service's Create method. Field bounds duplicate the numbers
+// in [constants.SeriesTitleMin] / [constants.SeriesTitleMax] /
 // [constants.RatingMin] / [constants.RatingMax] /
 // [constants.SeriesNotesMax] because Go struct tags can't reference
 // constants. Update both when the bounds change.
@@ -52,9 +52,9 @@ type SeriesNew struct {
 }
 
 // SeriesPatch is both the PATCH /series/{id} JSON body and the input
-// to [SeriesService.Update]. Each pointer field is the standard
-// absent/present binary: nil means "leave the column alone". The v1
-// API does not support *clearing* the rating column via PATCH —
+// to the series service's Update method. Each pointer field is the
+// standard absent/present binary: nil means "leave the column alone".
+// The v1 API does not support *clearing* the rating column via PATCH —
 // `rating: null` on the wire is treated the same as the field being
 // absent. If clearing becomes a product requirement it will be a
 // separate endpoint, not a side-effect of PATCH. Bounds mirror

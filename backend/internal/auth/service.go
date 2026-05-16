@@ -2,33 +2,52 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/enable-it/nextchapter/backend/constants"
 	"github.com/enable-it/nextchapter/backend/internal/models"
+	"github.com/enable-it/nextchapter/backend/internal/users"
 )
 
+// AuthService is the surface the HTTP handlers consume for auth-token
+// lifecycle (session mint/revoke on login/logout, API token mint/revoke
+// for the extension) and for credential verification. Resolve / Touch
+// are middleware-internal and stay off this interface.
+type AuthService interface {
+	CreateSession(ctx context.Context, userID int64) (models.SessionToken, error)
+	DeleteSession(ctx context.Context, rawToken string) error
+	CreateAPI(ctx context.Context, userID int64, p models.NewToken) (models.APIToken, error)
+	DeleteAPI(ctx context.Context, userID, tokenID int64) (bool, error)
+	Authenticate(ctx context.Context, p models.Credentials) (models.User, error)
+}
+
 // Service owns mint/revoke flows over auth_tokens plus the read-side
-// resolve/touch that the middleware in this package depends on. All
-// SQL access goes through [Repository]; this type does not import the
-// sqlc-generated package directly.
+// resolve/touch that the middleware in this package depends on. It
+// also runs the bcrypt-verify step for [Service.Authenticate]: the
+// users repository hands back a [users.AuthRecord] with the stored
+// hash and this service does the compare so the password-hash
+// boundary lives in one place.
+//
+// All SQL access goes through [Repository] and [users.Repository];
+// this type does not import the sqlc-generated package directly.
 type Service struct {
-	repo Repository
-	now  func() time.Time
+	repo  Repository
+	users users.Repository
 }
 
 // Compile-time check: the concrete Service satisfies the
-// models.AuthService surface that handlers consume.
-var _ models.AuthService = (*Service)(nil)
+// AuthService surface that handlers consume.
+var _ AuthService = (*Service)(nil)
 
-// NewService constructs a Service. If now is nil, time.Now is used.
-func NewService(repo Repository, now func() time.Time) *Service {
-	if now == nil {
-		now = time.Now
-	}
-	return &Service{repo: repo, now: now}
+// NewService constructs a Service. The users repository is read by
+// [Service.Authenticate] to fetch the stored bcrypt hash; if you are
+// wiring a test fixture that never calls Authenticate, passing nil is
+// fine.
+func NewService(repo Repository, userRepo users.Repository) *Service {
+	return &Service{repo: repo, users: userRepo}
 }
 
 // CreateSession mints a session token, stores its hash, and returns
@@ -38,7 +57,7 @@ func (s *Service) CreateSession(ctx context.Context, userID int64) (models.Sessi
 	if err != nil {
 		return models.SessionToken{}, err
 	}
-	now := s.now().UTC()
+	now := time.Now().UTC()
 	exp := now.Add(SessionDuration)
 	row, err := s.repo.CreateToken(ctx, InsertTokenParams{
 		UserID:     userID,
@@ -61,7 +80,7 @@ func (s *Service) CreateAPI(ctx context.Context, userID int64, p models.NewToken
 	if err != nil {
 		return models.APIToken{}, err
 	}
-	now := s.now().UTC()
+	now := time.Now().UTC()
 	var exp *time.Time
 	if p.ExpiresAt != nil {
 		v := p.ExpiresAt.UTC()
@@ -96,6 +115,36 @@ func (s *Service) DeleteAPI(ctx context.Context, userID, tokenID int64) (bool, e
 // /auth/logout. Returns nil if the row was already gone.
 func (s *Service) DeleteSession(ctx context.Context, rawToken string) error {
 	return s.repo.DeleteTokenByHash(ctx, HashToken(rawToken))
+}
+
+// Authenticate verifies credentials against the stored bcrypt hash
+// and returns the public-facing [models.User] on success. The
+// password hash is read from [users.Repository.GetAuthRecordByUsername]
+// here and immediately discarded — only this method ever sees it on
+// the live path.
+//
+// [models.ErrInvalidCredentials] is returned on a bcrypt mismatch;
+// [models.ErrUserNotFound] when the username does not exist. Handlers
+// collapse both into the same 401 envelope so callers cannot
+// enumerate accounts.
+func (s *Service) Authenticate(ctx context.Context, p models.Credentials) (models.User, error) {
+	rec, err := s.users.GetAuthRecordByUsername(ctx, p.Username)
+	if err != nil {
+		return models.User{}, err
+	}
+	if err := VerifyPassword(rec.PasswordHash, p.Password); err != nil {
+		// Surface the canonical sentinel so handlers can errors.Is
+		// without importing this package.
+		if errors.Is(err, ErrInvalidCredentials) {
+			return models.User{}, models.ErrInvalidCredentials
+		}
+		return models.User{}, err
+	}
+	return models.User{
+		ID:        rec.ID,
+		Username:  rec.Username,
+		CreatedAt: rec.CreatedAt,
+	}, nil
 }
 
 // Resolve looks up a raw token, returns the owning user and token

@@ -1,12 +1,14 @@
 // Package handlers contains the gin route handlers. One file per
 // resource, matching the openapi tags (auth, series, entries, meta).
 //
-// Import discipline: handlers depend only on [internal/models] for
-// cross-package types and on [constants]. Domain packages (auth,
-// users, series, entries) are NOT imported here — services arrive
-// pre-wired via the *Deps structs from [internal/httpapi/router.go],
-// and error comparisons go through the canonical sentinels in
-// [internal/models].
+// Import discipline: handlers depend on [internal/models] for the
+// cross-package value types (User, Series, Entry, request/response
+// shapes), on [constants], and on the four domain packages strictly
+// for their service *interfaces* (auth.AuthService,
+// users.UsersService, series.SeriesService, entries.EntriesService).
+// The concrete services arrive pre-wired via the *Deps structs from
+// [internal/httpapi/router.go]; error comparisons go through the
+// canonical sentinels in [internal/models].
 package handlers
 
 import (
@@ -19,7 +21,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/enable-it/nextchapter/backend/constants"
+	"github.com/enable-it/nextchapter/backend/internal/auth"
 	"github.com/enable-it/nextchapter/backend/internal/models"
+	"github.com/enable-it/nextchapter/backend/internal/users"
 )
 
 // sessionCookieMaxAge is the Max-Age set on the session cookie. Kept
@@ -29,16 +33,15 @@ import (
 const sessionCookieMaxAge = 30 * 24 * 60 * 60 // seconds
 
 // AuthDeps groups the dependencies the auth handlers need. The
-// service fields are typed against [models] interfaces so handlers
-// stay decoupled from the auth / users packages.
+// service fields are typed against each domain package's interface so
+// handlers stay decoupled from the concrete service implementations.
 type AuthDeps struct {
-	Users        models.UsersService
-	Auth         models.AuthService
+	Users        users.UsersService
+	Auth         auth.AuthService
 	Logger       *zap.Logger
 	HasEnvBoot   bool // env-var bootstrap enabled; closes /auth/register entirely.
 	CookieDomain string
 	CookieSecure bool
-	Now          func() time.Time
 }
 
 // UserResponse is the JSON shape returned for /auth/me, /auth/login,
@@ -149,7 +152,7 @@ func (d AuthDeps) Login(c *gin.Context) {
 		}})
 		return
 	}
-	u, err := d.Users.Authenticate(c.Request.Context(), creds)
+	u, err := d.Auth.Authenticate(c.Request.Context(), creds)
 	if err != nil {
 		// Username-miss and password-miss both collapse to 401 so
 		// callers cannot enumerate accounts. Anything else is logged

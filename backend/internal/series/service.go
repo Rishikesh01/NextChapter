@@ -21,24 +21,31 @@ var (
 	ErrInvalidStatus = models.ErrSeriesInvalidStatus
 )
 
+// SeriesService is the surface the HTTP handlers consume for the
+// series CRUD endpoints.
+type SeriesService interface {
+	Create(ctx context.Context, userID int64, p models.SeriesNew) (models.Series, error)
+	List(ctx context.Context, userID int64, p models.SeriesFilter) ([]models.SeriesSummary, int64, error)
+	Get(ctx context.Context, userID, id int64) (models.Series, error)
+	Detail(ctx context.Context, userID, id int64) (models.SeriesDetail, error)
+	Update(ctx context.Context, userID, id int64, p models.SeriesPatch) (models.Series, error)
+	Delete(ctx context.Context, userID, id int64) error
+}
+
 // Service exposes the series domain to handlers.
 type Service struct {
 	repo    Repository
 	entries *entries.Service
-	now     func() time.Time
 }
 
 // Compile-time check: the concrete Service satisfies the
-// models.SeriesService surface that handlers consume.
-var _ models.SeriesService = (*Service)(nil)
+// SeriesService surface that handlers consume.
+var _ SeriesService = (*Service)(nil)
 
 // NewService builds a Service. The entries.Service is used to load
 // the per-series entry list inside [Detail].
-func NewService(repo Repository, e *entries.Service, now func() time.Time) *Service {
-	if now == nil {
-		now = time.Now
-	}
-	return &Service{repo: repo, entries: e, now: now}
+func NewService(repo Repository, e *entries.Service) *Service {
+	return &Service{repo: repo, entries: e}
 }
 
 // Create inserts a new series. Validation lives in the handler; this
@@ -51,7 +58,7 @@ func (s *Service) Create(ctx context.Context, userID int64, p models.SeriesNew) 
 	if _, ok := validStatuses[status]; !ok {
 		return models.Series{}, ErrInvalidStatus
 	}
-	now := s.now().UTC()
+	now := time.Now().UTC()
 	return s.repo.InsertSeries(ctx, InsertSeriesParams{
 		UserID:    userID,
 		Title:     p.Title,
@@ -157,7 +164,7 @@ func (s *Service) Update(ctx context.Context, userID, id int64, p models.SeriesP
 	if p.Notes != nil {
 		notes = *p.Notes
 	}
-	now := s.now().UTC()
+	now := time.Now().UTC()
 	return s.repo.UpdateSeries(ctx, UpdateSeriesParams{
 		ID:        id,
 		UserID:    userID,

@@ -70,11 +70,11 @@ func startServer(t *testing.T, cfg config.Config) *harness {
 	r.NoError(store.Migrate(ctx, db, cfg.DatabaseURL))
 
 	q := gen.New(db)
-	now := time.Now
-	usrSvc := users.NewService(users.NewRepository(q), now)
-	authSvc := auth.NewService(auth.NewRepository(q), now)
-	entSvc := entries.NewService(entries.NewRepository(q), now)
-	srsSvc := series.NewService(series.NewRepository(q), entSvc, now)
+	userRepo := users.NewRepository(q)
+	usrSvc := users.NewService(userRepo)
+	authSvc := auth.NewService(auth.NewRepository(q), userRepo)
+	entSvc := entries.NewService(entries.NewRepository(q))
+	srsSvc := series.NewService(series.NewRepository(q), entSvc)
 
 	if cfg.HasBootstrap() {
 		n, err := usrSvc.Count(ctx)
@@ -96,7 +96,6 @@ func startServer(t *testing.T, cfg config.Config) *harness {
 		Logger:     zap.NewNop(),
 		HasEnvBoot: cfg.HasBootstrap(),
 		Version:    cfg.Version,
-		Now:        now,
 	})
 
 	srv := httptest.NewServer(engine)

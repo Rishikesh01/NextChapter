@@ -51,15 +51,15 @@ func (r *repository) GetUserByID(ctx context.Context, id int64) (models.User, er
 	}, nil
 }
 
-func (r *repository) GetAuthRecordByUsername(ctx context.Context, username string) (authRecord, error) {
+func (r *repository) GetAuthRecordByUsername(ctx context.Context, username string) (AuthRecord, error) {
 	u, err := r.q.GetUserByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return authRecord{}, models.ErrUserNotFound
+			return AuthRecord{}, models.ErrUserNotFound
 		}
-		return authRecord{}, fmt.Errorf("users: get by username: %w", err)
+		return AuthRecord{}, fmt.Errorf("users: get by username: %w", err)
 	}
-	return authRecord{
+	return AuthRecord{
 		ID:           u.ID,
 		Username:     u.Username,
 		PasswordHash: u.PasswordHash,

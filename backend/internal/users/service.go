@@ -4,10 +4,11 @@ package users
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"time"
 
-	"github.com/enable-it/nextchapter/backend/internal/auth"
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/enable-it/nextchapter/backend/internal/models"
 )
 
@@ -20,25 +21,37 @@ var (
 	ErrNotFound      = models.ErrUserNotFound
 )
 
-// Service owns the users domain. It is the only thing in the
-// codebase that touches PasswordHash on the live path: handlers
-// receive [models.User] (no hash) back from [Service.Authenticate]
-// and never see authRecord.
+// UsersService is the surface the HTTP handlers consume for user
+// account lifecycle. Credential verification lives on
+// [internal/auth].Service.Authenticate, not here: the users service
+// keeps account-lifecycle methods only. Keeping Authenticate off this
+// interface lets [internal/auth] own the password-hash boundary
+// (matching where token mint/verify also live).
+type UsersService interface {
+	Count(ctx context.Context) (int64, error)
+	Create(ctx context.Context, p models.Registration) (models.User, error)
+}
+
+// Service owns the users domain. The password hash is written here on
+// [Service.Create] and read from the repository by
+// [internal/auth].Service.Authenticate via [Repository.GetAuthRecordByUsername].
+// Nothing else in the codebase reads PasswordHash.
+//
+// We bcrypt-hash here directly (rather than calling [internal/auth].HashPassword)
+// so this package does not import internal/auth: the inverse arrow —
+// auth depending on users.Repository for credential lookup — is the
+// one we want, and a mutual import would not compile.
 type Service struct {
 	repo Repository
-	now  func() time.Time
 }
 
 // Compile-time check: the concrete Service satisfies the
-// models.UsersService surface that handlers consume.
-var _ models.UsersService = (*Service)(nil)
+// UsersService surface that handlers consume.
+var _ UsersService = (*Service)(nil)
 
-// NewService constructs a Service. If now is nil, time.Now is used.
-func NewService(repo Repository, now func() time.Time) *Service {
-	if now == nil {
-		now = time.Now
-	}
-	return &Service{repo: repo, now: now}
+// NewService constructs a Service.
+func NewService(repo Repository) *Service {
+	return &Service{repo: repo}
 }
 
 // Count returns the total number of users. Used by /auth/register to
@@ -50,42 +63,15 @@ func (s *Service) Count(ctx context.Context) (int64, error) {
 // Create hashes the password and inserts a new user. Returns the
 // public-facing [models.User] (no hash).
 func (s *Service) Create(ctx context.Context, p models.Registration) (models.User, error) {
-	hash, err := auth.HashPassword(p.Password)
+	h, err := bcrypt.GenerateFromPassword([]byte(p.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return models.User{}, err
+		return models.User{}, fmt.Errorf("users: hash password: %w", err)
 	}
-	now := s.now().UTC()
+	now := time.Now().UTC()
 	return s.repo.InsertUser(ctx, InsertUserParams{
 		Username:     p.Username,
-		PasswordHash: hash,
+		PasswordHash: string(h),
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	})
-}
-
-// Authenticate verifies credentials against the stored bcrypt hash
-// and returns the public-facing [models.User] on success.
-// [models.ErrInvalidCredentials] is returned on a bcrypt mismatch;
-// [models.ErrUserNotFound] when the username does not exist. Handlers
-// collapse both into the same 401 envelope so callers cannot
-// enumerate accounts.
-func (s *Service) Authenticate(ctx context.Context, p models.Credentials) (models.User, error) {
-	rec, err := s.repo.GetAuthRecordByUsername(ctx, p.Username)
-	if err != nil {
-		return models.User{}, err
-	}
-	if err := auth.VerifyPassword(rec.PasswordHash, p.Password); err != nil {
-		// The auth package returns its own sentinel; surface the
-		// canonical one so handlers can errors.Is without an auth
-		// import.
-		if errors.Is(err, auth.ErrInvalidCredentials) {
-			return models.User{}, models.ErrInvalidCredentials
-		}
-		return models.User{}, err
-	}
-	return models.User{
-		ID:        rec.ID,
-		Username:  rec.Username,
-		CreatedAt: rec.CreatedAt,
-	}, nil
 }

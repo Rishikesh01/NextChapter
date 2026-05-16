@@ -14,22 +14,28 @@ import (
 	"github.com/enable-it/nextchapter/backend/internal/models"
 )
 
+// EntriesService is the surface the HTTP handlers consume for the
+// entries endpoints. Capture returns (entry, created, err) — the bool
+// distinguishes the 201 vs 200 paths on the wire.
+type EntriesService interface {
+	Capture(ctx context.Context, userID int64, p models.EntryCapture, sc models.SeriesCreator) (models.Entry, bool, error)
+	List(ctx context.Context, userID int64, p models.EntryFilter) ([]models.Entry, int64, error)
+	Patch(ctx context.Context, userID, entryID int64, p models.EntryPatch) (models.Entry, error)
+	Delete(ctx context.Context, userID, entryID int64) error
+}
+
 // Service exposes the entries domain to handlers.
 type Service struct {
 	repo Repository
-	now  func() time.Time
 }
 
 // Compile-time check: the concrete Service satisfies the
-// models.EntriesService surface that handlers consume.
-var _ models.EntriesService = (*Service)(nil)
+// EntriesService surface that handlers consume.
+var _ EntriesService = (*Service)(nil)
 
 // NewService builds a Service.
-func NewService(repo Repository, now func() time.Time) *Service {
-	if now == nil {
-		now = time.Now
-	}
-	return &Service{repo: repo, now: now}
+func NewService(repo Repository) *Service {
+	return &Service{repo: repo}
 }
 
 // Capture implements POST /entries/capture per the openapi spec:
@@ -65,7 +71,7 @@ func (s *Service) capture(ctx context.Context, userID int64, p models.EntryCaptu
 	})
 	if err == nil {
 		// Advance path. Monotonic on last_chapter.
-		now := s.now().UTC()
+		now := time.Now().UTC()
 		newChapter := existing.LastChapter
 		newURL := existing.LastURL
 		newTitle := existing.SiteTitle
@@ -117,7 +123,7 @@ func (s *Service) capture(ctx context.Context, userID int64, p models.EntryCaptu
 		return captureResult{}, ErrSeriesRequired
 	}
 
-	now := s.now().UTC()
+	now := time.Now().UTC()
 	row, err := s.repo.InsertEntry(ctx, InsertEntryParams{
 		UserID:         userID,
 		SeriesID:       seriesID,
@@ -224,7 +230,7 @@ func (s *Service) Patch(ctx context.Context, userID, id int64, p models.EntryPat
 	if p.SiteTitle != nil {
 		siteTitle = *p.SiteTitle
 	}
-	now := s.now().UTC()
+	now := time.Now().UTC()
 	return s.repo.UpdateEntry(ctx, UpdateEntryParams{
 		ID:          id,
 		UserID:      userID,

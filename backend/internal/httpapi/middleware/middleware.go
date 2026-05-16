@@ -1,7 +1,8 @@
-// Package middleware contains the gin middlewares NextChapter wires into
-// every request: request id, structured logging, and CORS. Auth has its
-// own home under [internal/auth] because domain code reads from the
-// context it sets.
+// Package middleware contains the gin middlewares NextChapter wires
+// into every request: request id, structured logging, CORS, and the
+// auth gate. The auth middleware lives here (rather than under
+// [internal/auth]) so the auth package stays domain code; this
+// package is HTTP plumbing.
 package middleware
 
 import (

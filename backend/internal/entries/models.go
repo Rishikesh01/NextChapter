@@ -10,7 +10,7 @@ import (
 
 // captureResult carries the row plus whether it was newly created.
 // Package-internal — the public surface returns (entry, created, err)
-// via models.EntriesService.Capture.
+// via [EntriesService.Capture].
 type captureResult struct {
 	Entry   models.Entry
 	Created bool
