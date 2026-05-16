@@ -1,0 +1,49 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gosec
+    - gocritic
+    - revive
+  settings:
+    gocritic:
+      disabled-checks:
+        - ifElseChain
+    revive:
+      rules:
+        - name: var-naming
+          arguments:
+            - []
+            - []
+            - - upperCaseConst: true
+    gosec:
+      excludes:
+        # G404: math/rand pseudo-random number generator — we use crypto/rand
+        # where it matters; reports on anything from any package are noise.
+        - G115
+  exclusions:
+    rules:
+      - path: _test\.go$
+        linters:
+          - gosec
+          - errcheck
+      - path: internal/store/generated/
+        linters:
+          - revive
+          - gocritic
+          - staticcheck
+          - errcheck
+
+formatters:
+  enable:
+    - gofmt

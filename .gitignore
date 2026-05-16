@@ -1,0 +1,23 @@
+# Build artefacts
+backend/bin/
+
+# Local SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
+# Environment overrides
+.env
+.env.*
+
+# Editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+
+# Coverage / profiling
+*.out
+coverage.txt
+
+# Node (for the future frontend track)
+node_modules/
