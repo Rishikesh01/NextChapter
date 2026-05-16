@@ -15,7 +15,6 @@ import (
 
 	"github.com/enable-it/nextchapter/backend/constants"
 	"github.com/enable-it/nextchapter/backend/internal/auth"
-	"github.com/enable-it/nextchapter/backend/internal/httpapi/handlers"
 	"github.com/enable-it/nextchapter/backend/internal/models"
 	gen "github.com/enable-it/nextchapter/backend/internal/store/generated"
 )
@@ -58,7 +57,7 @@ func TestSelfHostedOperatorBootsAndRegistersFirstUser(t *testing.T) {
 		Path:           "/auth/register",
 		Body:           models.Registration{Username: "alice", Password: "correct horse battery"},
 		ExpectedStatus: http.StatusCreated,
-		ExpectedBody:   handlers.UserResponse{Username: "alice"},
+		ExpectedBody:   models.User{Username: "alice"},
 		SentinelPaths:  []string{"id", "created_at"},
 	}).do(t, h)
 
@@ -84,7 +83,7 @@ func TestSelfHostedOperatorBootsAndRegistersFirstUser(t *testing.T) {
 		Method:         http.MethodGet,
 		Path:           "/auth/me",
 		ExpectedStatus: http.StatusOK,
-		ExpectedBody:   handlers.UserResponse{Username: "alice"},
+		ExpectedBody:   models.User{Username: "alice"},
 		SentinelPaths:  []string{"id", "created_at"},
 	}).do(t, h)
 
@@ -151,7 +150,7 @@ func TestEnvVarBootstrapClosesRegistrationFromTheStart(t *testing.T) {
 		Path:           "/auth/login",
 		Body:           models.Credentials{Username: "alice", Password: "correct horse battery"},
 		ExpectedStatus: http.StatusOK,
-		ExpectedBody:   handlers.UserResponse{Username: "alice"},
+		ExpectedBody:   models.User{Username: "alice"},
 		SentinelPaths:  []string{"id", "created_at"},
 	}).do(t, h)
 
@@ -171,7 +170,7 @@ func TestEnvVarBootstrapClosesRegistrationFromTheStart(t *testing.T) {
 		Method:         http.MethodGet,
 		Path:           "/auth/me",
 		ExpectedStatus: http.StatusOK,
-		ExpectedBody:   handlers.UserResponse{Username: "alice"},
+		ExpectedBody:   models.User{Username: "alice"},
 		SentinelPaths:  []string{"id", "created_at"},
 	}).do(t, h)
 }
@@ -193,7 +192,7 @@ func TestUserCapturesChapterProgressAcrossSites(t *testing.T) {
 		Path:           "/series",
 		Body:           models.SeriesNew{Title: "Solo Leveling", Status: constants.StatusReading},
 		ExpectedStatus: http.StatusCreated,
-		ExpectedBody:   handlers.SeriesResponse{Title: "Solo Leveling", Status: constants.StatusReading},
+		ExpectedBody:   models.Series{Title: "Solo Leveling", Status: constants.StatusReading},
 		SentinelPaths:  []string{"id", "created_at", "updated_at"},
 	}).do(t, h)
 	seriesID := decodeSeriesID(t, seriesBody)
@@ -221,7 +220,7 @@ func TestUserCapturesChapterProgressAcrossSites(t *testing.T) {
 			SeriesID:   &seriesID,
 		},
 		ExpectedStatus: http.StatusCreated,
-		ExpectedBody: handlers.EntryResponse{
+		ExpectedBody: models.Entry{
 			SeriesID:    seriesID,
 			SiteHost:    "reader.example.com",
 			SeriesSlug:  "solo-leveling",
@@ -251,7 +250,7 @@ func TestUserCapturesChapterProgressAcrossSites(t *testing.T) {
 			URL:        "https://reader.example.com/series/solo-leveling/chapter-110.5",
 		},
 		ExpectedStatus: http.StatusOK,
-		ExpectedBody: handlers.EntryResponse{
+		ExpectedBody: models.Entry{
 			ID:          firstEntryID,
 			SeriesID:    seriesID,
 			SiteHost:    "reader.example.com",
@@ -283,7 +282,7 @@ func TestUserCapturesChapterProgressAcrossSites(t *testing.T) {
 			URL:        "https://reader.example.com/series/solo-leveling/chapter-90",
 		},
 		ExpectedStatus: http.StatusOK,
-		ExpectedBody: handlers.EntryResponse{
+		ExpectedBody: models.Entry{
 			ID:          firstEntryID,
 			SeriesID:    seriesID,
 			SiteHost:    "reader.example.com",
@@ -312,7 +311,7 @@ func TestUserCapturesChapterProgressAcrossSites(t *testing.T) {
 			SeriesID:   &seriesID,
 		},
 		ExpectedStatus: http.StatusCreated,
-		ExpectedBody: handlers.EntryResponse{
+		ExpectedBody: models.Entry{
 			SeriesID:    seriesID,
 			SiteHost:    "comics.example.org",
 			SeriesSlug:  "solo-leveling-i-alone-level-up",
@@ -342,9 +341,9 @@ func TestUserCapturesChapterProgressAcrossSites(t *testing.T) {
 		Method:         http.MethodGet,
 		Path:           "/series",
 		ExpectedStatus: http.StatusOK,
-		ExpectedBody: handlers.SeriesListResponse{
-			Items: []handlers.SeriesSummaryResponse{{
-				SeriesResponse: handlers.SeriesResponse{
+		ExpectedBody: models.SeriesList{
+			Items: []models.SeriesSummary{{
+				Series: models.Series{
 					Title:  "Solo Leveling",
 					Status: constants.StatusReading,
 				},
@@ -382,7 +381,7 @@ func TestUserReassignsEntryBetweenSeries(t *testing.T) {
 		Path:           "/series",
 		Body:           models.SeriesNew{Title: "Solo Leveling"},
 		ExpectedStatus: http.StatusCreated,
-		ExpectedBody:   handlers.SeriesResponse{Title: "Solo Leveling", Status: constants.StatusReading},
+		ExpectedBody:   models.Series{Title: "Solo Leveling", Status: constants.StatusReading},
 		SentinelPaths:  []string{"id", "created_at", "updated_at"},
 	}).do(t, h)
 	s1ID := decodeSeriesID(t, s1Body)
@@ -393,7 +392,7 @@ func TestUserReassignsEntryBetweenSeries(t *testing.T) {
 		Path:           "/series",
 		Body:           models.SeriesNew{Title: "Solo Leveling (continuation)"},
 		ExpectedStatus: http.StatusCreated,
-		ExpectedBody:   handlers.SeriesResponse{Title: "Solo Leveling (continuation)", Status: constants.StatusReading},
+		ExpectedBody:   models.Series{Title: "Solo Leveling (continuation)", Status: constants.StatusReading},
 		SentinelPaths:  []string{"id", "created_at", "updated_at"},
 	}).do(t, h)
 	s2ID := decodeSeriesID(t, s2Body)
@@ -412,7 +411,7 @@ func TestUserReassignsEntryBetweenSeries(t *testing.T) {
 			SeriesID:   &s1ID,
 		},
 		ExpectedStatus: http.StatusCreated,
-		ExpectedBody: handlers.EntryResponse{
+		ExpectedBody: models.Entry{
 			SeriesID:    s1ID,
 			SiteHost:    "reader.example.com",
 			SeriesSlug:  "solo-leveling",
@@ -430,7 +429,7 @@ func TestUserReassignsEntryBetweenSeries(t *testing.T) {
 		Path:           fmt.Sprintf("/entries/%d", entryID),
 		Body:           models.EntryPatch{SeriesID: &s2ID},
 		ExpectedStatus: http.StatusOK,
-		ExpectedBody: handlers.EntryResponse{
+		ExpectedBody: models.Entry{
 			ID:          entryID,
 			SeriesID:    s2ID,
 			SiteHost:    "reader.example.com",
@@ -468,9 +467,9 @@ func TestUserReassignsEntryBetweenSeries(t *testing.T) {
 		Method:         http.MethodGet,
 		Path:           fmt.Sprintf("/series/%d", s2ID),
 		ExpectedStatus: http.StatusOK,
-		ExpectedBody: handlers.SeriesDetailResponse{
-			SeriesSummaryResponse: handlers.SeriesSummaryResponse{
-				SeriesResponse: handlers.SeriesResponse{
+		ExpectedBody: models.SeriesDetail{
+			SeriesSummary: models.SeriesSummary{
+				Series: models.Series{
 					ID:     s2ID,
 					Title:  "Solo Leveling (continuation)",
 					Status: constants.StatusReading,
@@ -479,7 +478,7 @@ func TestUserReassignsEntryBetweenSeries(t *testing.T) {
 				EntryCount:     1,
 				LastCapturedAt: nil,
 			},
-			Entries: []handlers.EntryResponse{{
+			Entries: []models.Entry{{
 				ID:          entryID,
 				SeriesID:    s2ID,
 				SiteHost:    "reader.example.com",
@@ -517,15 +516,13 @@ func TestAPITokenBearerFlow(t *testing.T) {
 		Path:           "/auth/tokens",
 		Body:           models.NewToken{Label: "extension"},
 		ExpectedStatus: http.StatusCreated,
-		ExpectedBody: handlers.APITokenCreatedResponse{
-			APITokenResponse: handlers.APITokenResponse{
-				Label:      "extension",
-				LastUsedAt: nil,
-				ExpiresAt:  nil,
-			},
-			// Token is non-deterministic; the sentinel path puts
-			// "<token>" on both sides.
-			Token: "<token>",
+		ExpectedBody: models.APIToken{
+			Label:      "extension",
+			LastUsedAt: nil,
+			ExpiresAt:  nil,
+			// Raw (json:"token") is non-deterministic; the sentinel
+			// path replaces it with "<token>" on both sides.
+			Raw: "<token>",
 		},
 		SentinelPaths: []string{"id", "created_at", "token"},
 	}).do(t, h)
@@ -559,7 +556,7 @@ func TestAPITokenBearerFlow(t *testing.T) {
 		Headers:        http.Header{"Authorization": []string{"Bearer " + rawToken}},
 		Client:         bareClient,
 		ExpectedStatus: http.StatusOK,
-		ExpectedBody:   handlers.UserResponse{Username: "alice"},
+		ExpectedBody:   models.User{Username: "alice"},
 		SentinelPaths:  []string{"id", "created_at"},
 	}).do(t, h)
 
@@ -595,7 +592,7 @@ func TestHealthzIsOpenAndReturnsExpectedBody(t *testing.T) {
 		Method:         http.MethodGet,
 		Path:           "/healthz",
 		ExpectedStatus: http.StatusOK,
-		ExpectedBody:   handlers.HealthResponse{Status: "ok", Version: "test"},
+		ExpectedBody:   models.Health{Status: "ok", Version: "test"},
 	}).do(t, h)
 }
 
@@ -674,7 +671,7 @@ func TestPatchSeriesFieldSemantics(t *testing.T) {
 			Notes:  "initial",
 		},
 		ExpectedStatus: http.StatusCreated,
-		ExpectedBody: handlers.SeriesResponse{
+		ExpectedBody: models.Series{
 			Title:  "Omniscient Reader's Viewpoint",
 			Status: constants.StatusReading,
 			Rating: intPtr(8),
@@ -693,7 +690,7 @@ func TestPatchSeriesFieldSemantics(t *testing.T) {
 		Path:           patchPath,
 		Body:           models.SeriesPatch{Notes: &notes},
 		ExpectedStatus: http.StatusOK,
-		ExpectedBody: handlers.SeriesResponse{
+		ExpectedBody: models.Series{
 			ID:     seriesID,
 			Title:  "Omniscient Reader's Viewpoint",
 			Status: constants.StatusReading,
@@ -720,7 +717,7 @@ func TestPatchSeriesFieldSemantics(t *testing.T) {
 		Path:           patchPath,
 		Body:           map[string]any{"rating": nil},
 		ExpectedStatus: http.StatusOK,
-		ExpectedBody: handlers.SeriesResponse{
+		ExpectedBody: models.Series{
 			ID:     seriesID,
 			Title:  "Omniscient Reader's Viewpoint",
 			Status: constants.StatusReading,
@@ -742,7 +739,7 @@ func TestPatchSeriesFieldSemantics(t *testing.T) {
 		Path:           patchPath,
 		Body:           models.SeriesPatch{Status: &status},
 		ExpectedStatus: http.StatusOK,
-		ExpectedBody: handlers.SeriesResponse{
+		ExpectedBody: models.Series{
 			ID:     seriesID,
 			Title:  "Omniscient Reader's Viewpoint",
 			Status: constants.StatusCompleted,
@@ -775,7 +772,7 @@ func TestCaptureNormalisesSiteHost(t *testing.T) {
 		Path:           "/series",
 		Body:           models.SeriesNew{Title: "Solo Leveling (host-norm)", Status: constants.StatusReading},
 		ExpectedStatus: http.StatusCreated,
-		ExpectedBody:   handlers.SeriesResponse{Title: "Solo Leveling (host-norm)", Status: constants.StatusReading},
+		ExpectedBody:   models.Series{Title: "Solo Leveling (host-norm)", Status: constants.StatusReading},
 		SentinelPaths:  []string{"id", "created_at", "updated_at"},
 	}).do(t, h)
 	seriesID := decodeSeriesID(t, seriesBody)
@@ -795,7 +792,7 @@ func TestCaptureNormalisesSiteHost(t *testing.T) {
 			SeriesID:   &seriesID,
 		},
 		ExpectedStatus: http.StatusCreated,
-		ExpectedBody: handlers.EntryResponse{
+		ExpectedBody: models.Entry{
 			SeriesID:    seriesID,
 			SiteHost:    "reader.example.com",
 			SeriesSlug:  "solo-leveling-host-norm",
@@ -827,7 +824,7 @@ func TestCaptureNormalisesSiteHost(t *testing.T) {
 			URL:        url2,
 		},
 		ExpectedStatus: http.StatusOK,
-		ExpectedBody: handlers.EntryResponse{
+		ExpectedBody: models.Entry{
 			ID:          entryID,
 			SeriesID:    seriesID,
 			SiteHost:    "reader.example.com",

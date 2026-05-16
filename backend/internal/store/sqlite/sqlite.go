@@ -7,6 +7,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -54,8 +55,15 @@ func Open(ctx context.Context, databaseURL string) (*sql.DB, error) {
 	db.SetMaxIdleConns(1)
 
 	if err := db.PingContext(ctx); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("sqlite: ping %q: %w", path, err)
+		// Surface a close-time failure to the caller alongside the
+		// ping error rather than swallowing it. errors.Join keeps both
+		// in the returned error tree (errors.Is still works for either)
+		// so we don't quietly mask a leak.
+		pingErr := fmt.Errorf("sqlite: ping %q: %w", path, err)
+		if cerr := db.Close(); cerr != nil {
+			return nil, errors.Join(pingErr, fmt.Errorf("sqlite: close after ping: %w", cerr))
+		}
+		return nil, pingErr
 	}
 	return db, nil
 }
@@ -67,6 +75,9 @@ func parseURL(databaseURL string) (string, url.Values, error) {
 	}
 	rest := strings.TrimPrefix(databaseURL, prefix)
 
+	// strings.Cut's third return (the "found" bool) is intentionally
+	// discarded: when no "?" is present pathPart=rest and queryPart=""
+	// which is exactly the "no query string" case we want.
 	pathPart, queryPart, _ := strings.Cut(rest, "?")
 	if pathPart == "" {
 		return "", nil, fmt.Errorf("sqlite: empty path in %q", databaseURL)

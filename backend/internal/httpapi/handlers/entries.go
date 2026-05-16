@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -13,13 +12,6 @@ import (
 	"github.com/enable-it/nextchapter/backend/internal/entries"
 	"github.com/enable-it/nextchapter/backend/internal/models"
 )
-
-// entriesListQuery binds GET /entries query parameters. SeriesID is
-// a pointer so absent and explicit-empty stay distinguishable.
-type entriesListQuery struct {
-	SeriesID *int64 `form:"series_id" binding:"omitempty,min=1"`
-	listPaginationQuery
-}
 
 // EntriesDeps groups the dependencies the entries handlers need.
 type EntriesDeps struct {
@@ -31,59 +23,35 @@ type EntriesDeps struct {
 	Logger        *zap.Logger
 }
 
-// EntryResponse is the JSON shape for an entries row. Used by
-// GET/POST/PATCH /entries endpoints and embedded in
-// SeriesDetailResponse.
-type EntryResponse struct {
-	ID             int64     `json:"id"`
-	SeriesID       int64     `json:"series_id"`
-	SiteHost       string    `json:"site_host"`
-	SeriesSlug     string    `json:"series_slug"`
-	SiteTitle      string    `json:"site_title"`
-	LastChapter    float64   `json:"last_chapter"`
-	LastURL        string    `json:"last_url"`
-	LastCapturedAt time.Time `json:"last_captured_at"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-}
-
-// EntryListResponse is the GET /entries envelope: paginated entries
-// plus total count.
-type EntryListResponse struct {
-	Items []EntryResponse `json:"items"`
-	Total int64           `json:"total"`
-}
-
-func entryToJSON(e models.Entry) EntryResponse {
-	return EntryResponse{
-		ID:             e.ID,
-		SeriesID:       e.SeriesID,
-		SiteHost:       e.SiteHost,
-		SeriesSlug:     e.SeriesSlug,
-		SiteTitle:      e.SiteTitle,
-		LastChapter:    e.LastChapter,
-		LastURL:        e.LastURL,
-		LastCapturedAt: e.LastCapturedAt,
-		CreatedAt:      e.CreatedAt,
-		UpdatedAt:      e.UpdatedAt,
-	}
-}
-
 // List implements GET /entries.
 func (d EntriesDeps) List(c *gin.Context) {
-	u, _ := models.UserFromContext(c.Request.Context())
-	var q entriesListQuery
-	if err := c.ShouldBindQuery(&q); err != nil {
-		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
-			Code:    CodeValidation,
-			Message: "invalid query",
-			Fields:  map[string]string{"query": err.Error()},
+	u, ok := models.UserFromContext(c.Request.Context())
+	if !ok {
+		d.Logger.Error("handler: user missing from context", zap.String("handler", "Entries.List"))
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
+			Code:    CodeInternal,
+			Message: "internal server error",
 		}})
 		return
 	}
-	items, total, err := d.Entries.Positions(c.Request.Context(), u.ID, models.EntryFilter{
-		SeriesID: q.SeriesID, Limit: q.Limit, Offset: q.Offset,
-	})
+	var filter models.EntryFilter
+	if err := c.ShouldBindQuery(&filter); err != nil {
+		var verr validator.ValidationErrors
+		if errors.As(err, &verr) {
+			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
+				Code:    CodeValidation,
+				Message: "invalid query",
+				Fields:  validationFieldsFromErr(verr),
+			}})
+			return
+		}
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorBody{Error: ErrorDetail{
+			Code:    CodeBadRequest,
+			Message: "invalid query",
+		}})
+		return
+	}
+	page, err := d.Entries.ListReadingPositions(c.Request.Context(), u.ID, filter)
 	if err != nil {
 		d.Logger.Error("list entries", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
@@ -92,16 +60,20 @@ func (d EntriesDeps) List(c *gin.Context) {
 		}})
 		return
 	}
-	out := make([]EntryResponse, 0, len(items))
-	for _, e := range items {
-		out = append(out, entryToJSON(e))
-	}
-	c.JSON(http.StatusOK, EntryListResponse{Items: out, Total: total})
+	c.JSON(http.StatusOK, page)
 }
 
 // Capture implements POST /entries/capture.
 func (d EntriesDeps) Capture(c *gin.Context) {
-	u, _ := models.UserFromContext(c.Request.Context())
+	u, ok := models.UserFromContext(c.Request.Context())
+	if !ok {
+		d.Logger.Error("handler: user missing from context", zap.String("handler", "Entries.Capture"))
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
+			Code:    CodeInternal,
+			Message: "internal server error",
+		}})
+		return
+	}
 	var req models.EntryCapture
 	if err := c.ShouldBindJSON(&req); err != nil {
 		var verr validator.ValidationErrors
@@ -123,7 +95,7 @@ func (d EntriesDeps) Capture(c *gin.Context) {
 	// before it reaches the service so the (user, host, slug) upsert
 	// key matches the canonical form.
 	req.SiteHost = strings.TrimPrefix(strings.ToLower(req.SiteHost), "www.")
-	entry, created, err := d.Entries.Capture(c.Request.Context(), u.ID, req, d.SeriesCreator)
+	entry, created, err := d.Entries.CaptureChapter(c.Request.Context(), u.ID, req, d.SeriesCreator)
 	if err != nil {
 		switch {
 		case errors.Is(err, models.ErrEntryCaptureSeriesRequired):
@@ -149,15 +121,23 @@ func (d EntriesDeps) Capture(c *gin.Context) {
 		return
 	}
 	if created {
-		c.JSON(http.StatusCreated, entryToJSON(entry))
+		c.JSON(http.StatusCreated, entry)
 		return
 	}
-	c.JSON(http.StatusOK, entryToJSON(entry))
+	c.JSON(http.StatusOK, entry)
 }
 
 // Patch implements PATCH /entries/{id}.
 func (d EntriesDeps) Patch(c *gin.Context) {
-	u, _ := models.UserFromContext(c.Request.Context())
+	u, ok := models.UserFromContext(c.Request.Context())
+	if !ok {
+		d.Logger.Error("handler: user missing from context", zap.String("handler", "Entries.Patch"))
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
+			Code:    CodeInternal,
+			Message: "internal server error",
+		}})
+		return
+	}
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
@@ -183,7 +163,7 @@ func (d EntriesDeps) Patch(c *gin.Context) {
 		}})
 		return
 	}
-	row, err := d.Entries.Adjust(c.Request.Context(), u.ID, uri.ID, req)
+	row, err := d.Entries.AdjustReadingPosition(c.Request.Context(), u.ID, uri.ID, req)
 	if err != nil {
 		switch {
 		case errors.Is(err, models.ErrEntryNotFound):
@@ -207,12 +187,20 @@ func (d EntriesDeps) Patch(c *gin.Context) {
 		}})
 		return
 	}
-	c.JSON(http.StatusOK, entryToJSON(row))
+	c.JSON(http.StatusOK, row)
 }
 
 // Delete implements DELETE /entries/{id}.
 func (d EntriesDeps) Delete(c *gin.Context) {
-	u, _ := models.UserFromContext(c.Request.Context())
+	u, ok := models.UserFromContext(c.Request.Context())
+	if !ok {
+		d.Logger.Error("handler: user missing from context", zap.String("handler", "Entries.Delete"))
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
+			Code:    CodeInternal,
+			Message: "internal server error",
+		}})
+		return
+	}
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
@@ -221,7 +209,7 @@ func (d EntriesDeps) Delete(c *gin.Context) {
 		}})
 		return
 	}
-	if err := d.Entries.Forget(c.Request.Context(), u.ID, uri.ID); err != nil {
+	if err := d.Entries.ForgetReadingPosition(c.Request.Context(), u.ID, uri.ID); err != nil {
 		if errors.Is(err, models.ErrEntryNotFound) {
 			c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
 				Code:    CodeNotFound,

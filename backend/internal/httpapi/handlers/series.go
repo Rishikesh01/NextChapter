@@ -4,21 +4,14 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"go.uber.org/zap"
 
-	"github.com/enable-it/nextchapter/backend/constants"
 	"github.com/enable-it/nextchapter/backend/internal/models"
 	"github.com/enable-it/nextchapter/backend/internal/series"
 )
-
-// statusEnumMessage is the canonical 422 message body for an
-// out-of-enum status. Built once at init so the per-handler
-// validation blocks don't repeat the constant list.
-var statusEnumMessage = "must be one of " + strings.Join(constants.AllSeriesStatuses, "|")
 
 // resourceIDUri is the canonical ":id" path-parameter struct shared
 // by every handler that takes a numeric resource id in the URL. gin's
@@ -29,141 +22,42 @@ type resourceIDUri struct {
 	ID int64 `uri:"id" binding:"required,min=1"`
 }
 
-// listPaginationQuery is the shared shape for endpoints that accept
-// limit / offset query parameters. Embedded into each list endpoint's
-// query struct so the defaults and bounds live in one place.
-//
-// The numbers in the struct tags duplicate
-// [constants.ListLimitDefault] / [constants.ListLimitMax] /
-// [constants.ListOffsetMin] — Go struct tags can't reference
-// constants. Update both when the bounds change.
-type listPaginationQuery struct {
-	Limit  int `form:"limit,default=50" binding:"omitempty,min=1,max=200"`
-	Offset int `form:"offset,default=0" binding:"omitempty,min=0"`
-}
-
-// seriesListQuery binds GET /series query parameters.
-type seriesListQuery struct {
-	Status string `form:"status"`
-	listPaginationQuery
-}
-
-// validSeriesStatus reports whether s is in the SeriesStatus enum.
-// Lives here (not via series.ValidStatus) so handlers stay off the
-// internal/series import.
-func validSeriesStatus(s string) bool {
-	for _, v := range constants.AllSeriesStatuses {
-		if v == s {
-			return true
-		}
-	}
-	return false
-}
-
 // SeriesDeps groups the dependencies the series handlers need.
 type SeriesDeps struct {
 	Series series.SeriesService
 	Logger *zap.Logger
 }
 
-// SeriesResponse is the JSON shape for POST/PATCH /series and the base
-// shape embedded in summary/detail responses.
-type SeriesResponse struct {
-	ID        int64     `json:"id"`
-	Title     string    `json:"title"`
-	Status    string    `json:"status"`
-	Rating    *int      `json:"rating"`
-	Notes     string    `json:"notes"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
-// SeriesSummaryResponse is the per-row shape of GET /series — the
-// base series fields plus rollup columns.
-type SeriesSummaryResponse struct {
-	SeriesResponse
-	HighestChapter *float64   `json:"highest_chapter"`
-	EntryCount     int64      `json:"entry_count"`
-	LastCapturedAt *time.Time `json:"last_captured_at"`
-}
-
-// SeriesDetailResponse is the GET /series/{id} response: a summary
-// plus the full entry list under that series.
-type SeriesDetailResponse struct {
-	SeriesSummaryResponse
-	Entries []EntryResponse `json:"entries"`
-}
-
-// SeriesListResponse is the GET /series envelope: paginated summaries
-// plus total count for the filtered set.
-type SeriesListResponse struct {
-	Items []SeriesSummaryResponse `json:"items"`
-	Total int64                   `json:"total"`
-}
-
-func seriesRowToJSON(r models.Series) SeriesResponse {
-	return SeriesResponse{
-		ID:        r.ID,
-		Title:     r.Title,
-		Status:    r.Status,
-		Rating:    r.Rating,
-		Notes:     r.Notes,
-		CreatedAt: r.CreatedAt,
-		UpdatedAt: r.UpdatedAt,
-	}
-}
-
-func summaryToJSON(s models.SeriesSummary) SeriesSummaryResponse {
-	base := SeriesResponse{
-		ID:        s.ID,
-		Title:     s.Title,
-		Status:    s.Status,
-		Rating:    s.Rating,
-		Notes:     s.Notes,
-		CreatedAt: s.CreatedAt,
-		UpdatedAt: s.UpdatedAt,
-	}
-	return SeriesSummaryResponse{
-		SeriesResponse: base,
-		HighestChapter: s.HighestChapter,
-		EntryCount:     s.EntryCount,
-		LastCapturedAt: s.LastCapturedAt,
-	}
-}
-
 // List implements GET /series.
 func (d SeriesDeps) List(c *gin.Context) {
-	u, _ := models.UserFromContext(c.Request.Context())
-	var q seriesListQuery
-	if err := c.ShouldBindQuery(&q); err != nil {
-		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
-			Code:    CodeValidation,
-			Message: "invalid query",
-			Fields:  map[string]string{"query": err.Error()},
+	u, ok := models.UserFromContext(c.Request.Context())
+	if !ok {
+		d.Logger.Error("handler: user missing from context", zap.String("handler", "Series.List"))
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
+			Code:    CodeInternal,
+			Message: "internal server error",
 		}})
 		return
 	}
-	status := strings.TrimSpace(q.Status)
-	if status != "" && !validSeriesStatus(status) {
-		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
-			Code:    CodeValidation,
-			Message: "invalid status",
-			Fields:  map[string]string{"status": statusEnumMessage},
-		}})
-		return
-	}
-	items, total, err := d.Series.Library(c.Request.Context(), u.ID, models.SeriesFilter{
-		Status: status, Limit: q.Limit, Offset: q.Offset,
-	})
-	if err != nil {
-		if errors.Is(err, models.ErrSeriesInvalidStatus) {
+	var filter models.SeriesFilter
+	if err := c.ShouldBindQuery(&filter); err != nil {
+		var verr validator.ValidationErrors
+		if errors.As(err, &verr) {
 			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
 				Code:    CodeValidation,
-				Message: "invalid status",
-				Fields:  map[string]string{"status": "invalid"},
+				Message: "invalid query",
+				Fields:  validationFieldsFromErr(verr),
 			}})
 			return
 		}
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorBody{Error: ErrorDetail{
+			Code:    CodeBadRequest,
+			Message: "invalid query",
+		}})
+		return
+	}
+	page, err := d.Series.ListTrackedSeries(c.Request.Context(), u.ID, filter)
+	if err != nil {
 		d.Logger.Error("list series", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
 			Code:    CodeInternal,
@@ -171,16 +65,20 @@ func (d SeriesDeps) List(c *gin.Context) {
 		}})
 		return
 	}
-	out := make([]SeriesSummaryResponse, 0, len(items))
-	for _, s := range items {
-		out = append(out, summaryToJSON(s))
-	}
-	c.JSON(http.StatusOK, SeriesListResponse{Items: out, Total: total})
+	c.JSON(http.StatusOK, page)
 }
 
 // Create implements POST /series.
 func (d SeriesDeps) Create(c *gin.Context) {
-	u, _ := models.UserFromContext(c.Request.Context())
+	u, ok := models.UserFromContext(c.Request.Context())
+	if !ok {
+		d.Logger.Error("handler: user missing from context", zap.String("handler", "Series.Create"))
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
+			Code:    CodeInternal,
+			Message: "internal server error",
+		}})
+		return
+	}
 	var req models.SeriesNew
 	if err := c.ShouldBindJSON(&req); err != nil {
 		var verr validator.ValidationErrors
@@ -199,7 +97,7 @@ func (d SeriesDeps) Create(c *gin.Context) {
 		return
 	}
 	req.Title = strings.TrimSpace(req.Title)
-	row, err := d.Series.Track(c.Request.Context(), u.ID, req)
+	row, err := d.Series.TrackSeries(c.Request.Context(), u.ID, req)
 	if err != nil {
 		d.Logger.Error("create series", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
@@ -208,12 +106,20 @@ func (d SeriesDeps) Create(c *gin.Context) {
 		}})
 		return
 	}
-	c.JSON(http.StatusCreated, seriesRowToJSON(row))
+	c.JSON(http.StatusCreated, row)
 }
 
 // Get implements GET /series/{id}.
 func (d SeriesDeps) Get(c *gin.Context) {
-	u, _ := models.UserFromContext(c.Request.Context())
+	u, ok := models.UserFromContext(c.Request.Context())
+	if !ok {
+		d.Logger.Error("handler: user missing from context", zap.String("handler", "Series.Get"))
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
+			Code:    CodeInternal,
+			Message: "internal server error",
+		}})
+		return
+	}
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
@@ -222,7 +128,7 @@ func (d SeriesDeps) Get(c *gin.Context) {
 		}})
 		return
 	}
-	det, err := d.Series.Inspect(c.Request.Context(), u.ID, uri.ID)
+	det, err := d.Series.InspectSeries(c.Request.Context(), u.ID, uri.ID)
 	if err != nil {
 		if errors.Is(err, models.ErrSeriesNotFound) {
 			c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
@@ -238,20 +144,20 @@ func (d SeriesDeps) Get(c *gin.Context) {
 		}})
 		return
 	}
-	entriesJSON := make([]EntryResponse, 0, len(det.Entries))
-	for _, e := range det.Entries {
-		entriesJSON = append(entriesJSON, entryToJSON(e))
-	}
-	body := SeriesDetailResponse{
-		SeriesSummaryResponse: summaryToJSON(det.SeriesSummary),
-		Entries:               entriesJSON,
-	}
-	c.JSON(http.StatusOK, body)
+	c.JSON(http.StatusOK, det)
 }
 
 // Patch implements PATCH /series/{id}.
 func (d SeriesDeps) Patch(c *gin.Context) {
-	u, _ := models.UserFromContext(c.Request.Context())
+	u, ok := models.UserFromContext(c.Request.Context())
+	if !ok {
+		d.Logger.Error("handler: user missing from context", zap.String("handler", "Series.Patch"))
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
+			Code:    CodeInternal,
+			Message: "internal server error",
+		}})
+		return
+	}
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
@@ -281,7 +187,7 @@ func (d SeriesDeps) Patch(c *gin.Context) {
 		t := strings.TrimSpace(*req.Title)
 		req.Title = &t
 	}
-	row, err := d.Series.Edit(c.Request.Context(), u.ID, uri.ID, req)
+	row, err := d.Series.EditSeries(c.Request.Context(), u.ID, uri.ID, req)
 	if err != nil {
 		if errors.Is(err, models.ErrSeriesNotFound) {
 			c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
@@ -297,12 +203,20 @@ func (d SeriesDeps) Patch(c *gin.Context) {
 		}})
 		return
 	}
-	c.JSON(http.StatusOK, seriesRowToJSON(row))
+	c.JSON(http.StatusOK, row)
 }
 
 // Delete implements DELETE /series/{id}.
 func (d SeriesDeps) Delete(c *gin.Context) {
-	u, _ := models.UserFromContext(c.Request.Context())
+	u, ok := models.UserFromContext(c.Request.Context())
+	if !ok {
+		d.Logger.Error("handler: user missing from context", zap.String("handler", "Series.Delete"))
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
+			Code:    CodeInternal,
+			Message: "internal server error",
+		}})
+		return
+	}
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
@@ -311,7 +225,7 @@ func (d SeriesDeps) Delete(c *gin.Context) {
 		}})
 		return
 	}
-	if err := d.Series.Untrack(c.Request.Context(), u.ID, uri.ID); err != nil {
+	if err := d.Series.UntrackSeries(c.Request.Context(), u.ID, uri.ID); err != nil {
 		if errors.Is(err, models.ErrSeriesNotFound) {
 			c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
 				Code:    CodeNotFound,

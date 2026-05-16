@@ -2,40 +2,46 @@ package models
 
 import "time"
 
-// Series is the domain shape of a series row, returned by Create /
-// Update / Get. The summary queries return [SeriesSummary] which
-// carries the rollup columns on top.
+// Series is the domain shape of a series row and the wire shape for
+// POST/PATCH /series. The Create / Update / Get paths return this
+// directly; the summary listing returns [SeriesSummary] which embeds
+// Series and carries the rollup columns on top. UserID is internal
+// scoping metadata — never on the wire.
 type Series struct {
-	ID        int64
-	UserID    int64
-	Title     string
-	Status    string
-	Rating    *int
-	Notes     string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        int64     `json:"id"`
+	UserID    int64     `json:"-"`
+	Title     string    `json:"title"`
+	Status    string    `json:"status"`
+	Rating    *int      `json:"rating"`
+	Notes     string    `json:"notes"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// SeriesSummary is the listing shape returned by GET /series.
+// SeriesSummary is the per-row wire shape returned by GET /series.
+// Embedding [Series] flattens the base columns to top-level fields on
+// the JSON payload; the three rollup fields appear alongside them.
 type SeriesSummary struct {
-	ID             int64
-	UserID         int64
-	Title          string
-	Status         string
-	Rating         *int
-	Notes          string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	HighestChapter *float64
-	EntryCount     int64
-	LastCapturedAt *time.Time
+	Series
+	HighestChapter *float64   `json:"highest_chapter"`
+	EntryCount     int64      `json:"entry_count"`
+	LastCapturedAt *time.Time `json:"last_captured_at"`
 }
 
-// SeriesDetail is the shape returned by GET /series/{id}: the summary
-// plus the full per-site entry list.
+// SeriesDetail is the wire shape for GET /series/{id}: the summary
+// plus the full per-site entry list. Entries serialise inside the
+// detail response with the same shape as the standalone /entries
+// endpoint because [Entry] carries the same json tags.
 type SeriesDetail struct {
 	SeriesSummary
-	Entries []Entry
+	Entries []Entry `json:"entries"`
+}
+
+// SeriesList is the wire envelope for GET /series: a page of
+// summaries plus the total count for the filtered set.
+type SeriesList struct {
+	Items []SeriesSummary `json:"items"`
+	Total int64           `json:"total"`
 }
 
 // SeriesNew is both the POST /series JSON body and the input to the
@@ -66,9 +72,17 @@ type SeriesPatch struct {
 	Notes  *string `json:"notes,omitempty"  binding:"omitempty,max=8192"`
 }
 
-// SeriesFilter configures a paginated list of summaries.
+// SeriesFilter binds the GET /series query string and feeds the
+// series service's list method. Pagination defaults and bounds live
+// here, in the binding layer, not in the service — out-of-range
+// values surface as 422 with a field-level error via the handler's
+// standard validator.ValidationErrors path.
+//
+// The literal 50 / 200 / 0 duplicate [constants.ListLimitDefault] /
+// [constants.ListLimitMax] / [constants.ListOffsetMin]; Go struct
+// tags can't reference constants. Update both when the bounds change.
 type SeriesFilter struct {
-	Status string // optional; "" = all statuses
-	Limit  int
-	Offset int
+	Status string `form:"status"           binding:"omitempty,oneof=reading completed on_hold dropped plan_to_read"`
+	Limit  int    `form:"limit,default=50" binding:"omitempty,min=1,max=200"`
+	Offset int    `form:"offset,default=0" binding:"omitempty,min=0"`
 }

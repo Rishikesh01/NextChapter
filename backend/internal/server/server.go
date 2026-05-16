@@ -35,8 +35,13 @@ func Run(ctx context.Context, cfg config.Config) error {
 		return fmt.Errorf("server: build logger: %w", err)
 	}
 	defer func() {
-		// Best-effort flush. zap returns EINVAL on stdout on some
-		// platforms — ignore those.
+		// zap.Logger.Sync() returns EBADF on stderr in containers (and
+		// EINVAL on some stdout configurations); the underlying file
+		// descriptor isn't seekable so the flush call surfaces a
+		// benign error every time. We intentionally discard it per
+		// upstream zap guidance — there's nothing actionable to do
+		// with a flush-on-shutdown error and surfacing it would just
+		// add noise.
 		_ = logger.Sync()
 	}()
 
@@ -63,16 +68,16 @@ func Run(ctx context.Context, cfg config.Config) error {
 	// can read the stored password hash — that's why userRepo is
 	// built first and threaded into auth.NewService.
 	userRepo := users.NewRepository(queries)
-	userSvc := users.NewService(userRepo)
+	userSvc := users.NewService(userRepo, logger)
 
 	authRepo := auth.NewRepository(queries)
-	authSvc := auth.NewService(authRepo, userRepo)
+	authSvc := auth.NewService(authRepo, userRepo, logger)
 
 	entryRepo := entries.NewRepository(queries)
-	entrySvc := entries.NewService(entryRepo)
+	entrySvc := entries.NewService(entryRepo, logger)
 
 	seriesRepo := series.NewRepository(queries)
-	seriesSvc := series.NewService(seriesRepo, entrySvc)
+	seriesSvc := series.NewService(seriesRepo, entrySvc, logger)
 
 	if cfg.HasBootstrap() {
 		if err := bootstrapFirstUser(ctx, logger, userSvc, cfg.BootstrapUsername, cfg.BootstrapPassword); err != nil {

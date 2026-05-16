@@ -25,7 +25,6 @@ import (
 	"github.com/enable-it/nextchapter/backend/internal/config"
 	"github.com/enable-it/nextchapter/backend/internal/entries"
 	"github.com/enable-it/nextchapter/backend/internal/httpapi"
-	"github.com/enable-it/nextchapter/backend/internal/httpapi/handlers"
 	"github.com/enable-it/nextchapter/backend/internal/models"
 	"github.com/enable-it/nextchapter/backend/internal/series"
 	"github.com/enable-it/nextchapter/backend/internal/store"
@@ -71,10 +70,10 @@ func startServer(t *testing.T, cfg config.Config) *harness {
 
 	q := gen.New(db)
 	userRepo := users.NewRepository(q)
-	usrSvc := users.NewService(userRepo)
-	authSvc := auth.NewService(auth.NewRepository(q), userRepo)
-	entSvc := entries.NewService(entries.NewRepository(q))
-	srsSvc := series.NewService(series.NewRepository(q), entSvc)
+	usrSvc := users.NewService(userRepo, zap.NewNop())
+	authSvc := auth.NewService(auth.NewRepository(q), userRepo, zap.NewNop())
+	entSvc := entries.NewService(entries.NewRepository(q), zap.NewNop())
+	srsSvc := series.NewService(series.NewRepository(q), entSvc, zap.NewNop())
 
 	if cfg.HasBootstrap() {
 		n, err := usrSvc.CountUsers(ctx)
@@ -105,7 +104,9 @@ func startServer(t *testing.T, cfg config.Config) *harness {
 
 	t.Cleanup(func() {
 		srv.Close()
-		_ = db.Close()
+		if err := db.Close(); err != nil {
+			t.Logf("close db: %v", err)
+		}
 	})
 
 	return &harness{srv: srv, client: client, db: db, queries: q}
@@ -153,7 +154,7 @@ func newAuthenticatedHarness(t *testing.T) *harness {
 		Path:           "/auth/login",
 		Body:           models.Credentials{Username: "alice", Password: "correct horse battery"},
 		ExpectedStatus: http.StatusOK,
-		ExpectedBody:   handlers.UserResponse{Username: "alice"},
+		ExpectedBody:   models.User{Username: "alice"},
 		SentinelPaths:  []string{"id", "created_at"},
 	}).do(t, h)
 	return h
@@ -243,10 +244,10 @@ func decodeMintedToken(t *testing.T, body []byte) (id int64, token string) {
 //     request; leave it empty for single-request tests so the runner
 //     doesn't add a noisy extra layer in -v output. When Name is
 //     empty, do runs inline on the passed *testing.T.
-//   - Body / ExpectedBody: typed values from the models / handlers
-//     packages (e.g. models.SeriesNew for requests,
-//     handlers.SeriesResponse for responses). Marshalled to JSON for
-//     both wire payload and JSONEq comparison.
+//   - Body / ExpectedBody: typed values from the [internal/models]
+//     package (e.g. [models.SeriesNew] for requests, [models.Series]
+//     for responses). Marshalled to JSON for both wire payload and
+//     JSONEq comparison.
 //   - ExpectedBody == nil: assert the response body is empty
 //     (e.g. 204 No Content).
 //   - SentinelPaths: dotted paths whose values in the actual response

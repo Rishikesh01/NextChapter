@@ -14,6 +14,11 @@
 //     entries.EntriesService), not here.
 //   - Persistence-layer structs (Insert*Params, Repository interfaces,
 //     conversion shims) stay in their domain packages.
+//   - Domain models ARE the wire shape: every type returned by a
+//     service carries json tags and is written directly via
+//     c.JSON(status, model). No *Response wrappers in handlers, no
+//     xToJSON mappers. Internal-only fields (UserID, TokenHash,
+//     PasswordHash, etc.) are tagged `json:"-"` so they never leak.
 package models
 
 import (
@@ -21,17 +26,21 @@ import (
 	"time"
 )
 
-// User is the public-facing authenticated user shape. It deliberately
-// omits PasswordHash so handlers can never serialise it. The hash
-// stays inside [internal/users]; only the users service sees it.
+// User is the public-facing authenticated user shape and the wire
+// shape for /auth/me, /auth/login, /auth/register. It deliberately
+// omits PasswordHash so handlers can never serialise it; the hash
+// stays inside [internal/users] and only the users service sees it.
 type User struct {
-	ID        int64
-	Username  string
-	CreatedAt time.Time
+	ID        int64     `json:"id"`
+	Username  string    `json:"username"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // Token is the domain shape for stored auth_tokens rows. Mirrors the
-// columns the auth service and middleware actually use.
+// columns the auth service and middleware actually use. Token itself
+// is never serialised to the wire directly (it carries TokenHash and
+// the wire never returns the hash); /auth/tokens responses use
+// [APIToken] which carries only the wire-safe fields.
 type Token struct {
 	ID         int64
 	UserID     int64
@@ -46,18 +55,32 @@ type Token struct {
 
 // SessionToken is the result of the auth service's CreateSession
 // method: the raw token (already prefixed with
-// constants.TokenPrefixSession) plus its DB row metadata.
+// constants.TokenPrefixSession) plus its DB row metadata. Internal
+// only — handlers consume the Raw field to set the cookie and never
+// serialise this struct to the wire. Every field is `json:"-"` so an
+// accidental c.JSON would emit `{}`.
 type SessionToken struct {
-	Raw   string
-	Token Token
+	Raw   string `json:"-"`
+	Token Token  `json:"-"`
 }
 
-// APIToken is the result of the auth service's CreateAPI method: the
-// raw token (already prefixed with constants.TokenPrefixAPI) plus its
-// DB row.
+// APIToken is the POST /auth/tokens response and the result of the
+// auth service's CreateAPIToken method. The wire shape carries the
+// stored row fields plus the raw plaintext token (returned exactly
+// once at creation time). All non-wire fields on the underlying
+// auth_tokens row (UserID, Kind, TokenHash, LabelValid) are kept off
+// this type entirely.
 type APIToken struct {
-	Raw   string
-	Token Token
+	ID         int64      `json:"id"`
+	Label      string     `json:"label"`
+	CreatedAt  time.Time  `json:"created_at"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+	ExpiresAt  *time.Time `json:"expires_at"`
+	// Raw is the plaintext token, surfaced exactly once on
+	// POST /auth/tokens. The server stores only the hash; subsequent
+	// reads return APIToken values with Raw == "" (omitempty drops the
+	// key entirely from the wire payload).
+	Raw string `json:"token,omitempty"`
 }
 
 // Credentials is both the POST /auth/login JSON body and the input to
@@ -70,7 +93,7 @@ type Credentials struct {
 }
 
 // NewToken is both the POST /auth/tokens JSON body and the input to
-// the auth service's CreateAPI method.
+// the auth service's CreateAPIToken method.
 type NewToken struct {
 	Label     string     `json:"label"                binding:"required,min=1,max=64"`
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`

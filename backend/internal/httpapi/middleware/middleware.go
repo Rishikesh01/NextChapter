@@ -45,8 +45,20 @@ func RequestID() gin.HandlerFunc {
 }
 
 // RequestIDFromContext returns the request id attached by [RequestID].
+// The empty-string return covers two contracted cases:
+//   - the request did not pass through [RequestID] (e.g. a deeply nested
+//     internal call with a background context);
+//   - the value at the key isn't a string (cannot happen given the
+//     unexported key — kept for type-safety).
+//
+// Both branches collapse to "" because callers (the access-log
+// middleware, downstream log lines) skip the field when it's empty.
+// The bool from the type assertion is therefore discarded by design.
 func RequestIDFromContext(ctx context.Context) string {
-	v, _ := ctx.Value(ctxRequestIDKey).(string)
+	v, ok := ctx.Value(ctxRequestIDKey).(string)
+	if !ok {
+		return ""
+	}
 	return v
 }
 

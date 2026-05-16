@@ -25,8 +25,9 @@ var (
 	// for the 401 collapse.
 	ErrInvalidCredentials = errors.New("auth: invalid credentials")
 
-	// ErrSeriesNotFound is returned by SeriesService.Get / Update /
-	// Delete / Detail and by EntriesService.Capture / Patch when a
+	// ErrSeriesNotFound is returned by SeriesService.FindSeries /
+	// EditSeries / UntrackSeries / InspectSeries and by
+	// EntriesService.CaptureChapter / AdjustReadingPosition when a
 	// series id is unknown or belongs to another user. Handlers turn
 	// this into 404 (for series endpoints) or 422 (for entries
 	// endpoints, where the bad id is in the body).
@@ -37,13 +38,14 @@ var (
 	// into 422.
 	ErrSeriesInvalidStatus = errors.New("series: invalid status")
 
-	// ErrEntryNotFound is returned by EntriesService.Patch / Delete
-	// when the entry id is unknown or belongs to another user.
-	// Handlers turn this into 404.
+	// ErrEntryNotFound is returned by
+	// EntriesService.AdjustReadingPosition /
+	// EntriesService.ForgetReadingPosition when the entry id is
+	// unknown or belongs to another user. Handlers turn this into 404.
 	ErrEntryNotFound = errors.New("entries: not found")
 
 	// ErrEntryCaptureSeriesRequired is returned by
-	// EntriesService.Capture when no entry exists for the (host,
+	// EntriesService.CaptureChapter when no entry exists for the (host,
 	// slug) key and the caller supplied neither SeriesID nor
 	// NewSeriesTitle. Handlers turn this into 422.
 	ErrEntryCaptureSeriesRequired = errors.New("entries: series_id or new_series_title required when creating")

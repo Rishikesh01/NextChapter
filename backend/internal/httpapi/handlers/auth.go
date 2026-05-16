@@ -9,12 +9,18 @@
 // The concrete services arrive pre-wired via the *Deps structs from
 // [internal/httpapi/router.go]; error comparisons go through the
 // canonical sentinels in [internal/models].
+//
+// Handlers do NOT define parallel *Response wrapper types or
+// xToJSON mappers: domain models in [internal/models] carry json
+// tags and are returned directly via c.JSON. The only types that
+// live here are the error envelope ([ErrorBody] / [ErrorDetail]) and
+// the binding-only request DTOs ([resourceIDUri]) that have no domain
+// equivalent.
 package handlers
 
 import (
 	"errors"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -42,18 +48,6 @@ type AuthDeps struct {
 	HasEnvBoot   bool // env-var bootstrap enabled; closes /auth/register entirely.
 	CookieDomain string
 	CookieSecure bool
-}
-
-// UserResponse is the JSON shape returned for /auth/me, /auth/login,
-// /auth/register.
-type UserResponse struct {
-	ID        int64     `json:"id"`
-	Username  string    `json:"username"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-func userToJSON(u models.User) UserResponse {
-	return UserResponse{ID: u.ID, Username: u.Username, CreatedAt: u.CreatedAt}
 }
 
 // Register implements POST /auth/register, the open-registration
@@ -130,7 +124,7 @@ func (d AuthDeps) Register(c *gin.Context) {
 		return
 	}
 	d.setSessionCookie(c, tok.Raw, sessionCookieMaxAge)
-	c.JSON(http.StatusCreated, userToJSON(u))
+	c.JSON(http.StatusCreated, u)
 }
 
 // Login implements POST /auth/login.
@@ -181,7 +175,7 @@ func (d AuthDeps) Login(c *gin.Context) {
 		return
 	}
 	d.setSessionCookie(c, tok.Raw, sessionCookieMaxAge)
-	c.JSON(http.StatusOK, userToJSON(u))
+	c.JSON(http.StatusOK, u)
 }
 
 // Logout implements POST /auth/logout. Best-effort: invalidates the
@@ -206,41 +200,21 @@ func (d AuthDeps) Me(c *gin.Context) {
 		}})
 		return
 	}
-	c.JSON(http.StatusOK, userToJSON(u))
-}
-
-// APITokenResponse is the JSON shape for a stored API token. Used by
-// the POST /auth/tokens response (embedded in [APITokenCreatedResponse]).
-type APITokenResponse struct {
-	ID         int64      `json:"id"`
-	Label      string     `json:"label"`
-	CreatedAt  time.Time  `json:"created_at"`
-	LastUsedAt *time.Time `json:"last_used_at"`
-	ExpiresAt  *time.Time `json:"expires_at"`
-}
-
-// APITokenCreatedResponse is the POST /auth/tokens response: the
-// stored token fields plus the raw plaintext token, which the server
-// returns exactly once.
-type APITokenCreatedResponse struct {
-	APITokenResponse
-	Token string `json:"token"`
-}
-
-func tokenToJSON(t models.Token) APITokenResponse {
-	return APITokenResponse{
-		ID:         t.ID,
-		Label:      t.Label,
-		CreatedAt:  t.CreatedAt,
-		LastUsedAt: t.LastUsedAt,
-		ExpiresAt:  t.ExpiresAt,
-	}
+	c.JSON(http.StatusOK, u)
 }
 
 // CreateToken implements POST /auth/tokens. Returns the raw token
-// exactly once.
+// exactly once via the Raw field on [models.APIToken] (json:"token").
 func (d AuthDeps) CreateToken(c *gin.Context) {
-	u, _ := models.UserFromContext(c.Request.Context())
+	u, ok := models.UserFromContext(c.Request.Context())
+	if !ok {
+		d.Logger.Error("handler: user missing from context", zap.String("handler", "Auth.CreateToken"))
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
+			Code:    CodeInternal,
+			Message: "internal server error",
+		}})
+		return
+	}
 	var req models.NewToken
 	if err := c.ShouldBindJSON(&req); err != nil {
 		var verr validator.ValidationErrors
@@ -258,7 +232,7 @@ func (d AuthDeps) CreateToken(c *gin.Context) {
 		}})
 		return
 	}
-	tok, err := d.Auth.CreateAPI(c.Request.Context(), u.ID, req)
+	tok, err := d.Auth.CreateAPIToken(c.Request.Context(), u.ID, req)
 	if err != nil {
 		d.Logger.Error("create token", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
@@ -267,13 +241,20 @@ func (d AuthDeps) CreateToken(c *gin.Context) {
 		}})
 		return
 	}
-	body := APITokenCreatedResponse{APITokenResponse: tokenToJSON(tok.Token), Token: tok.Raw}
-	c.JSON(http.StatusCreated, body)
+	c.JSON(http.StatusCreated, tok)
 }
 
 // DeleteToken implements DELETE /auth/tokens/{id}.
 func (d AuthDeps) DeleteToken(c *gin.Context) {
-	u, _ := models.UserFromContext(c.Request.Context())
+	u, ok := models.UserFromContext(c.Request.Context())
+	if !ok {
+		d.Logger.Error("handler: user missing from context", zap.String("handler", "Auth.DeleteToken"))
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
+			Code:    CodeInternal,
+			Message: "internal server error",
+		}})
+		return
+	}
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
@@ -282,7 +263,7 @@ func (d AuthDeps) DeleteToken(c *gin.Context) {
 		}})
 		return
 	}
-	ok, err := d.Auth.DeleteAPI(c.Request.Context(), u.ID, uri.ID)
+	matched, err := d.Auth.DeleteAPIToken(c.Request.Context(), u.ID, uri.ID)
 	if err != nil {
 		d.Logger.Error("delete token", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
@@ -291,7 +272,7 @@ func (d AuthDeps) DeleteToken(c *gin.Context) {
 		}})
 		return
 	}
-	if !ok {
+	if !matched {
 		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
 			Code:    CodeNotFound,
 			Message: "not found",

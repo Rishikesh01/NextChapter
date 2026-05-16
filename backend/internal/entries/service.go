@@ -10,37 +10,50 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/enable-it/nextchapter/backend/constants"
+	"go.uber.org/zap"
+
 	"github.com/enable-it/nextchapter/backend/internal/models"
 )
 
+// Service code does not validate, default, or clamp inputs — that
+// belongs to the binding layer (see [models.EntryFilter] for the
+// pagination tags). Filter.Limit / Filter.Offset arrive
+// already-bounded; this service trusts them and passes them through.
+
 // EntriesService is the surface the HTTP handlers consume for the
-// entries endpoints. Capture returns (entry, created, err) — the bool
-// distinguishes the 201 vs 200 paths on the wire. Method names are
-// domain verbs (Capture / Positions / Adjust / Forget) so they read
-// like reading-position actions rather than generic CRUD.
+// entries endpoints. CaptureChapter returns (entry, created, err) —
+// the bool distinguishes the 201 vs 200 paths on the wire. Method
+// names are domain verbs qualified by the resource noun
+// (CaptureChapter / ListReadingPositions / AdjustReadingPosition /
+// ForgetReadingPosition) so each declaration is self-documenting at
+// the interface, not the call site.
 type EntriesService interface {
-	Capture(ctx context.Context, userID int64, capture models.EntryCapture, sc models.SeriesCreator) (models.Entry, bool, error)
-	Positions(ctx context.Context, userID int64, filter models.EntryFilter) ([]models.Entry, int64, error)
-	Adjust(ctx context.Context, userID, entryID int64, patch models.EntryPatch) (models.Entry, error)
-	Forget(ctx context.Context, userID, entryID int64) error
+	CaptureChapter(ctx context.Context, userID int64, capture models.EntryCapture, sc models.SeriesCreator) (models.Entry, bool, error)
+	ListReadingPositions(ctx context.Context, userID int64, filter models.EntryFilter) (models.EntryList, error)
+	AdjustReadingPosition(ctx context.Context, userID, entryID int64, patch models.EntryPatch) (models.Entry, error)
+	ForgetReadingPosition(ctx context.Context, userID, entryID int64) error
 }
 
 // Service exposes the entries domain to handlers.
 type Service struct {
-	repo Repository
+	repo   Repository
+	logger *zap.Logger
 }
 
 // Compile-time check: the concrete Service satisfies the
 // EntriesService surface that handlers consume.
 var _ EntriesService = (*Service)(nil)
 
-// NewService builds a Service.
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+// NewService builds a Service. Passing a nil logger is fine for tests;
+// a no-op logger is substituted. The integration tests do exactly that.
+func NewService(repo Repository, logger *zap.Logger) *Service {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	return &Service{repo: repo, logger: logger}
 }
 
-// Capture implements POST /entries/capture per the openapi spec:
+// CaptureChapter implements POST /entries/capture per the openapi spec:
 //   - If a row exists for (user, host, slug): advance last_chapter
 //     (monotonic — never rewinds) and update last_url / site_title /
 //     last_captured_at. 200 OK, idempotent on equal chapter.
@@ -49,16 +62,47 @@ func NewService(repo Repository) *Service {
 //     *p.NewSeriesTitle. 201 Created.
 //
 // The bool return is "was-created": true => 201, false => 200.
-func (s *Service) Capture(ctx context.Context, userID int64, capture models.EntryCapture, sc models.SeriesCreator) (models.Entry, bool, error) {
+func (s *Service) CaptureChapter(ctx context.Context, userID int64, capture models.EntryCapture, sc models.SeriesCreator) (models.Entry, bool, error) {
+	s.logger.Debug("capture: lookup existing",
+		zap.Int64("user_id", userID),
+		zap.String("site_host", capture.SiteHost),
+		zap.String("series_slug", capture.SeriesSlug),
+	)
 	res, err := s.capture(ctx, userID, capture, sc)
 	if err != nil {
+		// Validation-shaped errors are handler-mapped to 4xx; log them
+		// at Info so an operator can correlate a 422 to a service
+		// decision without it polluting the error stream.
+		switch {
+		case errors.Is(err, ErrSeriesRequired), errors.Is(err, ErrSeriesNotFound):
+			s.logger.Info("capture rejected",
+				zap.Int64("user_id", userID),
+				zap.String("site_host", capture.SiteHost),
+				zap.String("series_slug", capture.SeriesSlug),
+				zap.Error(err),
+			)
+		default:
+			s.logger.Error("capture failed",
+				zap.Int64("user_id", userID),
+				zap.String("site_host", capture.SiteHost),
+				zap.String("series_slug", capture.SeriesSlug),
+				zap.Error(err),
+			)
+		}
 		return models.Entry{}, false, err
 	}
+	s.logger.Info("chapter captured",
+		zap.Int64("user_id", userID),
+		zap.Int64("series_id", res.Entry.SeriesID),
+		zap.Int64("entry_id", res.Entry.ID),
+		zap.Bool("created", res.Created),
+		zap.Float64("last_chapter", res.Entry.LastChapter),
+	)
 	return res.Entry, res.Created, nil
 }
 
 // capture is the unwrapped core; it returns the package-internal
-// captureResult and is kept separate from [Service.Capture] for
+// captureResult and is kept separate from [Service.CaptureChapter] for
 // readability. The public surface is the (entry, created, err) shape
 // on the interface.
 func (s *Service) capture(ctx context.Context, userID int64, capture models.EntryCapture, sc models.SeriesCreator) (captureResult, error) {
@@ -144,49 +188,40 @@ func (s *Service) capture(ctx context.Context, userID int64, capture models.Entr
 	return captureResult{Entry: row, Created: true}, nil
 }
 
-// Positions returns a page of reading-position entries plus the total
-// count for the user.
-func (s *Service) Positions(ctx context.Context, userID int64, filter models.EntryFilter) ([]models.Entry, int64, error) {
-	limit := filter.Limit
-	if limit <= 0 {
-		limit = constants.ListLimitDefault
-	}
-	if limit > constants.ListLimitMax {
-		limit = constants.ListLimitMax
-	}
-	offset := filter.Offset
-	if offset < constants.ListOffsetMin {
-		offset = constants.ListOffsetMin
-	}
+// ListReadingPositions returns a page of reading-position entries
+// plus the total count for the user. Pagination defaults / bounds are
+// enforced at the binding layer via the tags on [models.EntryFilter];
+// this method assumes Limit / Offset are already valid.
+func (s *Service) ListReadingPositions(ctx context.Context, userID int64, filter models.EntryFilter) (models.EntryList, error) {
 	if filter.SeriesID != nil {
 		rows, err := s.repo.ListEntriesBySeries(ctx, ListEntriesBySeriesParams{
 			UserID:   userID,
 			SeriesID: *filter.SeriesID,
-			Limit:    int64(limit),
-			Offset:   int64(offset),
+			Limit:    int64(filter.Limit),
+			Offset:   int64(filter.Offset),
 		})
 		if err != nil {
-			return nil, 0, err
+			return models.EntryList{}, err
 		}
 		total, err := s.repo.CountEntriesBySeries(ctx, userID, *filter.SeriesID)
 		if err != nil {
-			return nil, 0, err
+			return models.EntryList{}, err
 		}
-		return rows, total, nil
+		return models.EntryList{Items: rows, Total: total}, nil
 	}
 	rows, err := s.repo.ListEntriesAll(ctx, ListEntriesAllParams{
 		UserID: userID,
-		Limit:  int64(limit),
-		Offset: int64(offset),
+		Limit:  int64(filter.Limit),
+		Offset: int64(filter.Offset),
 	})
 	if err != nil {
-		return nil, 0, err
+		return models.EntryList{}, err
 	}
 	total, err := s.repo.CountEntriesAll(ctx, userID)
 	if err != nil {
-		return nil, 0, err
+		return models.EntryList{}, err
 	}
-	return rows, total, nil
+	return models.EntryList{Items: rows, Total: total}, nil
 }
 
 // ListForSeries returns every entry attached to seriesID. Used by
@@ -198,17 +233,18 @@ func (s *Service) ListForSeries(ctx context.Context, userID, seriesID int64) ([]
 }
 
 // get returns one entry, scoped to the owning user. Unexported — only
-// [Service.Adjust] uses it. Kept off the [EntriesService] surface so
-// the interface stays domain-verb only.
-func (s *Service) get(ctx context.Context, userID, id int64) (models.Entry, error) {
-	return s.repo.GetEntryByID(ctx, userID, id)
+// [Service.AdjustReadingPosition] uses it. Kept off the
+// [EntriesService] surface so the interface stays domain-verb only.
+func (s *Service) get(ctx context.Context, userID, entryID int64) (models.Entry, error) {
+	return s.repo.GetEntryByID(ctx, userID, entryID)
 }
 
-// Adjust applies a partial update ("adjust this position"). Reassignment
-// is just SeriesID being set to a different (existing, owned) series.
-// Manual correction is LastChapter / LastURL / SiteTitle.
-func (s *Service) Adjust(ctx context.Context, userID, id int64, patch models.EntryPatch) (models.Entry, error) {
-	current, err := s.get(ctx, userID, id)
+// AdjustReadingPosition applies a partial update ("adjust this
+// position"). Reassignment is just SeriesID being set to a different
+// (existing, owned) series. Manual correction is LastChapter /
+// LastURL / SiteTitle.
+func (s *Service) AdjustReadingPosition(ctx context.Context, userID, entryID int64, patch models.EntryPatch) (models.Entry, error) {
+	current, err := s.get(ctx, userID, entryID)
 	if err != nil {
 		return models.Entry{}, err
 	}
@@ -216,9 +252,20 @@ func (s *Service) Adjust(ctx context.Context, userID, id int64, patch models.Ent
 	if patch.SeriesID != nil && *patch.SeriesID != seriesID {
 		ok, err := s.repo.SeriesExists(ctx, userID, *patch.SeriesID)
 		if err != nil {
+			s.logger.Error("adjust: series exists check",
+				zap.Int64("user_id", userID),
+				zap.Int64("entry_id", entryID),
+				zap.Int64("series_id", *patch.SeriesID),
+				zap.Error(err),
+			)
 			return models.Entry{}, err
 		}
 		if !ok {
+			s.logger.Info("adjust rejected: series not found",
+				zap.Int64("user_id", userID),
+				zap.Int64("entry_id", entryID),
+				zap.Int64("series_id", *patch.SeriesID),
+			)
 			return models.Entry{}, ErrSeriesNotFound
 		}
 		seriesID = *patch.SeriesID
@@ -236,8 +283,8 @@ func (s *Service) Adjust(ctx context.Context, userID, id int64, patch models.Ent
 		siteTitle = *patch.SiteTitle
 	}
 	now := time.Now().UTC()
-	return s.repo.UpdateEntry(ctx, UpdateEntryParams{
-		ID:          id,
+	row, err := s.repo.UpdateEntry(ctx, UpdateEntryParams{
+		ID:          entryID,
 		UserID:      userID,
 		SeriesID:    seriesID,
 		LastChapter: lastChapter,
@@ -245,16 +292,45 @@ func (s *Service) Adjust(ctx context.Context, userID, id int64, patch models.Ent
 		SiteTitle:   siteTitle,
 		UpdatedAt:   now,
 	})
+	if err != nil {
+		s.logger.Error("adjust: update entry",
+			zap.Int64("user_id", userID),
+			zap.Int64("entry_id", entryID),
+			zap.Error(err),
+		)
+		return models.Entry{}, err
+	}
+	s.logger.Info("reading position adjusted",
+		zap.Int64("user_id", userID),
+		zap.Int64("entry_id", entryID),
+		zap.Int64("series_id", seriesID),
+		zap.Float64("last_chapter", lastChapter),
+	)
+	return row, nil
 }
 
-// Forget removes an entry ("forget where I was on this site").
-func (s *Service) Forget(ctx context.Context, userID, id int64) error {
-	n, err := s.repo.DeleteEntry(ctx, userID, id)
+// ForgetReadingPosition removes an entry ("forget where I was on this
+// site").
+func (s *Service) ForgetReadingPosition(ctx context.Context, userID, entryID int64) error {
+	n, err := s.repo.DeleteEntry(ctx, userID, entryID)
 	if err != nil {
+		s.logger.Error("forget: delete entry",
+			zap.Int64("user_id", userID),
+			zap.Int64("entry_id", entryID),
+			zap.Error(err),
+		)
 		return err
 	}
 	if n == 0 {
+		s.logger.Info("forget rejected: entry not found",
+			zap.Int64("user_id", userID),
+			zap.Int64("entry_id", entryID),
+		)
 		return ErrNotFound
 	}
+	s.logger.Info("reading position forgotten",
+		zap.Int64("user_id", userID),
+		zap.Int64("entry_id", entryID),
+	)
 	return nil
 }

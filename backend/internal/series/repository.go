@@ -147,14 +147,16 @@ func seriesFromGen(r gen.Series) models.Series {
 
 func summaryFromAllRow(r gen.ListSeriesAllRow) models.SeriesSummary {
 	return models.SeriesSummary{
-		ID:             r.ID,
-		UserID:         r.UserID,
-		Title:          r.Title,
-		Status:         r.Status,
-		Rating:         nullInt64ToPtr(r.Rating),
-		Notes:          r.Notes,
-		CreatedAt:      r.CreatedAt,
-		UpdatedAt:      r.UpdatedAt,
+		Series: models.Series{
+			ID:        r.ID,
+			UserID:    r.UserID,
+			Title:     r.Title,
+			Status:    r.Status,
+			Rating:    nullInt64ToPtr(r.Rating),
+			Notes:     r.Notes,
+			CreatedAt: r.CreatedAt,
+			UpdatedAt: r.UpdatedAt,
+		},
 		HighestChapter: anyToFloatPtr(r.HighestChapter),
 		EntryCount:     r.EntryCount,
 		LastCapturedAt: anyToTimePtr(r.RollupLastCapturedAt),
@@ -163,14 +165,16 @@ func summaryFromAllRow(r gen.ListSeriesAllRow) models.SeriesSummary {
 
 func summaryFromStatusRow(r gen.ListSeriesByStatusRow) models.SeriesSummary {
 	return models.SeriesSummary{
-		ID:             r.ID,
-		UserID:         r.UserID,
-		Title:          r.Title,
-		Status:         r.Status,
-		Rating:         nullInt64ToPtr(r.Rating),
-		Notes:          r.Notes,
-		CreatedAt:      r.CreatedAt,
-		UpdatedAt:      r.UpdatedAt,
+		Series: models.Series{
+			ID:        r.ID,
+			UserID:    r.UserID,
+			Title:     r.Title,
+			Status:    r.Status,
+			Rating:    nullInt64ToPtr(r.Rating),
+			Notes:     r.Notes,
+			CreatedAt: r.CreatedAt,
+			UpdatedAt: r.UpdatedAt,
+		},
 		HighestChapter: anyToFloatPtr(r.HighestChapter),
 		EntryCount:     r.EntryCount,
 		LastCapturedAt: anyToTimePtr(r.RollupLastCapturedAt),
@@ -179,14 +183,16 @@ func summaryFromStatusRow(r gen.ListSeriesByStatusRow) models.SeriesSummary {
 
 func summaryFromSummaryRow(r gen.GetSeriesSummaryRow) models.SeriesSummary {
 	return models.SeriesSummary{
-		ID:             r.ID,
-		UserID:         r.UserID,
-		Title:          r.Title,
-		Status:         r.Status,
-		Rating:         nullInt64ToPtr(r.Rating),
-		Notes:          r.Notes,
-		CreatedAt:      r.CreatedAt,
-		UpdatedAt:      r.UpdatedAt,
+		Series: models.Series{
+			ID:        r.ID,
+			UserID:    r.UserID,
+			Title:     r.Title,
+			Status:    r.Status,
+			Rating:    nullInt64ToPtr(r.Rating),
+			Notes:     r.Notes,
+			CreatedAt: r.CreatedAt,
+			UpdatedAt: r.UpdatedAt,
+		},
 		HighestChapter: anyToFloatPtr(r.HighestChapter),
 		EntryCount:     r.EntryCount,
 		LastCapturedAt: anyToTimePtr(r.RollupLastCapturedAt),

@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/enable-it/nextchapter/backend/internal/models"
 )
 
 // MetaDeps groups the meta-endpoint dependencies. Version is surfaced
@@ -12,15 +14,9 @@ type MetaDeps struct {
 	Version string
 }
 
-// HealthResponse is the GET /healthz JSON shape.
-type HealthResponse struct {
-	Status  string `json:"status"`
-	Version string `json:"version,omitempty"`
-}
-
 // Health implements GET /healthz.
 func (d MetaDeps) Health(c *gin.Context) {
-	c.JSON(http.StatusOK, HealthResponse{Status: "ok", Version: d.Version})
+	c.JSON(http.StatusOK, models.Health{Status: "ok", Version: d.Version})
 }
 
 // Root is the placeholder for GET / per ADR-0004. The SPA will replace
