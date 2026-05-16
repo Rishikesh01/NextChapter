@@ -50,14 +50,14 @@ func New(d Deps) *gin.Engine {
 	if len(d.AllowedOrigins) > 0 {
 		r.Use(middleware.CORS(middleware.CORSConfig{AllowedOrigins: d.AllowedOrigins}))
 	}
-	registerRoutes(r, d)
+	d.registerRoutes(r)
 	return r
 }
 
 // registerRoutes registers every HTTP path against the engine. Split
 // out of [New] so the route table reads top-to-bottom in one place
 // without the surrounding engine plumbing.
-func registerRoutes(r *gin.Engine, d Deps) {
+func (d Deps) registerRoutes(r *gin.Engine) {
 	meta := handlers.MetaDeps{Version: d.Version}
 	r.GET("/", meta.Root)
 	r.GET("/healthz", meta.Health)
