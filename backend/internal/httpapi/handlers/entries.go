@@ -16,10 +16,10 @@ import (
 // EntriesDeps groups the dependencies the entries handlers need.
 type EntriesDeps struct {
 	Entries entries.EntriesService
-	// SeriesCreator is used by /entries/capture when the client
-	// supplies new_series_title rather than series_id. Concretely,
-	// the series service is wired in here.
-	SeriesCreator models.SeriesCreator
+	// SeriesTracker is used by /entries/capture when the client
+	// supplies new_series_title rather than series_id — the series
+	// service satisfies the interface natively via TrackImplicitSeries.
+	SeriesTracker models.SeriesTracker
 	Logger        *zap.Logger
 }
 
@@ -95,7 +95,7 @@ func (d EntriesDeps) Capture(c *gin.Context) {
 	// before it reaches the service so the (user, host, slug) upsert
 	// key matches the canonical form.
 	req.SiteHost = strings.TrimPrefix(strings.ToLower(req.SiteHost), "www.")
-	entry, created, err := d.Entries.CaptureChapter(c.Request.Context(), u.ID, req, d.SeriesCreator)
+	entry, created, err := d.Entries.CaptureChapter(c.Request.Context(), u.ID, req, d.SeriesTracker)
 	if err != nil {
 		switch {
 		case errors.Is(err, models.ErrEntryCaptureSeriesRequired):

@@ -4,7 +4,6 @@
 package httpapi
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -90,7 +89,7 @@ func New(d Deps) *gin.Engine {
 
 	entriesDeps := handlers.EntriesDeps{
 		Entries:       d.Entries,
-		SeriesCreator: seriesCreatorAdapter{s: d.Series},
+		SeriesTracker: d.Series,
 		Logger:        d.Logger,
 	}
 	authed.GET("/entries", entriesDeps.List)
@@ -110,9 +109,3 @@ func New(d Deps) *gin.Engine {
 	return r
 }
 
-// seriesCreatorAdapter adapts *series.Service to models.SeriesCreator.
-type seriesCreatorAdapter struct{ s *series.Service }
-
-func (a seriesCreatorAdapter) Create(ctx context.Context, userID int64, title string) (int64, error) {
-	return a.s.CreateImplicit(ctx, userID, title)
-}

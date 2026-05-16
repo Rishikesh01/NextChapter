@@ -257,14 +257,19 @@ func ValidStatus(status string) bool {
 	return ok
 }
 
-// CreateImplicit is the models.SeriesCreator adapter used by the
-// entries service when a capture call asks for a brand-new series via
-// new_series_title. It applies defaults (status=reading, no rating,
-// no notes) and returns just the new id.
-func (s *Service) CreateImplicit(ctx context.Context, userID int64, title string) (int64, error) {
+// TrackImplicitSeries satisfies [models.SeriesTracker]. It materialises
+// a series row from a bare title when the entries service's
+// CaptureChapter path is called with new_series_title rather than
+// series_id. Defaults follow TrackSeries (status=reading, no rating, no
+// notes); only the new id is returned.
+func (s *Service) TrackImplicitSeries(ctx context.Context, userID int64, title string) (int64, error) {
 	row, err := s.TrackSeries(ctx, userID, models.SeriesNew{Title: title})
 	if err != nil {
 		return 0, err
 	}
 	return row.ID, nil
 }
+
+// Compile-time check: the concrete Service satisfies the
+// SeriesTracker contract that the entries service consumes.
+var _ models.SeriesTracker = (*Service)(nil)

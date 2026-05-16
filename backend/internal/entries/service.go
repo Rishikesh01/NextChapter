@@ -28,7 +28,7 @@ import (
 // ForgetReadingPosition) so each declaration is self-documenting at
 // the interface, not the call site.
 type EntriesService interface {
-	CaptureChapter(ctx context.Context, userID int64, capture models.EntryCapture, sc models.SeriesCreator) (models.Entry, bool, error)
+	CaptureChapter(ctx context.Context, userID int64, capture models.EntryCapture, sc models.SeriesTracker) (models.Entry, bool, error)
 	ListReadingPositions(ctx context.Context, userID int64, filter models.EntryFilter) (models.EntryList, error)
 	AdjustReadingPosition(ctx context.Context, userID, entryID int64, patch models.EntryPatch) (models.Entry, error)
 	ForgetReadingPosition(ctx context.Context, userID, entryID int64) error
@@ -62,7 +62,7 @@ func NewService(repo Repository, logger *zap.Logger) *Service {
 //     *p.NewSeriesTitle. 201 Created.
 //
 // The bool return is "was-created": true => 201, false => 200.
-func (s *Service) CaptureChapter(ctx context.Context, userID int64, capture models.EntryCapture, sc models.SeriesCreator) (models.Entry, bool, error) {
+func (s *Service) CaptureChapter(ctx context.Context, userID int64, capture models.EntryCapture, sc models.SeriesTracker) (models.Entry, bool, error) {
 	s.logger.Debug("capture: lookup existing",
 		zap.Int64("user_id", userID),
 		zap.String("site_host", capture.SiteHost),
@@ -105,7 +105,7 @@ func (s *Service) CaptureChapter(ctx context.Context, userID int64, capture mode
 // captureResult and is kept separate from [Service.CaptureChapter] for
 // readability. The public surface is the (entry, created, err) shape
 // on the interface.
-func (s *Service) capture(ctx context.Context, userID int64, capture models.EntryCapture, sc models.SeriesCreator) (captureResult, error) {
+func (s *Service) capture(ctx context.Context, userID int64, capture models.EntryCapture, sc models.SeriesTracker) (captureResult, error) {
 	// capture.Chapter is *float64 because the wire treats 0 as a valid
 	// chapter (binding:"required" rejects the missing case). Once
 	// we're past ShouldBindJSON it's safe to deref.
@@ -160,7 +160,7 @@ func (s *Service) capture(ctx context.Context, userID int64, capture models.Entr
 		}
 		seriesID = *capture.SeriesID
 	case capture.NewSeriesTitle != nil && *capture.NewSeriesTitle != "":
-		id, err := sc.Create(ctx, userID, *capture.NewSeriesTitle)
+		id, err := sc.TrackImplicitSeries(ctx, userID, *capture.NewSeriesTitle)
 		if err != nil {
 			return captureResult{}, fmt.Errorf("entries: create implicit series: %w", err)
 		}

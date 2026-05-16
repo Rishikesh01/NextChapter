@@ -71,12 +71,14 @@ type EntryFilter struct {
 	Offset   int    `form:"offset,default=0" binding:"omitempty,min=0"`
 }
 
-// SeriesCreator is the narrow seam the entries service uses when
-// capture is called with new_series_title rather than series_id. The
-// concrete implementation is wired in at router-build time by the
-// series service. It lives here because both the entries service's
+// SeriesTracker is the narrow seam the entries service uses when
+// capture is called with new_series_title rather than series_id —
+// the implicit-track flow materialises a series row from a bare title
+// so the captured entry has somewhere to live. The concrete
+// implementation is wired in at router-build time by the series
+// service. It lives here because both the entries service's
 // CaptureChapter method and the entries package depend on it, and we
 // want the wire shape to stay in [models].
-type SeriesCreator interface {
-	Create(ctx context.Context, userID int64, title string) (int64, error)
+type SeriesTracker interface {
+	TrackImplicitSeries(ctx context.Context, userID int64, title string) (int64, error)
 }
