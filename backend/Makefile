@@ -9,7 +9,9 @@
 #   make security-audit # govulncheck (see docs/adr/0007 for known deferred CVEs)
 
 GO              ?= go
-GOOSE           ?= go run github.com/pressly/goose/v3/cmd/goose@latest
+GOOSE           ?= go run github.com/pressly/goose/v3/cmd/goose@v3.27.1
+SWAG            ?= go run github.com/swaggo/swag/cmd/swag@v1.16.2
+GOLANGCI_LINT   ?= go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
 SQLC            ?= sqlc
 DB_FILE         ?= ./nextchapter.db
 BIN_DIR         ?= ./bin
@@ -54,7 +56,7 @@ vet:  ## Run go vet
 
 .PHONY: lint
 lint: fmt-check vet  ## gofmt + go vet + golangci-lint (govulncheck is separate; see security-audit)
-	golangci-lint run ./...
+	$(GOLANGCI_LINT) run ./...
 
 .PHONY: security-audit
 security-audit:  ## Run govulncheck (reports deferred stdlib CVEs from docs/adr/0007)
@@ -92,7 +94,7 @@ sqlc:  ## Regenerate sqlc bindings into internal/store/generated/
 
 .PHONY: swagger
 swagger:  ## Regenerate the OpenAPI spec from handler annotations.
-	go run github.com/swaggo/swag/cmd/swag@latest init \
+	$(SWAG) init \
 	    -g cmd/nextchapter/main.go \
 	    -o internal/swaggerdocs \
 	    --parseInternal --parseDependency=false
