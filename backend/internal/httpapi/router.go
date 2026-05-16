@@ -5,6 +5,7 @@ package httpapi
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -12,9 +13,9 @@ import (
 
 	"github.com/enable-it/nextchapter/backend/internal/auth"
 	"github.com/enable-it/nextchapter/backend/internal/entries"
+	"github.com/enable-it/nextchapter/backend/internal/httpapi/api"
 	"github.com/enable-it/nextchapter/backend/internal/httpapi/handlers"
 	"github.com/enable-it/nextchapter/backend/internal/httpapi/middleware"
-	"github.com/enable-it/nextchapter/backend/internal/httpapi/render"
 	"github.com/enable-it/nextchapter/backend/internal/series"
 	"github.com/enable-it/nextchapter/backend/internal/users"
 )
@@ -104,7 +105,10 @@ func New(d Deps) *gin.Engine {
 	// Method-mismatch / unknown-route fallback. We do not advertise the
 	// /auth/register endpoint to closed-window callers.
 	r.NoRoute(func(c *gin.Context) {
-		render.NotFound(c, "not found")
+		c.AbortWithStatusJSON(http.StatusNotFound, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeNotFound,
+			Message: "not found",
+		}})
 	})
 
 	return r

@@ -1,42 +1,18 @@
 package handlers
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
-
-	"github.com/enable-it/nextchapter/backend/internal/httpapi/render"
 )
-
-// bindJSON binds the request body into out. On parse failure (malformed
-// JSON) it writes a 400 BadRequest envelope and returns false. On
-// field-level validation failure (validator.ValidationErrors) it writes
-// a 422 ValidationError envelope keyed by JSON field name and returns
-// false. On success returns true.
-//
-// All JSON-body handlers should use bindJSON instead of calling
-// c.ShouldBindJSON directly.
-func bindJSON(c *gin.Context, out any) bool {
-	if err := c.ShouldBindJSON(out); err != nil {
-		var verr validator.ValidationErrors
-		if errors.As(err, &verr) {
-			render.ValidationError(c, "invalid request", validationFieldsFromErr(verr))
-			return false
-		}
-		render.BadRequest(c, "invalid request body")
-		return false
-	}
-	return true
-}
 
 // validationFieldsFromErr converts a validator.ValidationErrors into a
 // map keyed by JSON tag name (lowercased Go field name fallback) with a
-// stable human-readable message per validator tag. Used by both bindJSON
-// and any handler that does additional cross-field validation on top of
-// the bound struct.
+// stable human-readable message per validator tag. Used by every
+// JSON-body handler that routes a ShouldBindJSON failure, plus any
+// handler that does additional cross-field validation on top of the
+// bound struct.
 func validationFieldsFromErr(verr validator.ValidationErrors) map[string]string {
 	out := make(map[string]string, len(verr))
 	for _, fe := range verr {

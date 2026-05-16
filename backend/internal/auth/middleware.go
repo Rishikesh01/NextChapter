@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -10,7 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/enable-it/nextchapter/backend/constants"
-	"github.com/enable-it/nextchapter/backend/internal/httpapi/render"
+	"github.com/enable-it/nextchapter/backend/internal/httpapi/api"
 )
 
 // ctxKey is unexported so callers must go through [UserFromContext] and
@@ -56,7 +57,10 @@ func Middleware(cfg MiddlewareConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		raw, source, ok := extractToken(c)
 		if !ok {
-			render.Unauthorized(c, "missing or invalid credentials")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, api.ErrorBody{Error: api.ErrorDetail{
+				Code:    api.CodeUnauthorized,
+				Message: "missing or invalid credentials",
+			}})
 			return
 		}
 		resolved, err := cfg.Service.Resolve(c.Request.Context(), raw, time.Now())
@@ -64,7 +68,10 @@ func Middleware(cfg MiddlewareConfig) gin.HandlerFunc {
 			if !errors.Is(err, ErrTokenNotFound) {
 				cfg.Logger.Warn("auth lookup failed", zap.Error(err))
 			}
-			render.Unauthorized(c, "missing or invalid credentials")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, api.ErrorBody{Error: api.ErrorDetail{
+				Code:    api.CodeUnauthorized,
+				Message: "missing or invalid credentials",
+			}})
 			return
 		}
 		// Source must match kind: session tokens only authenticate
@@ -72,7 +79,10 @@ func Middleware(cfg MiddlewareConfig) gin.HandlerFunc {
 		// Prevents a leaked session cookie from being replayed as a
 		// long-lived Bearer credential.
 		if !sourceMatchesKind(source, resolved.Kind) {
-			render.Unauthorized(c, "missing or invalid credentials")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, api.ErrorBody{Error: api.ErrorDetail{
+				Code:    api.CodeUnauthorized,
+				Message: "missing or invalid credentials",
+			}})
 			return
 		}
 		if err := cfg.Service.Touch(c.Request.Context(), resolved, time.Now()); err != nil {

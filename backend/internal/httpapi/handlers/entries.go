@@ -7,11 +7,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"go.uber.org/zap"
 
 	"github.com/enable-it/nextchapter/backend/internal/auth"
 	"github.com/enable-it/nextchapter/backend/internal/entries"
-	"github.com/enable-it/nextchapter/backend/internal/httpapi/render"
+	"github.com/enable-it/nextchapter/backend/internal/httpapi/api"
 )
 
 // entriesListQuery binds GET /entries query parameters. SeriesID is a
@@ -74,7 +75,11 @@ func (d EntriesDeps) List(c *gin.Context) {
 	u, _ := auth.UserFromContext(c.Request.Context())
 	var q entriesListQuery
 	if err := c.ShouldBindQuery(&q); err != nil {
-		render.ValidationError(c, "invalid query", map[string]string{"query": err.Error()})
+		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeValidation,
+			Message: "invalid query",
+			Fields:  map[string]string{"query": err.Error()},
+		}})
 		return
 	}
 	items, total, err := d.Entries.List(c.Request.Context(), u.ID, entries.ListParams{
@@ -82,7 +87,10 @@ func (d EntriesDeps) List(c *gin.Context) {
 	})
 	if err != nil {
 		d.Logger.Error("list entries", zap.Error(err))
-		render.Internal(c, "")
+		c.AbortWithStatusJSON(http.StatusInternalServerError, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeInternal,
+			Message: "internal server error",
+		}})
 		return
 	}
 	out := make([]EntryResponse, 0, len(items))
@@ -96,7 +104,20 @@ func (d EntriesDeps) List(c *gin.Context) {
 func (d EntriesDeps) Capture(c *gin.Context) {
 	u, _ := auth.UserFromContext(c.Request.Context())
 	var req entries.CaptureParams
-	if !bindJSON(c, &req) {
+	if err := c.ShouldBindJSON(&req); err != nil {
+		var verr validator.ValidationErrors
+		if errors.As(err, &verr) {
+			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, api.ErrorBody{Error: api.ErrorDetail{
+				Code:    api.CodeValidation,
+				Message: "invalid request",
+				Fields:  validationFieldsFromErr(verr),
+			}})
+			return
+		}
+		c.AbortWithStatusJSON(http.StatusBadRequest, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeBadRequest,
+			Message: "invalid request body",
+		}})
 		return
 	}
 	// ADR-0005 host normalisation: lowercase + strip leading www. before
@@ -107,16 +128,25 @@ func (d EntriesDeps) Capture(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, entries.ErrSeriesRequired):
-			render.ValidationError(c, "series_id or new_series_title is required when creating a new entry",
-				map[string]string{"series_id": "required (or new_series_title)"})
+			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, api.ErrorBody{Error: api.ErrorDetail{
+				Code:    api.CodeValidation,
+				Message: "series_id or new_series_title is required when creating a new entry",
+				Fields:  map[string]string{"series_id": "required (or new_series_title)"},
+			}})
 			return
 		case errors.Is(err, entries.ErrSeriesNotFound):
-			render.ValidationError(c, "series_id does not exist",
-				map[string]string{"series_id": "does not exist"})
+			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, api.ErrorBody{Error: api.ErrorDetail{
+				Code:    api.CodeValidation,
+				Message: "series_id does not exist",
+				Fields:  map[string]string{"series_id": "does not exist"},
+			}})
 			return
 		}
 		d.Logger.Error("capture", zap.Error(err))
-		render.Internal(c, "")
+		c.AbortWithStatusJSON(http.StatusInternalServerError, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeInternal,
+			Message: "internal server error",
+		}})
 		return
 	}
 	if res.Created {
@@ -131,25 +161,51 @@ func (d EntriesDeps) Patch(c *gin.Context) {
 	u, _ := auth.UserFromContext(c.Request.Context())
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
-		render.NotFound(c, "")
+		c.AbortWithStatusJSON(http.StatusNotFound, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeNotFound,
+			Message: "not found",
+		}})
 		return
 	}
 	var req entries.UpdateParams
-	if !bindJSON(c, &req) {
+	if err := c.ShouldBindJSON(&req); err != nil {
+		var verr validator.ValidationErrors
+		if errors.As(err, &verr) {
+			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, api.ErrorBody{Error: api.ErrorDetail{
+				Code:    api.CodeValidation,
+				Message: "invalid request",
+				Fields:  validationFieldsFromErr(verr),
+			}})
+			return
+		}
+		c.AbortWithStatusJSON(http.StatusBadRequest, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeBadRequest,
+			Message: "invalid request body",
+		}})
 		return
 	}
 	row, err := d.Entries.Update(c.Request.Context(), u.ID, uri.ID, req)
 	if err != nil {
 		switch {
 		case errors.Is(err, entries.ErrNotFound):
-			render.NotFound(c, "")
+			c.AbortWithStatusJSON(http.StatusNotFound, api.ErrorBody{Error: api.ErrorDetail{
+				Code:    api.CodeNotFound,
+				Message: "not found",
+			}})
 			return
 		case errors.Is(err, entries.ErrSeriesNotFound):
-			render.ValidationError(c, "series_id does not exist", map[string]string{"series_id": "does not exist"})
+			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, api.ErrorBody{Error: api.ErrorDetail{
+				Code:    api.CodeValidation,
+				Message: "series_id does not exist",
+				Fields:  map[string]string{"series_id": "does not exist"},
+			}})
 			return
 		}
 		d.Logger.Error("patch entry", zap.Error(err))
-		render.Internal(c, "")
+		c.AbortWithStatusJSON(http.StatusInternalServerError, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeInternal,
+			Message: "internal server error",
+		}})
 		return
 	}
 	c.JSON(http.StatusOK, entryToJSON(row))
@@ -160,16 +216,25 @@ func (d EntriesDeps) Delete(c *gin.Context) {
 	u, _ := auth.UserFromContext(c.Request.Context())
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
-		render.NotFound(c, "")
+		c.AbortWithStatusJSON(http.StatusNotFound, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeNotFound,
+			Message: "not found",
+		}})
 		return
 	}
 	if err := d.Entries.Delete(c.Request.Context(), u.ID, uri.ID); err != nil {
 		if errors.Is(err, entries.ErrNotFound) {
-			render.NotFound(c, "")
+			c.AbortWithStatusJSON(http.StatusNotFound, api.ErrorBody{Error: api.ErrorDetail{
+				Code:    api.CodeNotFound,
+				Message: "not found",
+			}})
 			return
 		}
 		d.Logger.Error("delete entry", zap.Error(err))
-		render.Internal(c, "")
+		c.AbortWithStatusJSON(http.StatusInternalServerError, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeInternal,
+			Message: "internal server error",
+		}})
 		return
 	}
 	c.Status(http.StatusNoContent)

@@ -7,11 +7,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"go.uber.org/zap"
 
 	"github.com/enable-it/nextchapter/backend/constants"
 	"github.com/enable-it/nextchapter/backend/internal/auth"
-	"github.com/enable-it/nextchapter/backend/internal/httpapi/render"
+	"github.com/enable-it/nextchapter/backend/internal/httpapi/api"
 	"github.com/enable-it/nextchapter/backend/internal/series"
 )
 
@@ -124,12 +125,20 @@ func (d SeriesDeps) List(c *gin.Context) {
 	u, _ := auth.UserFromContext(c.Request.Context())
 	var q seriesListQuery
 	if err := c.ShouldBindQuery(&q); err != nil {
-		render.ValidationError(c, "invalid query", map[string]string{"query": err.Error()})
+		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeValidation,
+			Message: "invalid query",
+			Fields:  map[string]string{"query": err.Error()},
+		}})
 		return
 	}
 	status := strings.TrimSpace(q.Status)
 	if status != "" && !series.ValidStatus(status) {
-		render.ValidationError(c, "invalid status", map[string]string{"status": statusEnumMessage})
+		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeValidation,
+			Message: "invalid status",
+			Fields:  map[string]string{"status": statusEnumMessage},
+		}})
 		return
 	}
 	items, total, err := d.Series.List(c.Request.Context(), u.ID, series.ListParams{
@@ -137,11 +146,18 @@ func (d SeriesDeps) List(c *gin.Context) {
 	})
 	if err != nil {
 		if errors.Is(err, series.ErrInvalidStatus) {
-			render.ValidationError(c, "invalid status", map[string]string{"status": "invalid"})
+			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, api.ErrorBody{Error: api.ErrorDetail{
+				Code:    api.CodeValidation,
+				Message: "invalid status",
+				Fields:  map[string]string{"status": "invalid"},
+			}})
 			return
 		}
 		d.Logger.Error("list series", zap.Error(err))
-		render.Internal(c, "")
+		c.AbortWithStatusJSON(http.StatusInternalServerError, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeInternal,
+			Message: "internal server error",
+		}})
 		return
 	}
 	out := make([]SeriesSummaryResponse, 0, len(items))
@@ -155,14 +171,30 @@ func (d SeriesDeps) List(c *gin.Context) {
 func (d SeriesDeps) Create(c *gin.Context) {
 	u, _ := auth.UserFromContext(c.Request.Context())
 	var req series.CreateParams
-	if !bindJSON(c, &req) {
+	if err := c.ShouldBindJSON(&req); err != nil {
+		var verr validator.ValidationErrors
+		if errors.As(err, &verr) {
+			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, api.ErrorBody{Error: api.ErrorDetail{
+				Code:    api.CodeValidation,
+				Message: "invalid request",
+				Fields:  validationFieldsFromErr(verr),
+			}})
+			return
+		}
+		c.AbortWithStatusJSON(http.StatusBadRequest, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeBadRequest,
+			Message: "invalid request body",
+		}})
 		return
 	}
 	req.Title = strings.TrimSpace(req.Title)
 	row, err := d.Series.Create(c.Request.Context(), u.ID, req)
 	if err != nil {
 		d.Logger.Error("create series", zap.Error(err))
-		render.Internal(c, "")
+		c.AbortWithStatusJSON(http.StatusInternalServerError, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeInternal,
+			Message: "internal server error",
+		}})
 		return
 	}
 	c.JSON(http.StatusCreated, seriesRowToJSON(row))
@@ -173,17 +205,26 @@ func (d SeriesDeps) Get(c *gin.Context) {
 	u, _ := auth.UserFromContext(c.Request.Context())
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
-		render.NotFound(c, "")
+		c.AbortWithStatusJSON(http.StatusNotFound, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeNotFound,
+			Message: "not found",
+		}})
 		return
 	}
 	det, err := d.Series.Detail(c.Request.Context(), u.ID, uri.ID)
 	if err != nil {
 		if errors.Is(err, series.ErrNotFound) {
-			render.NotFound(c, "")
+			c.AbortWithStatusJSON(http.StatusNotFound, api.ErrorBody{Error: api.ErrorDetail{
+				Code:    api.CodeNotFound,
+				Message: "not found",
+			}})
 			return
 		}
 		d.Logger.Error("get series", zap.Error(err))
-		render.Internal(c, "")
+		c.AbortWithStatusJSON(http.StatusInternalServerError, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeInternal,
+			Message: "internal server error",
+		}})
 		return
 	}
 	entriesJSON := make([]EntryResponse, 0, len(det.Entries))
@@ -202,11 +243,27 @@ func (d SeriesDeps) Patch(c *gin.Context) {
 	u, _ := auth.UserFromContext(c.Request.Context())
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
-		render.NotFound(c, "")
+		c.AbortWithStatusJSON(http.StatusNotFound, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeNotFound,
+			Message: "not found",
+		}})
 		return
 	}
 	var req series.UpdateParams
-	if !bindJSON(c, &req) {
+	if err := c.ShouldBindJSON(&req); err != nil {
+		var verr validator.ValidationErrors
+		if errors.As(err, &verr) {
+			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, api.ErrorBody{Error: api.ErrorDetail{
+				Code:    api.CodeValidation,
+				Message: "invalid request",
+				Fields:  validationFieldsFromErr(verr),
+			}})
+			return
+		}
+		c.AbortWithStatusJSON(http.StatusBadRequest, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeBadRequest,
+			Message: "invalid request body",
+		}})
 		return
 	}
 	if req.Title != nil {
@@ -216,11 +273,17 @@ func (d SeriesDeps) Patch(c *gin.Context) {
 	row, err := d.Series.Update(c.Request.Context(), u.ID, uri.ID, req)
 	if err != nil {
 		if errors.Is(err, series.ErrNotFound) {
-			render.NotFound(c, "")
+			c.AbortWithStatusJSON(http.StatusNotFound, api.ErrorBody{Error: api.ErrorDetail{
+				Code:    api.CodeNotFound,
+				Message: "not found",
+			}})
 			return
 		}
 		d.Logger.Error("patch series", zap.Error(err))
-		render.Internal(c, "")
+		c.AbortWithStatusJSON(http.StatusInternalServerError, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeInternal,
+			Message: "internal server error",
+		}})
 		return
 	}
 	c.JSON(http.StatusOK, seriesRowToJSON(row))
@@ -231,16 +294,25 @@ func (d SeriesDeps) Delete(c *gin.Context) {
 	u, _ := auth.UserFromContext(c.Request.Context())
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
-		render.NotFound(c, "")
+		c.AbortWithStatusJSON(http.StatusNotFound, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeNotFound,
+			Message: "not found",
+		}})
 		return
 	}
 	if err := d.Series.Delete(c.Request.Context(), u.ID, uri.ID); err != nil {
 		if errors.Is(err, series.ErrNotFound) {
-			render.NotFound(c, "")
+			c.AbortWithStatusJSON(http.StatusNotFound, api.ErrorBody{Error: api.ErrorDetail{
+				Code:    api.CodeNotFound,
+				Message: "not found",
+			}})
 			return
 		}
 		d.Logger.Error("delete series", zap.Error(err))
-		render.Internal(c, "")
+		c.AbortWithStatusJSON(http.StatusInternalServerError, api.ErrorBody{Error: api.ErrorDetail{
+			Code:    api.CodeInternal,
+			Message: "internal server error",
+		}})
 		return
 	}
 	c.Status(http.StatusNoContent)

@@ -31,7 +31,7 @@ func NewService(repo Repository, now func() time.Time) *Service {
 func (s *Service) Capture(ctx context.Context, userID int64, p CaptureParams, sc SeriesCreator) (CaptureResult, error) {
 	// p.Chapter is *float64 because the wire treats 0 as a valid chapter
 	// (binding:"required" rejects the missing case). Once we're past
-	// bindJSON it's safe to deref.
+	// ShouldBindJSON it's safe to deref.
 	chapter := *p.Chapter
 	existing, err := s.repo.GetEntryByKey(ctx, GetEntryByKeyParams{
 		UserID:     userID,
