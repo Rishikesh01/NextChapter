@@ -64,18 +64,6 @@ func (r *repository) GetTokenByHash(ctx context.Context, tokenHash string) (Look
 	}, nil
 }
 
-func (r *repository) TouchToken(ctx context.Context, p TouchParams) error {
-	err := r.q.TouchAuthToken(ctx, gen.TouchAuthTokenParams{
-		LastUsedAt: timePtrToNullTime(p.LastUsedAt),
-		ExpiresAt:  timePtrToNullTime(p.ExpiresAt),
-		ID:         p.ID,
-	})
-	if err != nil {
-		return fmt.Errorf("auth: touch token: %w", err)
-	}
-	return nil
-}
-
 func (r *repository) DeleteTokenByID(ctx context.Context, userID, tokenID int64) (int64, error) {
 	n, err := r.q.DeleteAuthTokenByID(ctx, gen.DeleteAuthTokenByIDParams{
 		ID:     tokenID,

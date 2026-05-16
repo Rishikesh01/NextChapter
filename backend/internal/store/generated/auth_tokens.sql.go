@@ -209,20 +209,3 @@ func (q *Queries) ListSessionTokens(ctx context.Context, userID int64) ([]AuthTo
 	}
 	return items, nil
 }
-
-const touchAuthToken = `-- name: TouchAuthToken :exec
-UPDATE auth_tokens
-SET last_used_at = ?, expires_at = COALESCE(?, expires_at)
-WHERE id = ?
-`
-
-type TouchAuthTokenParams struct {
-	LastUsedAt sql.NullTime
-	ExpiresAt  sql.NullTime
-	ID         int64
-}
-
-func (q *Queries) TouchAuthToken(ctx context.Context, arg TouchAuthTokenParams) error {
-	_, err := q.db.ExecContext(ctx, touchAuthToken, arg.LastUsedAt, arg.ExpiresAt, arg.ID)
-	return err
-}

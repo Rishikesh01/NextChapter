@@ -38,7 +38,6 @@ type Querier interface {
 	ListSeriesByStatus(ctx context.Context, arg ListSeriesByStatusParams) ([]ListSeriesByStatusRow, error)
 	ListSessionTokens(ctx context.Context, userID int64) ([]AuthToken, error)
 	SeriesExists(ctx context.Context, arg SeriesExistsParams) (int64, error)
-	TouchAuthToken(ctx context.Context, arg TouchAuthTokenParams) error
 	UpdateEntry(ctx context.Context, arg UpdateEntryParams) (Entry, error)
 	UpdateSeries(ctx context.Context, arg UpdateSeriesParams) (Series, error)
 }

@@ -24,6 +24,20 @@ type EntriesDeps struct {
 }
 
 // List implements GET /entries.
+//
+// @Summary      List per-site reading positions
+// @Tags         entries
+// @Produce      json
+// @Security     CookieAuth
+// @Security     BearerAuth
+// @Param        series_id  query     int  false  "filter by series id"  minimum(1)
+// @Param        limit      query     int  false  "page size"             default(50)  minimum(1)  maximum(200)
+// @Param        offset     query     int  false  "page offset"           default(0)   minimum(0)
+// @Success      200        {object}  models.EntryList
+// @Failure      400        {object}  handlers.ErrorBody
+// @Failure      422        {object}  handlers.ErrorBody
+// @Failure      500        {object}  handlers.ErrorBody
+// @Router       /entries [get]
 func (d EntriesDeps) List(c *gin.Context) {
 	u, ok := models.UserFromContext(c.Request.Context())
 	if !ok {
@@ -64,6 +78,21 @@ func (d EntriesDeps) List(c *gin.Context) {
 }
 
 // Capture implements POST /entries/capture.
+//
+// @Summary      Capture or advance a reading position
+// @Description  Upserts on (user, site_host, series_slug). The handler lowercases site_host and strips a leading `www.` before persisting (ADR-0008). If no entry exists for that key, the caller must supply either `series_id` (existing) or `new_series_title` (the handler will materialise a series row); otherwise 422. Returns 201 on first capture for the (host,slug) key, 200 when an existing entry was advanced.
+// @Tags         entries
+// @Accept       json
+// @Produce      json
+// @Security     CookieAuth
+// @Security     BearerAuth
+// @Param        capture  body      models.EntryCapture  true  "captured reading position"
+// @Success      200      {object}  models.Entry  "advanced an existing entry"
+// @Success      201      {object}  models.Entry  "created a new entry"
+// @Failure      400      {object}  handlers.ErrorBody
+// @Failure      422      {object}  handlers.ErrorBody
+// @Failure      500      {object}  handlers.ErrorBody
+// @Router       /entries/capture [post]
 func (d EntriesDeps) Capture(c *gin.Context) {
 	u, ok := models.UserFromContext(c.Request.Context())
 	if !ok {
@@ -128,6 +157,22 @@ func (d EntriesDeps) Capture(c *gin.Context) {
 }
 
 // Patch implements PATCH /entries/{id}.
+//
+// @Summary      Adjust an existing entry
+// @Description  Pointer fields use the absent/present binary: missing fields are left unchanged.
+// @Tags         entries
+// @Accept       json
+// @Produce      json
+// @Security     CookieAuth
+// @Security     BearerAuth
+// @Param        id     path      int                true  "entry id"
+// @Param        entry  body      models.EntryPatch  true  "fields to update"
+// @Success      200    {object}  models.Entry
+// @Failure      400    {object}  handlers.ErrorBody
+// @Failure      404    {object}  handlers.ErrorBody
+// @Failure      422    {object}  handlers.ErrorBody
+// @Failure      500    {object}  handlers.ErrorBody
+// @Router       /entries/{id} [patch]
 func (d EntriesDeps) Patch(c *gin.Context) {
 	u, ok := models.UserFromContext(c.Request.Context())
 	if !ok {
@@ -191,6 +236,16 @@ func (d EntriesDeps) Patch(c *gin.Context) {
 }
 
 // Delete implements DELETE /entries/{id}.
+//
+// @Summary      Forget a single per-site reading position
+// @Tags         entries
+// @Security     CookieAuth
+// @Security     BearerAuth
+// @Param        id   path  int  true  "entry id"
+// @Success      204  "no content"
+// @Failure      404  {object}  handlers.ErrorBody
+// @Failure      500  {object}  handlers.ErrorBody
+// @Router       /entries/{id} [delete]
 func (d EntriesDeps) Delete(c *gin.Context) {
 	u, ok := models.UserFromContext(c.Request.Context())
 	if !ok {

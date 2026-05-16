@@ -27,5 +27,5 @@ Why not server-rendered:
 
 - Backend scope stays purely API + embedded static assets. No html/template, no asset pipeline inside Go.
 - The web library gets its own ADR and its own coder track later. Out of scope for `feat/backend-bootstrap`.
-- The API is the contract for both the extension and the web library. OpenAPI is canonical for both consumers.
+- The API is the contract for both the extension and the web library. The OpenAPI spec is canonical for both consumers; it is generated code-first from handler annotations and lives at the swag-generated spec at `internal/swaggerdocs/swagger.yaml`, served via `gin-swagger` at `/swagger/*any`.
 - We pay a small "embed a dist directory" cost at release time. Acceptable; `embed.FS` handles it.

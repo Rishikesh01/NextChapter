@@ -21,11 +21,6 @@ FROM auth_tokens t
 JOIN users u ON u.id = t.user_id
 WHERE t.token_hash = ?;
 
--- name: TouchAuthToken :exec
-UPDATE auth_tokens
-SET last_used_at = ?, expires_at = COALESCE(?, expires_at)
-WHERE id = ?;
-
 -- name: DeleteAuthTokenByHash :exec
 DELETE FROM auth_tokens WHERE token_hash = ?;
 

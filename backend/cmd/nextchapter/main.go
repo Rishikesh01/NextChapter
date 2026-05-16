@@ -14,6 +14,27 @@ import (
 	"github.com/enable-it/nextchapter/backend/internal/server"
 )
 
+// @title           NextChapter API
+// @version         1.0
+// @description     NextChapter is a self-hosted progress tracker for manhwa, manhua, and web novels.
+// @description     Open registration — anyone can create an account via /auth/register.
+// @description
+// @description     Auth: session cookie ("nc_session") OR Authorization: Bearer <api token>.
+//
+// @contact.name    NextChapter
+//
+// @license.name    See LICENSE
+//
+// @BasePath        /
+// @schemes         http https
+//
+// @securityDefinitions.apikey  CookieAuth
+// @in                          cookie
+// @name                        nc_session
+//
+// @securityDefinitions.apikey  BearerAuth
+// @in                          header
+// @name                        Authorization
 func main() {
 	os.Exit(run())
 }

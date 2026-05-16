@@ -43,6 +43,16 @@ linters:
           - gocritic
           - staticcheck
           - errcheck
+      - path: internal/swaggerdocs/
+        linters:
+          - revive
+          - gocritic
+          - staticcheck
+          - errcheck
+          - gosec
+          - govet
+          - ineffassign
+          - unused
 
 formatters:
   enable:

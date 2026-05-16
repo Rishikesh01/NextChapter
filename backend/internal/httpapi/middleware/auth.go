@@ -67,10 +67,6 @@ func Auth(cfg AuthMiddlewareConfig) gin.HandlerFunc {
 			}})
 			return
 		}
-		if err := cfg.Service.Touch(c.Request.Context(), resolved, time.Now()); err != nil {
-			cfg.Logger.Warn("auth touch failed", zap.Error(err))
-			// Don't fail the request — touching is best-effort.
-		}
 		ctx := models.WithUser(c.Request.Context(), resolved.User)
 		ctx = context.WithValue(ctx, ctxAuthResolvedKey, resolved)
 		c.Request = c.Request.WithContext(ctx)

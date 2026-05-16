@@ -16,9 +16,9 @@ import (
 
 // AuthService is the surface the HTTP handlers consume for auth-token
 // lifecycle (session create/delete on login/logout, API token create/delete
-// for the extension) and for credential verification. Resolve / Touch
-// are middleware-internal and stay off this interface. Method names
-// are conventional infrastructure verbs qualified by the resource noun
+// for the extension) and for credential verification. Resolve is
+// middleware-internal and stays off this interface. Method names are
+// conventional infrastructure verbs qualified by the resource noun
 // (CreateSession / DeleteSession / CreateAPIToken / DeleteAPIToken) so
 // each declaration is self-documenting at the interface, not the call
 // site. Auth is an infra service, not a product-domain service, so it
@@ -32,11 +32,15 @@ type AuthService interface {
 }
 
 // Service owns mint/revoke flows over auth_tokens plus the read-side
-// resolve/touch that the middleware in this package depends on. It
-// also runs the bcrypt-verify step for [Service.Authenticate]: the
-// users repository hands back a [users.AuthRecord] with the stored
-// hash and this service does the compare so the password-hash
-// boundary lives in one place.
+// resolve that the middleware in this package depends on. It also
+// runs the bcrypt-verify step for [Service.Authenticate]: the users
+// repository hands back a [users.AuthRecord] with the stored hash and
+// this service does the compare so the password-hash boundary lives
+// in one place.
+//
+// Sessions are minted with a fixed expires_at; the service does not
+// extend it on use. There is no Touch / refresh path — an expired
+// session means re-login, full stop.
 //
 // All SQL access goes through [Repository] and [users.Repository];
 // this type does not import the sqlc-generated package directly.
@@ -240,9 +244,9 @@ func (s *Service) Authenticate(ctx context.Context, creds models.Credentials) (m
 
 // Resolve looks up a raw token, returns the owning user and token
 // metadata, and rejects expired rows. It does *not* mutate
-// last_used_at; the middleware calls [Service.Touch] after a
-// successful authorisation. Hashing happens here so callers do not
-// need to remember to hash themselves.
+// last_used_at or expires_at — sessions are fixed-duration and the
+// middleware never extends them. Hashing happens here so callers do
+// not need to remember to hash themselves.
 func (s *Service) Resolve(ctx context.Context, rawToken string, now time.Time) (Resolved, error) {
 	tokHash := HashToken(rawToken)
 	row, err := s.repo.GetTokenByHash(ctx, tokHash)
@@ -276,17 +280,4 @@ func (s *Service) Resolve(ctx context.Context, rawToken string, now time.Time) (
 		ExpiresAt:  row.Token.ExpiresAt,
 		LastUsedAt: row.Token.LastUsedAt,
 	}, nil
-}
-
-// Touch updates last_used_at and, for session tokens, extends
-// expires_at by [SessionDuration] from now. API tokens have their
-// last_used_at touched but their expires_at is left alone
-// (user-configured).
-func (s *Service) Touch(ctx context.Context, r Resolved, now time.Time) error {
-	params := TouchParams{ID: r.TokenID, LastUsedAt: &now}
-	if r.Kind == constants.TokenKindSession {
-		ext := now.Add(SessionDuration)
-		params.ExpiresAt = &ext
-	}
-	return s.repo.TouchToken(ctx, params)
 }

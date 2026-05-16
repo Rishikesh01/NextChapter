@@ -46,13 +46,6 @@ type InsertTokenParams struct {
 	ExpiresAt  *time.Time
 }
 
-// TouchParams is the persistence-layer input for [Repository.TouchToken].
-type TouchParams struct {
-	ID         int64
-	LastUsedAt *time.Time
-	ExpiresAt  *time.Time // when non-nil, replaces expires_at; nil = leave alone.
-}
-
 // Repository is the persistence surface for auth tokens. The service
 // and middleware in this package depend on this interface; the
 // concrete implementation in [NewRepository] is the only thing in the
@@ -60,7 +53,6 @@ type TouchParams struct {
 type Repository interface {
 	CreateToken(ctx context.Context, p InsertTokenParams) (models.Token, error)
 	GetTokenByHash(ctx context.Context, tokenHash string) (LookupRow, error)
-	TouchToken(ctx context.Context, p TouchParams) error
 	DeleteTokenByID(ctx context.Context, userID, tokenID int64) (int64, error)
 	DeleteTokenByHash(ctx context.Context, tokenHash string) error
 	ListAPITokens(ctx context.Context, userID int64) ([]models.Token, error)

@@ -29,6 +29,20 @@ type SeriesDeps struct {
 }
 
 // List implements GET /series.
+//
+// @Summary      List the user's tracked series
+// @Tags         series
+// @Produce      json
+// @Security     CookieAuth
+// @Security     BearerAuth
+// @Param        status  query     string  false  "filter by status"  Enums(reading,completed,on_hold,dropped,plan_to_read)
+// @Param        limit   query     int     false  "page size"         default(50)  minimum(1)  maximum(200)
+// @Param        offset  query     int     false  "page offset"       default(0)   minimum(0)
+// @Success      200     {object}  models.SeriesList
+// @Failure      400     {object}  handlers.ErrorBody
+// @Failure      422     {object}  handlers.ErrorBody
+// @Failure      500     {object}  handlers.ErrorBody
+// @Router       /series [get]
 func (d SeriesDeps) List(c *gin.Context) {
 	u, ok := models.UserFromContext(c.Request.Context())
 	if !ok {
@@ -69,6 +83,19 @@ func (d SeriesDeps) List(c *gin.Context) {
 }
 
 // Create implements POST /series.
+//
+// @Summary      Track a new series
+// @Tags         series
+// @Accept       json
+// @Produce      json
+// @Security     CookieAuth
+// @Security     BearerAuth
+// @Param        series  body      models.SeriesNew  true  "series metadata"
+// @Success      201     {object}  models.Series
+// @Failure      400     {object}  handlers.ErrorBody
+// @Failure      422     {object}  handlers.ErrorBody
+// @Failure      500     {object}  handlers.ErrorBody
+// @Router       /series [post]
 func (d SeriesDeps) Create(c *gin.Context) {
 	u, ok := models.UserFromContext(c.Request.Context())
 	if !ok {
@@ -110,6 +137,17 @@ func (d SeriesDeps) Create(c *gin.Context) {
 }
 
 // Get implements GET /series/{id}.
+//
+// @Summary      Fetch a single series with its per-site entries
+// @Tags         series
+// @Produce      json
+// @Security     CookieAuth
+// @Security     BearerAuth
+// @Param        id   path      int  true  "series id"
+// @Success      200  {object}  models.SeriesDetail
+// @Failure      404  {object}  handlers.ErrorBody
+// @Failure      500  {object}  handlers.ErrorBody
+// @Router       /series/{id} [get]
 func (d SeriesDeps) Get(c *gin.Context) {
 	u, ok := models.UserFromContext(c.Request.Context())
 	if !ok {
@@ -148,6 +186,22 @@ func (d SeriesDeps) Get(c *gin.Context) {
 }
 
 // Patch implements PATCH /series/{id}.
+//
+// @Summary      Update mutable fields on a tracked series
+// @Description  Pointer fields use the absent/present binary: missing fields are left unchanged. Sending `rating: null` is treated the same as omitting the field — clearing the rating is not supported via PATCH in v1.
+// @Tags         series
+// @Accept       json
+// @Produce      json
+// @Security     CookieAuth
+// @Security     BearerAuth
+// @Param        id      path      int                 true  "series id"
+// @Param        series  body      models.SeriesPatch  true  "fields to update"
+// @Success      200     {object}  models.Series
+// @Failure      400     {object}  handlers.ErrorBody
+// @Failure      404     {object}  handlers.ErrorBody
+// @Failure      422     {object}  handlers.ErrorBody
+// @Failure      500     {object}  handlers.ErrorBody
+// @Router       /series/{id} [patch]
 func (d SeriesDeps) Patch(c *gin.Context) {
 	u, ok := models.UserFromContext(c.Request.Context())
 	if !ok {
@@ -207,6 +261,16 @@ func (d SeriesDeps) Patch(c *gin.Context) {
 }
 
 // Delete implements DELETE /series/{id}.
+//
+// @Summary      Untrack a series and its entries
+// @Tags         series
+// @Security     CookieAuth
+// @Security     BearerAuth
+// @Param        id   path  int  true  "series id"
+// @Success      204  "no content"
+// @Failure      404  {object}  handlers.ErrorBody
+// @Failure      500  {object}  handlers.ErrorBody
+// @Router       /series/{id} [delete]
 func (d SeriesDeps) Delete(c *gin.Context) {
 	u, ok := models.UserFromContext(c.Request.Context())
 	if !ok {

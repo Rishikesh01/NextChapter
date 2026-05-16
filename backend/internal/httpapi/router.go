@@ -7,6 +7,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
 
 	"github.com/enable-it/nextchapter/backend/internal/auth"
@@ -14,6 +16,7 @@ import (
 	"github.com/enable-it/nextchapter/backend/internal/httpapi/handlers"
 	"github.com/enable-it/nextchapter/backend/internal/httpapi/middleware"
 	"github.com/enable-it/nextchapter/backend/internal/series"
+	_ "github.com/enable-it/nextchapter/backend/internal/swaggerdocs" // registers with gin-swagger
 	"github.com/enable-it/nextchapter/backend/internal/users"
 )
 
@@ -60,6 +63,11 @@ func (d Deps) registerRoutes(r *gin.Engine) {
 	meta := handlers.MetaDeps{Version: d.Version}
 	r.GET("/", meta.Root)
 	r.GET("/healthz", meta.Health)
+
+	// Swagger UI / spec. Path is hard-coded by gin-swagger; the spec
+	// itself is registered via the blank import of internal/swaggerdocs
+	// above. Regenerate with `make swagger` after annotation changes.
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	authDeps := handlers.AuthDeps{
 		Users:        d.Users,

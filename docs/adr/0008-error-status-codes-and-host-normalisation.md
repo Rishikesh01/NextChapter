@@ -1,5 +1,7 @@
 # 0008 - Bind-failure status codes and site_host normalisation
 
+> Note (2026-05-17): the OpenAPI spec is now generated code-first from `swaggo/swag` annotations on the handler functions. Read the spec at `internal/swaggerdocs/swagger.yaml` (regenerated via `make swagger`) or via the served UI at `/swagger/*any`. Wherever this ADR previously referred to `docs/api/openapi.yaml`, the canonical source is now the annotation block above each handler.
+
 ## Context
 
 Two issues surfaced in the bootstrap reviewer pass that are worth
@@ -64,8 +66,9 @@ malformed body just like every other JSON-body endpoint. The
 OpenAPI spec reflects this — `paths./entries/{id}.patch` declares
 both 400 and 422.
 
-`docs/api/openapi.yaml` declares 400 (`#/components/responses/BadRequest`)
-on every endpoint with a JSON request body, no exceptions.
+The swag-generated spec at `internal/swaggerdocs/swagger.yaml`, served
+via `gin-swagger` at `/swagger/*any`, declares 400 on every endpoint
+with a JSON request body, no exceptions.
 
 ### `site_host` normalisation
 

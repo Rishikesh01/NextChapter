@@ -52,6 +52,18 @@ type AuthDeps struct {
 // Register implements POST /auth/register. The route is unconditionally
 // open: anyone can register an account. Env-var bootstrap pre-seeds the
 // operator's account but does not gate this endpoint.
+//
+// @Summary      Register a new user account
+// @Description  Open registration: anyone can create an account. On success the server sets the nc_session cookie and returns the new user.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        registration  body      models.Registration  true  "credentials"
+// @Success      201           {object}  models.User
+// @Failure      400           {object}  handlers.ErrorBody
+// @Failure      422           {object}  handlers.ErrorBody
+// @Failure      500           {object}  handlers.ErrorBody
+// @Router       /auth/register [post]
 func (d AuthDeps) Register(c *gin.Context) {
 	var req models.Registration
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -102,6 +114,19 @@ func (d AuthDeps) Register(c *gin.Context) {
 }
 
 // Login implements POST /auth/login.
+//
+// @Summary      Log in with username and password
+// @Description  Authenticates the supplied credentials. On success the server sets the nc_session cookie and returns the authenticated user.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        credentials  body      models.Credentials  true  "credentials"
+// @Success      200          {object}  models.User
+// @Failure      400          {object}  handlers.ErrorBody
+// @Failure      401          {object}  handlers.ErrorBody
+// @Failure      422          {object}  handlers.ErrorBody
+// @Failure      500          {object}  handlers.ErrorBody
+// @Router       /auth/login [post]
 func (d AuthDeps) Login(c *gin.Context) {
 	var creds models.Credentials
 	if err := c.ShouldBindJSON(&creds); err != nil {
@@ -154,6 +179,14 @@ func (d AuthDeps) Login(c *gin.Context) {
 
 // Logout implements POST /auth/logout. Best-effort: invalidates the
 // session row (if cookie was the auth method) and clears the cookie.
+//
+// @Summary      Log out the current session
+// @Description  Deletes the session row (if cookie-authed) and clears the nc_session cookie. Idempotent.
+// @Tags         auth
+// @Security     CookieAuth
+// @Security     BearerAuth
+// @Success      204  "no content"
+// @Router       /auth/logout [post]
 func (d AuthDeps) Logout(c *gin.Context) {
 	if cookie, err := c.Cookie(constants.SessionCookieName); err == nil && cookie != "" {
 		if err := d.Auth.DeleteSession(c.Request.Context(), cookie); err != nil {
@@ -165,6 +198,15 @@ func (d AuthDeps) Logout(c *gin.Context) {
 }
 
 // Me implements GET /auth/me.
+//
+// @Summary      Return the currently authenticated user
+// @Tags         auth
+// @Produce      json
+// @Security     CookieAuth
+// @Security     BearerAuth
+// @Success      200  {object}  models.User
+// @Failure      401  {object}  handlers.ErrorBody
+// @Router       /auth/me [get]
 func (d AuthDeps) Me(c *gin.Context) {
 	u, ok := models.UserFromContext(c.Request.Context())
 	if !ok {
@@ -179,6 +221,20 @@ func (d AuthDeps) Me(c *gin.Context) {
 
 // CreateToken implements POST /auth/tokens. Returns the raw token
 // exactly once via the Raw field on [models.APIToken] (json:"token").
+//
+// @Summary      Mint a new API token for the current user
+// @Description  Returns the plaintext token exactly once on the `token` field. The server stores only the hash; subsequent reads omit `token`.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Security     CookieAuth
+// @Security     BearerAuth
+// @Param        token  body      models.NewToken  true  "token metadata"
+// @Success      201    {object}  models.APIToken
+// @Failure      400    {object}  handlers.ErrorBody
+// @Failure      422    {object}  handlers.ErrorBody
+// @Failure      500    {object}  handlers.ErrorBody
+// @Router       /auth/tokens [post]
 func (d AuthDeps) CreateToken(c *gin.Context) {
 	u, ok := models.UserFromContext(c.Request.Context())
 	if !ok {
@@ -219,6 +275,16 @@ func (d AuthDeps) CreateToken(c *gin.Context) {
 }
 
 // DeleteToken implements DELETE /auth/tokens/{id}.
+//
+// @Summary      Revoke an API token
+// @Tags         auth
+// @Security     CookieAuth
+// @Security     BearerAuth
+// @Param        id   path  int  true  "token id"
+// @Success      204  "no content"
+// @Failure      404  {object}  handlers.ErrorBody
+// @Failure      500  {object}  handlers.ErrorBody
+// @Router       /auth/tokens/{id} [delete]
 func (d AuthDeps) DeleteToken(c *gin.Context) {
 	u, ok := models.UserFromContext(c.Request.Context())
 	if !ok {

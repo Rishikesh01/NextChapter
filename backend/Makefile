@@ -16,7 +16,6 @@ BIN_DIR         ?= ./bin
 BIN_NAME        ?= nextchapter
 DOCKER_IMAGE    ?= nextchapter:dev
 HOST_PORT       ?= 8080
-OPENAPI_SPEC    ?= ../docs/api/openapi.yaml
 
 .DEFAULT_GOAL := help
 
@@ -91,9 +90,12 @@ migrate-create:  ## Create a new SQL migration. Usage: make migrate-create name=
 sqlc:  ## Regenerate sqlc bindings into internal/store/generated/
 	$(SQLC) generate
 
-.PHONY: openapi-validate
-openapi-validate:  ## Lint $(OPENAPI_SPEC) using redocly via npx (no local install needed)
-	npx --yes @redocly/cli@latest lint $(OPENAPI_SPEC)
+.PHONY: swagger
+swagger:  ## Regenerate the OpenAPI spec from handler annotations.
+	go run github.com/swaggo/swag/cmd/swag@latest init \
+	    -g cmd/nextchapter/main.go \
+	    -o internal/swaggerdocs \
+	    --parseInternal --parseDependency=false
 
 # ---- Build / Docker ----
 
