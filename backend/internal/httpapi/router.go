@@ -34,8 +34,10 @@ type Deps struct {
 	CookieDomain   string
 }
 
-// New builds the gin.Engine. It uses gin.New() (not gin.Default) so we
-// own the middleware stack and produce JSON logs via zap.
+// New builds the gin.Engine: sets the run mode, installs the
+// middleware stack, and hands off to [registerRoutes] for the path
+// tree. Engine setup and routing are deliberately split so the route
+// table is one function to read in isolation.
 func New(d Deps) *gin.Engine {
 	if d.Logger == nil {
 		d.Logger = zap.NewNop()
@@ -48,7 +50,14 @@ func New(d Deps) *gin.Engine {
 	if len(d.AllowedOrigins) > 0 {
 		r.Use(middleware.CORS(middleware.CORSConfig{AllowedOrigins: d.AllowedOrigins}))
 	}
+	registerRoutes(r, d)
+	return r
+}
 
+// registerRoutes registers every HTTP path against the engine. Split
+// out of [New] so the route table reads top-to-bottom in one place
+// without the surrounding engine plumbing.
+func registerRoutes(r *gin.Engine, d Deps) {
 	meta := handlers.MetaDeps{Version: d.Version}
 	r.GET("/", meta.Root)
 	r.GET("/healthz", meta.Health)
@@ -105,7 +114,4 @@ func New(d Deps) *gin.Engine {
 			Message: "not found",
 		}})
 	})
-
-	return r
 }
-
