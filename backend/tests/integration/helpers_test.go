@@ -76,25 +76,24 @@ func startServer(t *testing.T, cfg config.Config) *harness {
 	srsSvc := series.NewService(series.NewRepository(q), entSvc, zap.NewNop())
 
 	if cfg.HasBootstrap() {
-		n, err := usrSvc.CountUsers(ctx)
+		// Env-var bootstrap pre-seeds the operator's account. The
+		// /auth/register route stays open regardless; tests build a
+		// fresh tempfile DB per harness so the first call always
+		// succeeds.
+		_, err := usrSvc.Register(ctx, models.Registration{
+			Username: cfg.BootstrapUsername,
+			Password: cfg.BootstrapPassword,
+		})
 		r.NoError(err)
-		if n == 0 {
-			_, err := usrSvc.Register(ctx, models.Registration{
-				Username: cfg.BootstrapUsername,
-				Password: cfg.BootstrapPassword,
-			})
-			r.NoError(err)
-		}
 	}
 
 	engine := httpapi.New(httpapi.Deps{
-		Users:      usrSvc,
-		Auth:       authSvc,
-		Series:     srsSvc,
-		Entries:    entSvc,
-		Logger:     zap.NewNop(),
-		HasEnvBoot: cfg.HasBootstrap(),
-		Version:    cfg.Version,
+		Users:   usrSvc,
+		Auth:    authSvc,
+		Series:  srsSvc,
+		Entries: entSvc,
+		Logger:  zap.NewNop(),
+		Version: cfg.Version,
 	})
 
 	srv := httptest.NewServer(engine)

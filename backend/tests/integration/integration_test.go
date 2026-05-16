@@ -37,16 +37,14 @@ type errorPayload struct {
 }
 
 var (
-	notFoundBody     = errorBody{Error: errorPayload{Code: "not_found", Message: "not found"}}
 	unauthorisedBody = errorBody{Error: errorPayload{Code: "unauthorized", Message: "missing or invalid credentials"}}
 )
 
-// TestSelfHostedOperatorBootsAndRegistersFirstUser walks the
-// open-registration window: a fresh DB lets exactly one register call
-// succeed and then closes the window forever. The created user is
-// queryable via /auth/me using the cookie set by /auth/register, and
-// the row lands in the users table.
-func TestSelfHostedOperatorBootsAndRegistersFirstUser(t *testing.T) {
+// TestUserRegisterAndLogin walks the open-registration flow: a fresh
+// DB accepts the register call, the resulting session cookie powers
+// /auth/me, logout clears it, and /auth/me afterwards is 401. /auth/register
+// remains open so a second, distinct account also registers cleanly.
+func TestUserRegisterAndLogin(t *testing.T) {
 	t.Parallel()
 	r := require.New(t)
 	h := newHarness(t)
@@ -64,19 +62,6 @@ func TestSelfHostedOperatorBootsAndRegistersFirstUser(t *testing.T) {
 	row, err := h.queries.GetUserByUsername(context.Background(), "alice")
 	r.NoError(err)
 	r.Equal("alice", row.Username)
-
-	(testRequest{
-		Name:           "second /auth/register call closes the window with 404",
-		Method:         http.MethodPost,
-		Path:           "/auth/register",
-		Body:           models.Registration{Username: "mallory", Password: "another password"},
-		ExpectedStatus: http.StatusNotFound,
-		ExpectedBody:   notFoundBody,
-	}).do(t, h)
-
-	n, err := h.queries.CountUsers(context.Background())
-	r.NoError(err)
-	r.Equal(int64(1), n)
 
 	(testRequest{
 		Name:           "/auth/me echoes the registered user via the session cookie",
@@ -121,13 +106,28 @@ func TestSelfHostedOperatorBootsAndRegistersFirstUser(t *testing.T) {
 		ExpectedStatus: http.StatusUnauthorized,
 		ExpectedBody:   unauthorisedBody,
 	}).do(t, h)
+
+	(testRequest{
+		Name:           "a second distinct user can also register",
+		Method:         http.MethodPost,
+		Path:           "/auth/register",
+		Body:           models.Registration{Username: "bob", Password: "another password"},
+		ExpectedStatus: http.StatusCreated,
+		ExpectedBody:   models.User{Username: "bob"},
+		SentinelPaths:  []string{"id", "created_at"},
+	}).do(t, h)
+
+	n, err := h.queries.CountUsers(context.Background())
+	r.NoError(err)
+	r.Equal(int64(2), n, "both register calls must have persisted")
 }
 
-// TestEnvVarBootstrapClosesRegistrationFromTheStart is the second
-// bootstrap path: when NEXTCHAPTER_BOOTSTRAP_USERNAME/_PASSWORD are
-// set, the user is created on first boot and /auth/register is 404
-// without ever having served a single registration.
-func TestEnvVarBootstrapClosesRegistrationFromTheStart(t *testing.T) {
+// TestEnvVarBootstrapSeedsFirstUser pins the env-var bootstrap
+// convenience: when NEXTCHAPTER_BOOTSTRAP_USERNAME/_PASSWORD are set,
+// the operator's account exists in the DB before any HTTP traffic and
+// can log in straight away. Crucially, /auth/register stays open after
+// bootstrap — the route is unconditionally available now.
+func TestEnvVarBootstrapSeedsFirstUser(t *testing.T) {
 	t.Parallel()
 	r := require.New(t)
 	cfg := defaultCfg()
@@ -135,14 +135,11 @@ func TestEnvVarBootstrapClosesRegistrationFromTheStart(t *testing.T) {
 	cfg.BootstrapPassword = "correct horse battery"
 	h := startServer(t, cfg)
 
-	(testRequest{
-		Name:           "/auth/register is closed",
-		Method:         http.MethodPost,
-		Path:           "/auth/register",
-		Body:           models.Registration{Username: "mallory", Password: "another password"},
-		ExpectedStatus: http.StatusNotFound,
-		ExpectedBody:   notFoundBody,
-	}).do(t, h)
+	// Pre-condition: the bootstrap user is already persisted before any
+	// HTTP request lands.
+	preRow, err := h.queries.GetUserByUsername(context.Background(), "alice")
+	r.NoError(err, "env-var bootstrap must seed the user on first boot")
+	r.Equal("alice", preRow.Username)
 
 	(testRequest{
 		Name:           "/auth/login with the bootstrap creds succeeds",
@@ -173,6 +170,23 @@ func TestEnvVarBootstrapClosesRegistrationFromTheStart(t *testing.T) {
 		ExpectedBody:   models.User{Username: "alice"},
 		SentinelPaths:  []string{"id", "created_at"},
 	}).do(t, h)
+
+	// /auth/register stays open after env-var bootstrap: anyone else
+	// can still register a separate account.
+	(testRequest{
+		Name:           "/auth/register still accepts new users after bootstrap",
+		Method:         http.MethodPost,
+		Path:           "/auth/register",
+		Body:           models.Registration{Username: "mallory", Password: "another password"},
+		Client:         h.bareClient(), // keep alice's cookie jar untouched
+		ExpectedStatus: http.StatusCreated,
+		ExpectedBody:   models.User{Username: "mallory"},
+		SentinelPaths:  []string{"id", "created_at"},
+	}).do(t, h)
+
+	n, err := h.queries.CountUsers(context.Background())
+	r.NoError(err)
+	r.Equal(int64(2), n, "bootstrap user + /auth/register user")
 }
 
 // TestUserCapturesChapterProgressAcrossSites covers the canonical

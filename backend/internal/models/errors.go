@@ -9,7 +9,7 @@ import "errors"
 // (not a wrapped private one) when the failure mode matches one of
 // these meanings. Wrapping is fine as long as errors.Is unwraps.
 var (
-	// ErrUsernameTaken is returned by the users service's Create
+	// ErrUsernameTaken is returned by the users service's Register
 	// method when the username collides with an existing row.
 	// Handlers turn this into 422.
 	ErrUsernameTaken = errors.New("users: username already taken")

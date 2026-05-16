@@ -91,7 +91,6 @@ func Run(ctx context.Context, cfg config.Config) error {
 		Series:         seriesSvc,
 		Entries:        entrySvc,
 		Logger:         logger,
-		HasEnvBoot:     cfg.HasBootstrap(),
 		Version:        cfg.Version,
 		AllowedOrigins: cfg.AllowedOrigins,
 		CookieSecure:   isHTTPS(cfg.AllowedOrigins),
@@ -132,19 +131,18 @@ func Run(ctx context.Context, cfg config.Config) error {
 }
 
 func bootstrapFirstUser(ctx context.Context, logger *zap.Logger, svc *users.Service, username, password string) error {
-	n, err := svc.CountUsers(ctx)
-	if err != nil {
-		return err
-	}
-	if n > 0 {
-		logger.Debug("bootstrap: users already exist, skipping")
+	_, err := svc.Register(ctx, models.Registration{Username: username, Password: password})
+	switch {
+	case err == nil:
+		logger.Warn("bootstrap: created first user from env vars", zap.String("username", username))
 		return nil
-	}
-	if _, err := svc.Register(ctx, models.Registration{Username: username, Password: password}); err != nil {
+	case errors.Is(err, models.ErrUsernameTaken):
+		// Re-run with the same env vars after a successful first boot.
+		logger.Debug("bootstrap: user already exists, skipping", zap.String("username", username))
+		return nil
+	default:
 		return err
 	}
-	logger.Warn("bootstrap: created first user from env vars", zap.String("username", username))
-	return nil
 }
 
 func newLogger(level zapcore.Level) (*zap.Logger, error) {

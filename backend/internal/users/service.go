@@ -1,5 +1,5 @@
 // Package users owns the user-account domain: creation, lookup, and
-// the once-only bootstrap path described in ADR-0006.
+// the env-var bootstrap convenience described in ADR-0006.
 package users
 
 import (
@@ -30,13 +30,10 @@ var (
 // interface lets [internal/auth] own the password-hash boundary
 // (matching where token mint/verify also live).
 //
-// Method names are conventional user-management verbs (Register /
-// CountUsers) rather than product-domain verbs — users is an infra
-// service, not a product-domain service. Method-name qualification
-// (CountUsers, not bare Count) keeps the interface declaration
-// self-documenting in isolation.
+// Register is unconditional: /auth/register is always open, so the
+// only caller-visible failure mode for a well-formed request is
+// [models.ErrUsernameTaken].
 type UsersService interface {
-	CountUsers(ctx context.Context) (int64, error)
 	Register(ctx context.Context, registration models.Registration) (models.User, error)
 }
 
@@ -68,14 +65,10 @@ func NewService(repo Repository, logger *zap.Logger) *Service {
 	return &Service{repo: repo, logger: logger}
 }
 
-// CountUsers returns the total number of users. Used by /auth/register to
-// decide whether the open-registration window is still open.
-func (s *Service) CountUsers(ctx context.Context) (int64, error) {
-	return s.repo.CountUsers(ctx)
-}
-
-// Register hashes the password and inserts a new user. Returns the
-// public-facing [models.User] (no hash).
+// Register hashes the password and inserts a new user. /auth/register
+// is always open, so the only caller-driven failure mode for a
+// well-formed request is [models.ErrUsernameTaken]. Returns the
+// public-facing [models.User] (no hash) on success.
 func (s *Service) Register(ctx context.Context, registration models.Registration) (models.User, error) {
 	s.logger.Debug("register: hashing password",
 		zap.String("username", registration.Username),

@@ -27,7 +27,6 @@ type Deps struct {
 	Series         *series.Service
 	Entries        *entries.Service
 	Logger         *zap.Logger
-	HasEnvBoot     bool
 	Version        string
 	AllowedOrigins []string
 	CookieSecure   bool
@@ -66,7 +65,6 @@ func (d Deps) registerRoutes(r *gin.Engine) {
 		Users:        d.Users,
 		Auth:         d.Auth,
 		Logger:       d.Logger,
-		HasEnvBoot:   d.HasEnvBoot,
 		CookieDomain: d.CookieDomain,
 		CookieSecure: d.CookieSecure,
 	}
@@ -106,8 +104,7 @@ func (d Deps) registerRoutes(r *gin.Engine) {
 	authed.PATCH("/entries/:id", entriesDeps.Patch)
 	authed.DELETE("/entries/:id", entriesDeps.Delete)
 
-	// Method-mismatch / unknown-route fallback. We do not advertise
-	// the /auth/register endpoint to closed-window callers.
+	// Method-mismatch / unknown-route fallback.
 	r.NoRoute(func(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusNotFound, handlers.ErrorBody{Error: handlers.ErrorDetail{
 			Code:    handlers.CodeNotFound,

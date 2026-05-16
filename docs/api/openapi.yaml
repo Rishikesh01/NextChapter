@@ -3,8 +3,8 @@ info:
   title: NextChapter API
   version: 0.1.0-bootstrap
   description: |
-    Bootstrap-milestone surface for NextChapter. Covers auth, the first-run
-    registration window, series CRUD, and per-site entry capture and listing.
+    Bootstrap-milestone surface for NextChapter. Covers auth (open
+    registration), series CRUD, and per-site entry capture and listing.
     Scope is deliberately narrow; tags, search, site-rule sync, and the full
     library view ship in later milestones.
 
@@ -41,11 +41,11 @@ paths:
   /auth/register:
     post:
       tags: [auth]
-      summary: Create the first user (open-registration window only).
+      summary: Register a new user.
       description: |
-        Available only while the `users` table is empty AND no env-var
-        bootstrap is configured. After the first user is created this endpoint
-        returns 404. See ADR-0006.
+        Open registration: anyone can create a new account. Env-var
+        bootstrap (see ADR-0006) pre-seeds the operator's account on
+        first boot but does not gate this endpoint.
       security: []
       requestBody:
         required: true
@@ -63,11 +63,6 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/User' }
         '400': { $ref: '#/components/responses/BadRequest' }
-        '404':
-          description: Registration window closed.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
         '422': { $ref: '#/components/responses/ValidationError' }
 
   /auth/login:

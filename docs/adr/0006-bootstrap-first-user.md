@@ -1,5 +1,11 @@
 # 0006 - First-run user bootstrap
 
+> **Superseded 2026-05-17:** the operator switched to open registration.
+> /auth/register is always available. Env-var bootstrap remains as a
+> convenience for pre-seeding the operator's account on first boot.
+> The "single-shot window" / count-based gating described below is no
+> longer the design; the prose is kept for historical context.
+
 ## Context
 
 ADR-0001 commits us to multi-user with passwords. Self-hosted users need a way to get the first account onto a fresh server without a chicken-and-egg `POST /users` that's either public (registration spam) or requires an admin token that doesn't exist yet.

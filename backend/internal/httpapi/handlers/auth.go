@@ -45,38 +45,14 @@ type AuthDeps struct {
 	Users        users.UsersService
 	Auth         auth.AuthService
 	Logger       *zap.Logger
-	HasEnvBoot   bool // env-var bootstrap enabled; closes /auth/register entirely.
 	CookieDomain string
 	CookieSecure bool
 }
 
-// Register implements POST /auth/register, the open-registration
-// window. Returns 404 when the window is closed (users exist, or
-// env-var bootstrap is configured).
+// Register implements POST /auth/register. The route is unconditionally
+// open: anyone can register an account. Env-var bootstrap pre-seeds the
+// operator's account but does not gate this endpoint.
 func (d AuthDeps) Register(c *gin.Context) {
-	if d.HasEnvBoot {
-		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
-			Code:    CodeNotFound,
-			Message: "not found",
-		}})
-		return
-	}
-	count, err := d.Users.CountUsers(c.Request.Context())
-	if err != nil {
-		d.Logger.Error("register: count users", zap.Error(err))
-		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
-			Message: "internal server error",
-		}})
-		return
-	}
-	if count > 0 {
-		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
-			Code:    CodeNotFound,
-			Message: "not found",
-		}})
-		return
-	}
 	var req models.Registration
 	if err := c.ShouldBindJSON(&req); err != nil {
 		var verr validator.ValidationErrors
@@ -94,9 +70,7 @@ func (d AuthDeps) Register(c *gin.Context) {
 		}})
 		return
 	}
-	d.Logger.Warn("open registration window: creating first user",
-		zap.String("username", req.Username),
-	)
+	d.Logger.Info("user registered via /auth/register", zap.String("username", req.Username))
 	u, err := d.Users.Register(c.Request.Context(), req)
 	if err != nil {
 		if errors.Is(err, models.ErrUsernameTaken) {
