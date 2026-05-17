@@ -24,7 +24,6 @@ import (
 	"github.com/enable-it/nextchapter/backend/internal/series"
 	"github.com/enable-it/nextchapter/backend/internal/sites"
 	"github.com/enable-it/nextchapter/backend/internal/store"
-	gen "github.com/enable-it/nextchapter/backend/internal/store/generated"
 	"github.com/enable-it/nextchapter/backend/internal/users"
 )
 
@@ -60,27 +59,46 @@ func Run(ctx context.Context, cfg config.Config) error {
 		return fmt.Errorf("server: migrate: %w", err)
 	}
 
-	queries := gen.New(db)
+	dialect, err := store.DialectFor(cfg.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("server: dialect: %w", err)
+	}
 
 	// Each domain package follows the same pattern: build the
-	// repository (the only thing that touches sqlc-generated code),
-	// then build the service on top of it. The auth service also
-	// consumes the users repository so [auth.Service.Authenticate]
-	// can read the stored password hash — that's why userRepo is
-	// built first and threaded into auth.NewService.
-	userRepo := users.NewRepository(queries)
+	// repository (the only thing that touches sqlc-generated code)
+	// for the active dialect, then build the service on top of it.
+	// The auth service also consumes the users repository so
+	// [auth.Service.Authenticate] can read the stored password hash
+	// — that's why userRepo is built first and threaded into
+	// auth.NewService.
+	userRepo, err := users.NewRepository(dialect, db)
+	if err != nil {
+		return fmt.Errorf("server: users repo: %w", err)
+	}
 	userSvc := users.NewService(userRepo, logger)
 
-	authRepo := auth.NewRepository(queries)
+	authRepo, err := auth.NewRepository(dialect, db)
+	if err != nil {
+		return fmt.Errorf("server: auth repo: %w", err)
+	}
 	authSvc := auth.NewService(authRepo, userRepo, logger)
 
-	entryRepo := entries.NewRepository(queries)
+	entryRepo, err := entries.NewRepository(dialect, db)
+	if err != nil {
+		return fmt.Errorf("server: entries repo: %w", err)
+	}
 	entrySvc := entries.NewService(entryRepo, logger)
 
-	seriesRepo := series.NewRepository(db, queries)
+	seriesRepo, err := series.NewRepository(dialect, db)
+	if err != nil {
+		return fmt.Errorf("server: series repo: %w", err)
+	}
 	seriesSvc := series.NewService(seriesRepo, entrySvc, logger)
 
-	sitesRepo := sites.NewRepository(queries)
+	sitesRepo, err := sites.NewRepository(dialect, db)
+	if err != nil {
+		return fmt.Errorf("server: sites repo: %w", err)
+	}
 	sitesSvc := sites.NewService(sitesRepo, logger)
 
 	if cfg.HasBootstrap() {

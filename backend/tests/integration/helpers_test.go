@@ -1,24 +1,38 @@
 // Package integration_test exercises the NextChapter HTTP API end to
-// end against a real (tempfile) SQLite database. It does not mock the
-// DB; sqlite is pure-Go, so spinning one per test is cheap and the
-// real driver path is what production uses.
+// end against a real database. It does not mock the DB; sqlite is
+// pure-Go and Postgres runs via testcontainers-go, so both real
+// driver paths are exercised.
+//
+// Default: SQLite tempfile per test (fast, no Docker required).
+// Opt-in: set NEXTCHAPTER_TEST_POSTGRES=1 to run against a Postgres
+// container started once per test package in TestMain. When the env
+// var is set the harness uses Postgres for *every* test in this
+// package; each test gets its own freshly-created database in the
+// shared container for full isolation.
 package integration_test
 
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"go.uber.org/zap"
 
 	"github.com/enable-it/nextchapter/backend/internal/auth"
@@ -32,6 +46,116 @@ import (
 	gen "github.com/enable-it/nextchapter/backend/internal/store/generated"
 	"github.com/enable-it/nextchapter/backend/internal/users"
 )
+
+// --- dual-dialect harness wiring -----------------------------------------
+//
+// pgContainerURL is the admin connection string for the Postgres
+// container started by TestMain when NEXTCHAPTER_TEST_POSTGRES=1. It
+// stays empty for SQLite-only runs and startServer falls back to a
+// tempfile SQLite DB.
+//
+// Each test that uses Postgres gets its own CREATE DATABASE on the
+// shared cluster (the cluster start is the expensive part; CREATE
+// DATABASE is cheap), so tests stay isolated without paying the
+// per-test container startup cost.
+var (
+	pgContainerURL  string
+	pgDatabaseCount atomic.Int64
+)
+
+// useTestPostgres reports whether the integration test package is
+// running in dual-dialect mode (Postgres container active).
+func useTestPostgres() bool {
+	v := os.Getenv("NEXTCHAPTER_TEST_POSTGRES")
+	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
+}
+
+// TestMain bootstraps the Postgres container exactly once for the
+// package when NEXTCHAPTER_TEST_POSTGRES=1. The container is torn
+// down on exit. When the env var is unset the test process runs
+// SQLite-only and TestMain is a no-op shell around m.Run().
+func TestMain(m *testing.M) {
+	if !useTestPostgres() {
+		os.Exit(m.Run())
+	}
+	ctx := context.Background()
+	c, err := tcpostgres.Run(ctx, "postgres:16-alpine",
+		tcpostgres.WithDatabase("nextchapter_test"),
+		tcpostgres.WithUsername("test"),
+		tcpostgres.WithPassword("test"),
+		tcpostgres.BasicWaitStrategies(),
+	)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "postgres testcontainer start: %v\n", err)
+		os.Exit(1)
+	}
+	u, err := c.ConnectionString(ctx, "sslmode=disable")
+	if err != nil {
+		_ = c.Terminate(ctx)
+		fmt.Fprintf(os.Stderr, "postgres connection string: %v\n", err)
+		os.Exit(1)
+	}
+	pgContainerURL = u
+	code := m.Run()
+	if err := c.Terminate(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "postgres terminate: %v\n", err)
+	}
+	os.Exit(code)
+}
+
+// freshPostgresDatabaseURL creates a new isolated database in the
+// shared container and returns its connection URL. The database is
+// dropped via t.Cleanup so a failed test doesn't pollute the cluster.
+func freshPostgresDatabaseURL(t *testing.T) string {
+	t.Helper()
+	r := require.New(t)
+
+	// Atomic counter + random suffix prevents collisions across
+	// parallel subtests in the same binary.
+	idx := pgDatabaseCount.Add(1)
+	buf := make([]byte, 4)
+	_, err := rand.Read(buf)
+	r.NoError(err)
+	name := fmt.Sprintf("ncx_%d_%s", idx, hex.EncodeToString(buf))
+
+	admin, err := sql.Open("pgx", pgContainerURL)
+	r.NoError(err)
+	defer func() {
+		if err := admin.Close(); err != nil {
+			t.Logf("close admin db: %v", err)
+		}
+	}()
+	// #nosec G201 — `name` is generated locally from a counter + crypto
+	// random bytes; identifiers can't be parameterised in CREATE
+	// DATABASE.
+	_, err = admin.ExecContext(context.Background(), "CREATE DATABASE "+name)
+	r.NoError(err)
+
+	t.Cleanup(func() {
+		dropAdmin, err := sql.Open("pgx", pgContainerURL)
+		if err != nil {
+			t.Logf("open admin db for cleanup: %v", err)
+			return
+		}
+		defer func() { _ = dropAdmin.Close() }()
+		// FORCE drops any active connections from the test process
+		// before the underlying database is removed.
+		// #nosec G201 — same identifier-not-parameterisable argument.
+		if _, err := dropAdmin.ExecContext(context.Background(),
+			"DROP DATABASE IF EXISTS "+name+" WITH (FORCE)"); err != nil {
+			t.Logf("drop database %s: %v", name, err)
+		}
+	})
+
+	// Rewrite the path component of the admin URL to point at the new
+	// database. ConnectionString returns something like
+	// postgres://test:test@host:port/nextchapter_test?sslmode=disable
+	// — we swap the path segment for the per-test name.
+	u, err := url.Parse(pgContainerURL)
+	r.NoError(err)
+	u.Path = "/" + name
+	return u.String()
+}
 
 // harness is the integration test fixture. Tests get one of these from
 // newHarness / startServer and use it to send requests via testRequest
@@ -48,15 +172,29 @@ type harness struct {
 	queries *gen.Queries
 }
 
-// startServer spins up an httptest.Server backed by a fresh tempfile
-// SQLite DB, plus a cookie-jar-equipped *http.Client. Cleanup is
+// startServer spins up an httptest.Server backed by a fresh per-test
+// database, plus a cookie-jar-equipped *http.Client. Cleanup is
 // registered via t.Cleanup.
+//
+// The default integration suite is SQLite-canonical because the
+// store-state assertions reach into the sqlc-generated SQLite
+// `Queries` directly (see h.queries). The dual-dialect coverage lives
+// in TestPostgresSmoke, which builds its own freshly-created Postgres
+// database via [freshPostgresDatabaseURL] and passes the URL through
+// cfg.DatabaseURL; this function honours any non-default
+// (non-sqlite://./nextchapter.db) URL the caller has already set.
 func startServer(t *testing.T, cfg config.Config) *harness {
 	t.Helper()
 	r := require.New(t)
 	ctx := context.Background()
-	dbPath := filepath.Join(t.TempDir(), "nextchapter.db")
-	cfg.DatabaseURL = "sqlite://" + dbPath
+	// config.Default() pre-populates DatabaseURL with the production
+	// default path; treat that sentinel as "no caller override" and
+	// substitute a per-test tempfile. Any other value (e.g. a Postgres
+	// URL provisioned by freshPostgresDatabaseURL) is preserved.
+	if cfg.DatabaseURL == "" || cfg.DatabaseURL == config.Default().DatabaseURL {
+		dbPath := filepath.Join(t.TempDir(), "nextchapter.db")
+		cfg.DatabaseURL = "sqlite://" + dbPath
+	}
 	if cfg.ListenAddr == "" {
 		cfg.ListenAddr = "127.0.0.1:0"
 	}
@@ -69,13 +207,32 @@ func startServer(t *testing.T, cfg config.Config) *harness {
 	r.NoError(err)
 	r.NoError(store.Migrate(ctx, db, cfg.DatabaseURL))
 
-	q := gen.New(db)
-	userRepo := users.NewRepository(q)
+	dialect, err := store.DialectFor(cfg.DatabaseURL)
+	r.NoError(err)
+
+	// h.queries is the SQLite-flavoured sqlc handle used by the
+	// integration suite for store-state assertions. It is nil for
+	// Postgres harnesses; the Postgres smoke test uses wire-shape
+	// assertions only.
+	var q *gen.Queries
+	if dialect == "sqlite3" {
+		q = gen.New(db)
+	}
+	userRepo, err := users.NewRepository(dialect, db)
+	r.NoError(err)
 	usrSvc := users.NewService(userRepo, zap.NewNop())
-	authSvc := auth.NewService(auth.NewRepository(q), userRepo, zap.NewNop())
-	entSvc := entries.NewService(entries.NewRepository(q), zap.NewNop())
-	srsSvc := series.NewService(series.NewRepository(db, q), entSvc, zap.NewNop())
-	stsSvc := sites.NewService(sites.NewRepository(q), zap.NewNop())
+	authRepo, err := auth.NewRepository(dialect, db)
+	r.NoError(err)
+	authSvc := auth.NewService(authRepo, userRepo, zap.NewNop())
+	entRepo, err := entries.NewRepository(dialect, db)
+	r.NoError(err)
+	entSvc := entries.NewService(entRepo, zap.NewNop())
+	srsRepo, err := series.NewRepository(dialect, db)
+	r.NoError(err)
+	srsSvc := series.NewService(srsRepo, entSvc, zap.NewNop())
+	stsRepo, err := sites.NewRepository(dialect, db)
+	r.NoError(err)
+	stsSvc := sites.NewService(stsRepo, zap.NewNop())
 
 	if cfg.HasBootstrap() {
 		// Env-var bootstrap pre-seeds the operator's account. The

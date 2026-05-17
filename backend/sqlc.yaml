@@ -1,12 +1,72 @@
 version: "2"
 sql:
+  # --- SQLite codegen ----------------------------------------------------
+  # The original/default engine. Output stays at `internal/store/generated/`
+  # so the existing repositories and integration tests keep their
+  # `gen "..."` import alias unchanged.
   - engine: "sqlite"
-    schema: "migrations"
-    queries: "internal/store/queries"
+    schema: "migrations/sqlite"
+    queries: "internal/store/queries/sqlite"
     gen:
       go:
         package: "generated"
         out: "internal/store/generated"
+        sql_package: "database/sql"
+        emit_json_tags: false
+        emit_prepared_queries: false
+        emit_interface: true
+        emit_exact_table_names: false
+        emit_empty_slices: true
+        emit_pointers_for_null_types: false
+        output_db_file_name: "db.go"
+        output_models_file_name: "models.go"
+        output_querier_file_name: "querier.go"
+        overrides:
+          - column: "users.id"
+            go_type: "int64"
+          - column: "auth_tokens.id"
+            go_type: "int64"
+          - column: "auth_tokens.user_id"
+            go_type: "int64"
+          - column: "series.id"
+            go_type: "int64"
+          - column: "series.user_id"
+            go_type: "int64"
+          - column: "series.rating"
+            go_type:
+              import: "database/sql"
+              type: "NullInt64"
+          - column: "entries.id"
+            go_type: "int64"
+          - column: "entries.user_id"
+            go_type: "int64"
+          - column: "entries.series_id"
+            go_type: "int64"
+          - column: "tag.id"
+            go_type: "int64"
+          - column: "tag.user_id"
+            go_type: "int64"
+          - column: "series_tag.series_id"
+            go_type: "int64"
+          - column: "series_tag.tag_id"
+            go_type: "int64"
+          - column: "site_rule.id"
+            go_type: "int64"
+          - column: "site_rule.user_id"
+            go_type: "int64"
+
+  # --- Postgres codegen --------------------------------------------------
+  # Emits a parallel `pg` sub-package alongside the SQLite generated code.
+  # Domain repositories pick the right engine at construction time via
+  # `NewRepository(dialect, ...)`. Same column overrides apply so the
+  # cross-engine row shapes match.
+  - engine: "postgresql"
+    schema: "migrations/postgres"
+    queries: "internal/store/queries/postgres"
+    gen:
+      go:
+        package: "pg"
+        out: "internal/store/generated/pg"
         sql_package: "database/sql"
         emit_json_tags: false
         emit_prepared_queries: false

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/enable-it/nextchapter/backend/internal/models"
-	gen "github.com/enable-it/nextchapter/backend/internal/store/generated"
 )
 
 // InsertSiteRuleParams is the input for [Repository.InsertSiteRule].
@@ -32,8 +31,8 @@ type UpdateSiteRuleParams struct {
 
 // Repository is the persistence surface for the sites domain. The
 // service in this package depends on this interface; the concrete
-// implementation in [NewRepository] is the only thing in the package
-// that imports the sqlc-generated code.
+// implementations in repository_sqlite.go and repository_postgres.go
+// are the only things in the package that import sqlc-generated code.
 type Repository interface {
 	InsertSiteRule(ctx context.Context, p InsertSiteRuleParams) (models.SiteRule, error)
 	GetSiteRuleByID(ctx context.Context, userID, ruleID int64) (models.SiteRule, error)
@@ -41,9 +40,4 @@ type Repository interface {
 	ListSiteRulesByUser(ctx context.Context, userID int64) ([]models.SiteRule, error)
 	UpdateSiteRule(ctx context.Context, p UpdateSiteRuleParams) (models.SiteRule, error)
 	DeleteSiteRule(ctx context.Context, userID, ruleID int64) (int64, error)
-}
-
-// repository is the concrete sqlc-backed implementation of [Repository].
-type repository struct {
-	q *gen.Queries
 }

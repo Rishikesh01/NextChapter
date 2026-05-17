@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/enable-it/nextchapter/backend/internal/models"
-	gen "github.com/enable-it/nextchapter/backend/internal/store/generated"
 )
 
 // Resolved is the result of a successful token lookup, ready for the
@@ -48,8 +47,9 @@ type InsertTokenParams struct {
 
 // Repository is the persistence surface for auth tokens. The service
 // and middleware in this package depend on this interface; the
-// concrete implementation in [NewRepository] is the only thing in the
-// auth package that imports the sqlc-generated code.
+// concrete implementations in repository_sqlite.go and
+// repository_postgres.go are the only things in the auth package that
+// import sqlc-generated code.
 type Repository interface {
 	CreateToken(ctx context.Context, p InsertTokenParams) (models.Token, error)
 	GetTokenByHash(ctx context.Context, tokenHash string) (LookupRow, error)
@@ -57,9 +57,4 @@ type Repository interface {
 	DeleteTokenByHash(ctx context.Context, tokenHash string) error
 	ListAPITokens(ctx context.Context, userID int64) ([]models.Token, error)
 	ListSessionTokens(ctx context.Context, userID int64) ([]models.Token, error)
-}
-
-// repository is the concrete sqlc-backed implementation of [Repository].
-type repository struct {
-	q *gen.Queries
 }

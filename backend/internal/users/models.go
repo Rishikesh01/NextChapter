@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/enable-it/nextchapter/backend/internal/models"
-	gen "github.com/enable-it/nextchapter/backend/internal/store/generated"
 )
 
 // AuthRecord is the package-boundary shape that carries the password
@@ -47,9 +46,4 @@ type Repository interface {
 	GetUserByID(ctx context.Context, id int64) (models.User, error)
 	GetAuthRecordByUsername(ctx context.Context, username string) (AuthRecord, error)
 	CountUsers(ctx context.Context) (int64, error)
-}
-
-// repository is the concrete sqlc-backed implementation of [Repository].
-type repository struct {
-	q *gen.Queries
 }

@@ -2,12 +2,10 @@ package series
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/enable-it/nextchapter/backend/constants"
 	"github.com/enable-it/nextchapter/backend/internal/models"
-	gen "github.com/enable-it/nextchapter/backend/internal/store/generated"
 )
 
 // validStatuses is the set built from [constants.AllSeriesStatuses]
@@ -82,22 +80,22 @@ type CountByStatusParams struct {
 
 // Repository is the persistence surface for the series domain. The
 // service in this package depends on this interface; the concrete
-// implementation in [NewRepository] is the only thing in the package
-// that imports the sqlc-generated code.
+// implementations in repository_sqlite.go and repository_postgres.go
+// are the only things in the package that import sqlc-generated code.
 //
-// Note: the rollup queries (ListAll / ListByStatus / GetSummary)
-// return [models.SeriesSummary] values — the conversion from sqlc's
-// interface{} columns to the *float64 / *time.Time domain shape
-// happens *inside* the repository, not at the boundary.
+// Note: the rollup queries (ListSummariesAll / ListSummariesByStatus /
+// GetSummary) return [models.SeriesSummary] values — the conversion
+// from sqlc's interface{} columns to the *float64 / *time.Time domain
+// shape happens inside the repository, not at the boundary.
 type Repository interface {
 	InsertSeries(ctx context.Context, p InsertSeriesParams) (models.Series, error)
-	GetSeriesByID(ctx context.Context, userID, id int64) (models.Series, error)
+	GetSeriesByID(ctx context.Context, userID, seriesID int64) (models.Series, error)
 	UpdateSeries(ctx context.Context, p UpdateSeriesParams) (models.Series, error)
-	DeleteSeries(ctx context.Context, userID, id int64) (int64, error)
+	DeleteSeries(ctx context.Context, userID, seriesID int64) (int64, error)
 
 	ListSummariesAll(ctx context.Context, p ListSummariesAllParams) ([]models.SeriesSummary, error)
 	ListSummariesByStatus(ctx context.Context, p ListSummariesByStatusParams) ([]models.SeriesSummary, error)
-	GetSummary(ctx context.Context, userID, id int64) (models.SeriesSummary, error)
+	GetSummary(ctx context.Context, userID, seriesID int64) (models.SeriesSummary, error)
 	CountAll(ctx context.Context, p CountAllParams) (int64, error)
 	CountByStatus(ctx context.Context, p CountByStatusParams) (int64, error)
 
@@ -111,11 +109,16 @@ type Repository interface {
 	ListSeriesTagsBatch(ctx context.Context, seriesIDs []int64) (map[int64][]string, error)
 }
 
-// repository is the concrete sqlc-backed implementation of [Repository].
-// db is held alongside q so [SetSeriesTags] can open a transaction;
-// the WithTx helper on *gen.Queries lets us run the same generated
-// methods against the tx-bound connection.
-type repository struct {
-	db *sql.DB
-	q  *gen.Queries
+// listFilterArgs carries the inputs for the hand-rolled tag-filtered
+// queries below. The tag-filter queries can't live in sqlc because
+// sqlc's slice-expansion path mixes positional / unnumbered placeholders
+// in ways that don't translate cleanly between the two engines.
+// Building the IN-list inline keeps the placeholder strategy uniform
+// per engine.
+type listFilterArgs struct {
+	userID   int64
+	status   string // empty means "no status filter"
+	tagNames []string
+	limit    int64
+	offset   int64
 }

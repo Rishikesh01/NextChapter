@@ -73,3 +73,28 @@ jobs:
       # have 1.26.3 (or we flip to GOTOOLCHAIN=auto), running
       # govulncheck here would just be a documented red. Re-enable
       # after the bump.
+
+  backend-postgres:
+    # Dual-engine coverage. The default `backend` job exercises the
+    # SQLite path (pure-Go, no Docker). This job runs the
+    # Postgres-flavoured integration smoke test against a real
+    # Postgres 16 instance provisioned via testcontainers-go inside
+    # the runner. The two jobs run in parallel.
+    name: backend (postgres)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.2'
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: go test -race (postgres testcontainer)
+        env:
+          NEXTCHAPTER_TEST_POSTGRES: "1"
+        run: go test -race -count=1 ./tests/integration/...

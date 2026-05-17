@@ -1,0 +1,33 @@
+# Local development convenience: a Postgres 16 container suitable for
+# running the NextChapter backend against the Postgres dialect.
+#
+# Usage:
+#   docker compose up -d postgres
+#   cd backend
+#   DB_FILE=postgres://nextchapter:nextchapter@localhost:5432/nextchapter make migrate-up
+#   NEXTCHAPTER_DATABASE_URL=postgres://nextchapter:nextchapter@localhost:5432/nextchapter \
+#     make run
+#
+# Tests use testcontainers-go (see backend/tests/integration) and do
+# NOT depend on this compose file; this file is purely for an
+# operator's interactive dev loop and the manual migration smoke check.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: nextchapter
+      POSTGRES_PASSWORD: nextchapter
+      POSTGRES_DB: nextchapter
+    ports:
+      - "5432:5432"
+    volumes:
+      - nextchapter_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "nextchapter", "-d", "nextchapter"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  nextchapter_pgdata:
