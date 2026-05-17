@@ -2,6 +2,7 @@ package series
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/enable-it/nextchapter/backend/constants"
@@ -43,19 +44,40 @@ type UpdateSeriesParams struct {
 }
 
 // ListSummariesAllParams paginates the user-wide series rollup list.
+// Tags is the optional AND-semantic tag filter; empty means "no tag
+// filter". The repository dispatches to a different generated query
+// when len(Tags) > 0 — sqlc doesn't do conditional WHERE clauses well,
+// so the no-tag and with-tag forms live in separate sqlc queries.
 type ListSummariesAllParams struct {
 	UserID int64
 	Limit  int64
 	Offset int64
+	Tags   []string
 }
 
 // ListSummariesByStatusParams paginates the status-filtered series
-// rollup list.
+// rollup list. See [ListSummariesAllParams] for the Tags semantics.
 type ListSummariesByStatusParams struct {
 	UserID int64
 	Status string
 	Limit  int64
 	Offset int64
+	Tags   []string
+}
+
+// CountAllParams scopes [Repository.CountAll] with the optional tag
+// filter so the listing's `total` matches the filtered set.
+type CountAllParams struct {
+	UserID int64
+	Tags   []string
+}
+
+// CountByStatusParams scopes [Repository.CountByStatus] with the
+// optional tag filter.
+type CountByStatusParams struct {
+	UserID int64
+	Status string
+	Tags   []string
 }
 
 // Repository is the persistence surface for the series domain. The
@@ -76,11 +98,24 @@ type Repository interface {
 	ListSummariesAll(ctx context.Context, p ListSummariesAllParams) ([]models.SeriesSummary, error)
 	ListSummariesByStatus(ctx context.Context, p ListSummariesByStatusParams) ([]models.SeriesSummary, error)
 	GetSummary(ctx context.Context, userID, id int64) (models.SeriesSummary, error)
-	CountAll(ctx context.Context, userID int64) (int64, error)
-	CountByStatus(ctx context.Context, userID int64, status string) (int64, error)
+	CountAll(ctx context.Context, p CountAllParams) (int64, error)
+	CountByStatus(ctx context.Context, p CountByStatusParams) (int64, error)
+
+	// Tag-related operations. See migration 000005_tags.sql for the
+	// table layout. SetSeriesTags is a transactional full-replace —
+	// every supplied name is upserted into `tag` (per-user) and the
+	// `series_tag` rows for the series are rebuilt from scratch. An
+	// empty `names` slice clears the series' tags.
+	SetSeriesTags(ctx context.Context, userID, seriesID int64, names []string) error
+	GetSeriesTags(ctx context.Context, seriesID int64) ([]string, error)
+	ListSeriesTagsBatch(ctx context.Context, seriesIDs []int64) (map[int64][]string, error)
 }
 
 // repository is the concrete sqlc-backed implementation of [Repository].
+// db is held alongside q so [SetSeriesTags] can open a transaction;
+// the WithTx helper on *gen.Queries lets us run the same generated
+// methods against the tx-bound connection.
 type repository struct {
-	q *gen.Queries
+	db *sql.DB
+	q  *gen.Queries
 }

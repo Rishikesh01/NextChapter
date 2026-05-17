@@ -73,7 +73,7 @@ func startServer(t *testing.T, cfg config.Config) *harness {
 	usrSvc := users.NewService(userRepo, zap.NewNop())
 	authSvc := auth.NewService(auth.NewRepository(q), userRepo, zap.NewNop())
 	entSvc := entries.NewService(entries.NewRepository(q), zap.NewNop())
-	srsSvc := series.NewService(series.NewRepository(q), entSvc, zap.NewNop())
+	srsSvc := series.NewService(series.NewRepository(db, q), entSvc, zap.NewNop())
 
 	if cfg.HasBootstrap() {
 		// Env-var bootstrap pre-seeds the operator's account. The

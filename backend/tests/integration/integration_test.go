@@ -206,7 +206,7 @@ func TestUserCapturesChapterProgressAcrossSites(t *testing.T) {
 		Path:           "/series",
 		Body:           models.SeriesNew{Title: "Solo Leveling", Status: constants.StatusReading},
 		ExpectedStatus: http.StatusCreated,
-		ExpectedBody:   models.Series{Title: "Solo Leveling", Status: constants.StatusReading},
+		ExpectedBody:   models.Series{Title: "Solo Leveling", Status: constants.StatusReading, Tags: []string{}},
 		SentinelPaths:  []string{"id", "created_at", "updated_at"},
 	}).do(t, h)
 	seriesID := decodeSeriesID(t, seriesBody)
@@ -360,6 +360,7 @@ func TestUserCapturesChapterProgressAcrossSites(t *testing.T) {
 				Series: models.Series{
 					Title:  "Solo Leveling",
 					Status: constants.StatusReading,
+					Tags:   []string{},
 				},
 				HighestChapter: &highest,
 				EntryCount:     2,
@@ -395,7 +396,7 @@ func TestUserReassignsEntryBetweenSeries(t *testing.T) {
 		Path:           "/series",
 		Body:           models.SeriesNew{Title: "Solo Leveling"},
 		ExpectedStatus: http.StatusCreated,
-		ExpectedBody:   models.Series{Title: "Solo Leveling", Status: constants.StatusReading},
+		ExpectedBody:   models.Series{Title: "Solo Leveling", Status: constants.StatusReading, Tags: []string{}},
 		SentinelPaths:  []string{"id", "created_at", "updated_at"},
 	}).do(t, h)
 	s1ID := decodeSeriesID(t, s1Body)
@@ -406,7 +407,7 @@ func TestUserReassignsEntryBetweenSeries(t *testing.T) {
 		Path:           "/series",
 		Body:           models.SeriesNew{Title: "Solo Leveling (continuation)"},
 		ExpectedStatus: http.StatusCreated,
-		ExpectedBody:   models.Series{Title: "Solo Leveling (continuation)", Status: constants.StatusReading},
+		ExpectedBody:   models.Series{Title: "Solo Leveling (continuation)", Status: constants.StatusReading, Tags: []string{}},
 		SentinelPaths:  []string{"id", "created_at", "updated_at"},
 	}).do(t, h)
 	s2ID := decodeSeriesID(t, s2Body)
@@ -487,6 +488,7 @@ func TestUserReassignsEntryBetweenSeries(t *testing.T) {
 					ID:     s2ID,
 					Title:  "Solo Leveling (continuation)",
 					Status: constants.StatusReading,
+					Tags:   []string{},
 				},
 				HighestChapter: &highest,
 				EntryCount:     1,
@@ -690,6 +692,7 @@ func TestPatchSeriesFieldSemantics(t *testing.T) {
 			Status: constants.StatusReading,
 			Rating: intPtr(8),
 			Notes:  "initial",
+			Tags:   []string{},
 		},
 		SentinelPaths: []string{"id", "created_at", "updated_at"},
 	}).do(t, h)
@@ -710,6 +713,7 @@ func TestPatchSeriesFieldSemantics(t *testing.T) {
 			Status: constants.StatusReading,
 			Rating: intPtr(8),
 			Notes:  "now with thoughts",
+			Tags:   []string{},
 		},
 		SentinelPaths: []string{"created_at", "updated_at"},
 	}).do(t, h)
@@ -737,6 +741,7 @@ func TestPatchSeriesFieldSemantics(t *testing.T) {
 			Status: constants.StatusReading,
 			Rating: intPtr(8),
 			Notes:  "now with thoughts",
+			Tags:   []string{},
 		},
 		SentinelPaths: []string{"created_at", "updated_at"},
 	}).do(t, h)
@@ -759,12 +764,114 @@ func TestPatchSeriesFieldSemantics(t *testing.T) {
 			Status: constants.StatusCompleted,
 			Rating: intPtr(8),
 			Notes:  "now with thoughts",
+			Tags:   []string{},
 		},
 		SentinelPaths: []string{"created_at", "updated_at"},
 	}).do(t, h)
 
 	finalRow := requireSeriesRow(t, h, seriesID)
 	r.Equal(constants.StatusCompleted, finalRow.Status)
+
+	// Tag replacement: PATCH with a non-nil Tags pointer wholesale
+	// replaces the tag set. We seed [a,b], then ["c"] replaces it, then
+	// a tag-less PATCH must NOT clear "c".
+	initial := []string{"a", "b"}
+	(testRequest{
+		Name:           "seed tags via PATCH",
+		Method:         http.MethodPatch,
+		Path:           patchPath,
+		Body:           models.SeriesPatch{Tags: &initial},
+		ExpectedStatus: http.StatusOK,
+		ExpectedBody: models.Series{
+			ID:     seriesID,
+			Title:  "Omniscient Reader's Viewpoint",
+			Status: constants.StatusCompleted,
+			Rating: intPtr(8),
+			Notes:  "now with thoughts",
+			Tags:   []string{"a", "b"},
+		},
+		SentinelPaths: []string{"created_at", "updated_at"},
+	}).do(t, h)
+
+	tagsNow, err := h.queries.GetSeriesTags(context.Background(), seriesID)
+	r.NoError(err)
+	r.Equal([]string{"a", "b"}, tagsNow)
+
+	replacement := []string{"c"}
+	(testRequest{
+		Name:           "PATCH with a non-nil tags pointer wholesale replaces the set",
+		Method:         http.MethodPatch,
+		Path:           patchPath,
+		Body:           models.SeriesPatch{Tags: &replacement},
+		ExpectedStatus: http.StatusOK,
+		ExpectedBody: models.Series{
+			ID:     seriesID,
+			Title:  "Omniscient Reader's Viewpoint",
+			Status: constants.StatusCompleted,
+			Rating: intPtr(8),
+			Notes:  "now with thoughts",
+			Tags:   []string{"c"},
+		},
+		SentinelPaths: []string{"created_at", "updated_at"},
+	}).do(t, h)
+
+	tagsNow, err = h.queries.GetSeriesTags(context.Background(), seriesID)
+	r.NoError(err)
+	r.Equal([]string{"c"}, tagsNow)
+
+	notes2 := "tags untouched"
+	(testRequest{
+		Name:           "PATCH without tags leaves the existing tag set untouched",
+		Method:         http.MethodPatch,
+		Path:           patchPath,
+		Body:           models.SeriesPatch{Notes: &notes2},
+		ExpectedStatus: http.StatusOK,
+		ExpectedBody: models.Series{
+			ID:     seriesID,
+			Title:  "Omniscient Reader's Viewpoint",
+			Status: constants.StatusCompleted,
+			Rating: intPtr(8),
+			Notes:  "tags untouched",
+			Tags:   []string{"c"},
+		},
+		SentinelPaths: []string{"created_at", "updated_at"},
+	}).do(t, h)
+
+	tagsNow, err = h.queries.GetSeriesTags(context.Background(), seriesID)
+	r.NoError(err)
+	r.Equal([]string{"c"}, tagsNow)
+
+	// Validation: an uppercase tag fails the `tagname` validator.
+	(testRequest{
+		Name:           "PATCH with an uppercase tag returns 422",
+		Method:         http.MethodPatch,
+		Path:           patchPath,
+		Body:           map[string]any{"tags": []string{"UPPERCASE"}},
+		ExpectedStatus: http.StatusUnprocessableEntity,
+		ExpectedBody: errorBody{Error: errorPayload{
+			Code:    "validation",
+			Message: "invalid request",
+			Fields:  map[string]string{"tags": "must match ^[a-z0-9][a-z0-9-]{0,31}$"},
+		}},
+	}).do(t, h)
+
+	// Validation: 17 tags exceeds the `max=16` cap.
+	tooMany := make([]string, 17)
+	for i := range tooMany {
+		tooMany[i] = fmt.Sprintf("tag-%d", i)
+	}
+	(testRequest{
+		Name:           "PATCH with more than 16 tags returns 422",
+		Method:         http.MethodPatch,
+		Path:           patchPath,
+		Body:           models.SeriesPatch{Tags: &tooMany},
+		ExpectedStatus: http.StatusUnprocessableEntity,
+		ExpectedBody: errorBody{Error: errorPayload{
+			Code:    "validation",
+			Message: "invalid request",
+			Fields:  map[string]string{"tags": "must be <= 16"},
+		}},
+	}).do(t, h)
 }
 
 // TestCaptureNormalisesSiteHost pins ADR-0005's host-normalisation
@@ -786,7 +893,7 @@ func TestCaptureNormalisesSiteHost(t *testing.T) {
 		Path:           "/series",
 		Body:           models.SeriesNew{Title: "Solo Leveling (host-norm)", Status: constants.StatusReading},
 		ExpectedStatus: http.StatusCreated,
-		ExpectedBody:   models.Series{Title: "Solo Leveling (host-norm)", Status: constants.StatusReading},
+		ExpectedBody:   models.Series{Title: "Solo Leveling (host-norm)", Status: constants.StatusReading, Tags: []string{}},
 		SentinelPaths:  []string{"id", "created_at", "updated_at"},
 	}).do(t, h)
 	seriesID := decodeSeriesID(t, seriesBody)
@@ -855,4 +962,165 @@ func TestCaptureNormalisesSiteHost(t *testing.T) {
 	})
 	r.NoError(err)
 	r.Equal(int64(1), total, "both captures must share a single entry row")
+}
+
+// TestUserTagsSeriesAndFiltersByTag walks the tag CRUD surface
+// end-to-end: tracking three series with overlapping tag sets, then
+// listing them via ?tag=... and checking the AND-semantic filter. The
+// final assertions go through the DB to confirm the tag and
+// series_tag tables actually hold what the wire response advertised.
+func TestUserTagsSeriesAndFiltersByTag(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+	h := newAuthenticatedHarness(t)
+	aliceUID := aliceID(t, h)
+
+	// Three series under alice: [a,b], [a,c], [b]. Track each via
+	// POST /series with the Tags field on the inbound payload.
+	_, body1 := (testRequest{
+		Name:   "track series with tags [a, b]",
+		Method: http.MethodPost,
+		Path:   "/series",
+		Body: models.SeriesNew{
+			Title: "Series One",
+			Tags:  []string{"a", "b"},
+		},
+		ExpectedStatus: http.StatusCreated,
+		ExpectedBody: models.Series{
+			Title:  "Series One",
+			Status: constants.StatusReading,
+			Tags:   []string{"a", "b"},
+		},
+		SentinelPaths: []string{"id", "created_at", "updated_at"},
+	}).do(t, h)
+	s1ID := decodeSeriesID(t, body1)
+
+	_, body2 := (testRequest{
+		Name:   "track series with tags [a, c]",
+		Method: http.MethodPost,
+		Path:   "/series",
+		Body: models.SeriesNew{
+			Title: "Series Two",
+			Tags:  []string{"a", "c"},
+		},
+		ExpectedStatus: http.StatusCreated,
+		ExpectedBody: models.Series{
+			Title:  "Series Two",
+			Status: constants.StatusReading,
+			Tags:   []string{"a", "c"},
+		},
+		SentinelPaths: []string{"id", "created_at", "updated_at"},
+	}).do(t, h)
+	s2ID := decodeSeriesID(t, body2)
+
+	_, body3 := (testRequest{
+		Name:   "track series with tag [b]",
+		Method: http.MethodPost,
+		Path:   "/series",
+		Body: models.SeriesNew{
+			Title: "Series Three",
+			Tags:  []string{"b"},
+		},
+		ExpectedStatus: http.StatusCreated,
+		ExpectedBody: models.Series{
+			Title:  "Series Three",
+			Status: constants.StatusReading,
+			Tags:   []string{"b"},
+		},
+		SentinelPaths: []string{"id", "created_at", "updated_at"},
+	}).do(t, h)
+	s3ID := decodeSeriesID(t, body3)
+
+	// Filter by ?tag=a → series one + two (NOT three).
+	(testRequest{
+		Name:           "GET /series?tag=a returns the two series that carry tag a",
+		Method:         http.MethodGet,
+		Path:           "/series?tag=a",
+		ExpectedStatus: http.StatusOK,
+		ExpectedBody: models.SeriesList{
+			Items: []models.SeriesSummary{
+				{
+					Series: models.Series{
+						ID:     s2ID,
+						Title:  "Series Two",
+						Status: constants.StatusReading,
+						Tags:   []string{"a", "c"},
+					},
+					HighestChapter: nil,
+					EntryCount:     0,
+					LastCapturedAt: nil,
+				},
+				{
+					Series: models.Series{
+						ID:     s1ID,
+						Title:  "Series One",
+						Status: constants.StatusReading,
+						Tags:   []string{"a", "b"},
+					},
+					HighestChapter: nil,
+					EntryCount:     0,
+					LastCapturedAt: nil,
+				},
+			},
+			Total: 2,
+		},
+		SentinelPaths: []string{
+			"items.*.created_at",
+			"items.*.updated_at",
+		},
+	}).do(t, h)
+
+	// Filter by ?tag=a&tag=b → only series one (AND-semantic).
+	(testRequest{
+		Name:           "GET /series?tag=a&tag=b applies AND semantics",
+		Method:         http.MethodGet,
+		Path:           "/series?tag=a&tag=b",
+		ExpectedStatus: http.StatusOK,
+		ExpectedBody: models.SeriesList{
+			Items: []models.SeriesSummary{{
+				Series: models.Series{
+					ID:     s1ID,
+					Title:  "Series One",
+					Status: constants.StatusReading,
+					Tags:   []string{"a", "b"},
+				},
+				HighestChapter: nil,
+				EntryCount:     0,
+				LastCapturedAt: nil,
+			}},
+			Total: 1,
+		},
+		SentinelPaths: []string{
+			"items.*.created_at",
+			"items.*.updated_at",
+		},
+	}).do(t, h)
+
+	// Filter by ?tag=nonexistent → empty.
+	(testRequest{
+		Name:           "GET /series?tag=nonexistent returns an empty page",
+		Method:         http.MethodGet,
+		Path:           "/series?tag=nonexistent",
+		ExpectedStatus: http.StatusOK,
+		ExpectedBody: models.SeriesList{
+			Items: []models.SeriesSummary{},
+			Total: 0,
+		},
+	}).do(t, h)
+
+	// Store-state: the `tag` table holds three rows (a, b, c) under
+	// alice; the `series_tag` table holds five links.
+	tagRows, err := h.queries.ListTagsByUser(context.Background(), aliceUID)
+	r.NoError(err)
+	r.Equal([]string{"a", "b", "c"}, tagRows)
+
+	s1Tags, err := h.queries.GetSeriesTags(context.Background(), s1ID)
+	r.NoError(err)
+	r.Equal([]string{"a", "b"}, s1Tags)
+	s2Tags, err := h.queries.GetSeriesTags(context.Background(), s2ID)
+	r.NoError(err)
+	r.Equal([]string{"a", "c"}, s2Tags)
+	s3Tags, err := h.queries.GetSeriesTags(context.Background(), s3ID)
+	r.NoError(err)
+	r.Equal([]string{"b"}, s3Tags)
 }

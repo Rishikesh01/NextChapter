@@ -45,6 +45,18 @@ type Series struct {
 	UpdatedAt time.Time
 }
 
+type SeriesTag struct {
+	SeriesID int64
+	TagID    int64
+}
+
+type Tag struct {
+	ID        int64
+	UserID    int64
+	Name      string
+	CreatedAt time.Time
+}
+
 type User struct {
 	ID           int64
 	Username     string

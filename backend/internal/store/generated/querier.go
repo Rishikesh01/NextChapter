@@ -19,6 +19,10 @@ type Querier interface {
 	CreateEntry(ctx context.Context, arg CreateEntryParams) (Entry, error)
 	CreateSeries(ctx context.Context, arg CreateSeriesParams) (Series, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	// Drops every series_tag row for the given series. Caller is
+	// responsible for scoping by user; this runs inside a tx that has
+	// already validated ownership.
+	DeleteAllSeriesTagLinks(ctx context.Context, seriesID int64) error
 	DeleteAuthTokenByHash(ctx context.Context, tokenHash string) error
 	DeleteAuthTokenByID(ctx context.Context, arg DeleteAuthTokenByIDParams) (int64, error)
 	DeleteEntry(ctx context.Context, arg DeleteEntryParams) (int64, error)
@@ -28,18 +32,28 @@ type Querier interface {
 	GetEntryByKey(ctx context.Context, arg GetEntryByKeyParams) (Entry, error)
 	GetSeriesByID(ctx context.Context, arg GetSeriesByIDParams) (Series, error)
 	GetSeriesSummary(ctx context.Context, arg GetSeriesSummaryParams) (GetSeriesSummaryRow, error)
+	GetSeriesTags(ctx context.Context, seriesID int64) ([]string, error)
 	GetUserByID(ctx context.Context, id int64) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
+	InsertSeriesTagLink(ctx context.Context, arg InsertSeriesTagLinkParams) error
 	ListAPITokens(ctx context.Context, userID int64) ([]AuthToken, error)
 	ListEntriesAll(ctx context.Context, arg ListEntriesAllParams) ([]Entry, error)
 	ListEntriesAllForSeries(ctx context.Context, arg ListEntriesAllForSeriesParams) ([]Entry, error)
 	ListEntriesBySeries(ctx context.Context, arg ListEntriesBySeriesParams) ([]Entry, error)
 	ListSeriesAll(ctx context.Context, arg ListSeriesAllParams) ([]ListSeriesAllRow, error)
 	ListSeriesByStatus(ctx context.Context, arg ListSeriesByStatusParams) ([]ListSeriesByStatusRow, error)
+	ListSeriesTagsBatch(ctx context.Context, seriesIds []int64) ([]ListSeriesTagsBatchRow, error)
 	ListSessionTokens(ctx context.Context, userID int64) ([]AuthToken, error)
+	// Test-only helper: lists every tag name owned by the given user in
+	// sorted order. Used in the integration tests to assert store-state
+	// after tag CRUD operations.
+	ListTagsByUser(ctx context.Context, userID int64) ([]string, error)
 	SeriesExists(ctx context.Context, arg SeriesExistsParams) (int64, error)
 	UpdateEntry(ctx context.Context, arg UpdateEntryParams) (Entry, error)
 	UpdateSeries(ctx context.Context, arg UpdateSeriesParams) (Series, error)
+	// Idempotent insert of a tag for (user_id, name). Returns the id either
+	// way thanks to the UNIQUE(user_id, name) index.
+	UpsertTag(ctx context.Context, arg UpsertTagParams) (int64, error)
 }
 
 var _ Querier = (*Queries)(nil)

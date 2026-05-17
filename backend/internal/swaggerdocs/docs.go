@@ -624,6 +624,16 @@ const docTemplate = `{
                         "description": "page offset",
                         "name": "offset",
                         "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "multi",
+                        "description": "AND-filter; repeatable, lowercase tag",
+                        "name": "tag",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1113,6 +1123,12 @@ const docTemplate = `{
                 "status": {
                     "type": "string"
                 },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "title": {
                     "type": "string"
                 },
@@ -1153,6 +1169,12 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "title": {
                     "type": "string"
@@ -1201,6 +1223,13 @@ const docTemplate = `{
                         "plan_to_read"
                     ]
                 },
+                "tags": {
+                    "type": "array",
+                    "maxItems": 16,
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "title": {
                     "type": "string",
                     "maxLength": 256,
@@ -1229,6 +1258,13 @@ const docTemplate = `{
                         "dropped",
                         "plan_to_read"
                     ]
+                },
+                "tags": {
+                    "type": "array",
+                    "maxItems": 16,
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "title": {
                     "type": "string",
@@ -1263,6 +1299,12 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "title": {
                     "type": "string"

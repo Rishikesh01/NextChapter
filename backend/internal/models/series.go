@@ -7,6 +7,12 @@ import "time"
 // directly; the summary listing returns [SeriesSummary] which embeds
 // Series and carries the rollup columns on top. UserID is internal
 // scoping metadata — never on the wire.
+//
+// Tags is a sorted list of user-defined free-text labels attached to
+// the series. The repository / service layer guarantees the slice is
+// non-nil and lexicographically sorted before it reaches the wire, so
+// the JSON payload is `[]` (never `null`) and test fixtures are
+// deterministic.
 type Series struct {
 	ID        int64     `json:"id"`
 	UserID    int64     `json:"-"`
@@ -14,6 +20,7 @@ type Series struct {
 	Status    string    `json:"status"`
 	Rating    *int      `json:"rating"`
 	Notes     string    `json:"notes"`
+	Tags      []string  `json:"tags"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -50,11 +57,16 @@ type SeriesList struct {
 // [constants.RatingMin] / [constants.RatingMax] /
 // [constants.SeriesNotesMax] because Go struct tags can't reference
 // constants. Update both when the bounds change.
+//
+// Tags is an optional list of user-defined free-text labels. The
+// `tagname` validator enforces the per-tag pattern
+// (^[a-z0-9][a-z0-9-]{0,31}$); max=16 caps the per-series count.
 type SeriesNew struct {
-	Title  string `json:"title"            binding:"required,min=1,max=256"`
-	Status string `json:"status,omitempty" binding:"omitempty,oneof=reading completed on_hold dropped plan_to_read"`
-	Rating *int   `json:"rating,omitempty" binding:"omitempty,min=1,max=10"`
-	Notes  string `json:"notes,omitempty"  binding:"max=8192"`
+	Title  string   `json:"title"            binding:"required,min=1,max=256"`
+	Status string   `json:"status,omitempty" binding:"omitempty,oneof=reading completed on_hold dropped plan_to_read"`
+	Rating *int     `json:"rating,omitempty" binding:"omitempty,min=1,max=10"`
+	Notes  string   `json:"notes,omitempty"  binding:"max=8192"`
+	Tags   []string `json:"tags,omitempty"   binding:"omitempty,max=16,dive,tagname"`
 }
 
 // SeriesPatch is both the PATCH /series/{id} JSON body and the input
@@ -65,11 +77,20 @@ type SeriesNew struct {
 // absent. If clearing becomes a product requirement it will be a
 // separate endpoint, not a side-effect of PATCH. Bounds mirror
 // [SeriesNew].
+//
+// Tags is a `*[]string` so the three states are distinguishable:
+//   - field absent (nil pointer): existing tags left alone.
+//   - empty list (`{"tags": []}`): remove every tag from the series.
+//   - non-empty list: replace the current tag set with the supplied list.
+//
+// This is canonical full-replace semantics — there is no per-tag
+// add/remove on this endpoint.
 type SeriesPatch struct {
-	Title  *string `json:"title,omitempty"  binding:"omitempty,min=1,max=256"`
-	Status *string `json:"status,omitempty" binding:"omitempty,oneof=reading completed on_hold dropped plan_to_read"`
-	Rating *int    `json:"rating,omitempty" binding:"omitempty,min=1,max=10"`
-	Notes  *string `json:"notes,omitempty"  binding:"omitempty,max=8192"`
+	Title  *string   `json:"title,omitempty"  binding:"omitempty,min=1,max=256"`
+	Status *string   `json:"status,omitempty" binding:"omitempty,oneof=reading completed on_hold dropped plan_to_read"`
+	Rating *int      `json:"rating,omitempty" binding:"omitempty,min=1,max=10"`
+	Notes  *string   `json:"notes,omitempty"  binding:"omitempty,max=8192"`
+	Tags   *[]string `json:"tags,omitempty"   binding:"omitempty,max=16,dive,tagname"`
 }
 
 // SeriesFilter binds the GET /series query string and feeds the
@@ -81,8 +102,14 @@ type SeriesPatch struct {
 // The literal 50 / 200 / 0 duplicate [constants.ListLimitDefault] /
 // [constants.ListLimitMax] / [constants.ListOffsetMin]; Go struct
 // tags can't reference constants. Update both when the bounds change.
+//
+// Tags applies an AND-semantic filter — a series only appears in the
+// result if it carries every supplied tag. The `?tag=foo&tag=bar`
+// repeated-query-string form binds into the slice via gin's
+// form-binding rules.
 type SeriesFilter struct {
-	Status string `form:"status"           binding:"omitempty,oneof=reading completed on_hold dropped plan_to_read"`
-	Limit  int    `form:"limit,default=50" binding:"omitempty,min=1,max=200"`
-	Offset int    `form:"offset,default=0" binding:"omitempty,min=0"`
+	Status string   `form:"status"           binding:"omitempty,oneof=reading completed on_hold dropped plan_to_read"`
+	Limit  int      `form:"limit,default=50" binding:"omitempty,min=1,max=200"`
+	Offset int      `form:"offset,default=0" binding:"omitempty,min=0"`
+	Tags   []string `form:"tag"              binding:"omitempty,max=16,dive,tagname"`
 }

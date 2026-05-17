@@ -35,9 +35,10 @@ type SeriesDeps struct {
 // @Produce      json
 // @Security     CookieAuth
 // @Security     BearerAuth
-// @Param        status  query     string  false  "filter by status"  Enums(reading,completed,on_hold,dropped,plan_to_read)
-// @Param        limit   query     int     false  "page size"         default(50)  minimum(1)  maximum(200)
-// @Param        offset  query     int     false  "page offset"       default(0)   minimum(0)
+// @Param        status  query     string    false  "filter by status"                         Enums(reading,completed,on_hold,dropped,plan_to_read)
+// @Param        limit   query     int       false  "page size"                                default(50)  minimum(1)  maximum(200)
+// @Param        offset  query     int       false  "page offset"                              default(0)   minimum(0)
+// @Param        tag     query     []string  false  "AND-filter; repeatable, lowercase tag"    collectionFormat(multi)
 // @Success      200     {object}  models.SeriesList
 // @Failure      400     {object}  handlers.ErrorBody
 // @Failure      422     {object}  handlers.ErrorBody

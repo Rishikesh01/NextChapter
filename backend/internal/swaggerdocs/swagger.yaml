@@ -170,6 +170,10 @@ definitions:
         type: integer
       status:
         type: string
+      tags:
+        items:
+          type: string
+        type: array
       title:
         type: string
       updated_at:
@@ -197,6 +201,10 @@ definitions:
         type: integer
       status:
         type: string
+      tags:
+        items:
+          type: string
+        type: array
       title:
         type: string
       updated_at:
@@ -228,6 +236,11 @@ definitions:
         - dropped
         - plan_to_read
         type: string
+      tags:
+        items:
+          type: string
+        maxItems: 16
+        type: array
       title:
         maxLength: 256
         minLength: 1
@@ -252,6 +265,11 @@ definitions:
         - dropped
         - plan_to_read
         type: string
+      tags:
+        items:
+          type: string
+        maxItems: 16
+        type: array
       title:
         maxLength: 256
         minLength: 1
@@ -275,6 +293,10 @@ definitions:
         type: integer
       status:
         type: string
+      tags:
+        items:
+          type: string
+        type: array
       title:
         type: string
       updated_at:
@@ -686,6 +708,13 @@ paths:
         minimum: 0
         name: offset
         type: integer
+      - collectionFormat: multi
+        description: AND-filter; repeatable, lowercase tag
+        in: query
+        items:
+          type: string
+        name: tag
+        type: array
       produces:
       - application/json
       responses:

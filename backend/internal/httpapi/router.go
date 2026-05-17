@@ -37,12 +37,22 @@ type Deps struct {
 }
 
 // New builds the gin.Engine: sets the run mode, installs the
-// middleware stack, and hands off to [registerRoutes] for the path
-// tree. Engine setup and routing are deliberately split so the route
-// table is one function to read in isolation.
+// middleware stack, registers project-wide custom binding validators,
+// and hands off to [registerRoutes] for the path tree. Engine setup
+// and routing are deliberately split so the route table is one
+// function to read in isolation.
+//
+// Custom validator registration runs here (not in package init) so a
+// test fixture or alternative entry point can spin up an engine with a
+// known validator state. A registration failure is fatal — it would
+// otherwise leave the engine accepting payloads that should be
+// rejected.
 func New(d Deps) *gin.Engine {
 	if d.Logger == nil {
 		d.Logger = zap.NewNop()
+	}
+	if err := handlers.RegisterCustomValidators(); err != nil {
+		d.Logger.Fatal("register custom validators", zap.Error(err))
 	}
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()

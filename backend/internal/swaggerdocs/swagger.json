@@ -621,6 +621,16 @@
                         "description": "page offset",
                         "name": "offset",
                         "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "multi",
+                        "description": "AND-filter; repeatable, lowercase tag",
+                        "name": "tag",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1110,6 +1120,12 @@
                 "status": {
                     "type": "string"
                 },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "title": {
                     "type": "string"
                 },
@@ -1150,6 +1166,12 @@
                 },
                 "status": {
                     "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "title": {
                     "type": "string"
@@ -1198,6 +1220,13 @@
                         "plan_to_read"
                     ]
                 },
+                "tags": {
+                    "type": "array",
+                    "maxItems": 16,
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "title": {
                     "type": "string",
                     "maxLength": 256,
@@ -1226,6 +1255,13 @@
                         "dropped",
                         "plan_to_read"
                     ]
+                },
+                "tags": {
+                    "type": "array",
+                    "maxItems": 16,
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "title": {
                     "type": "string",
@@ -1260,6 +1296,12 @@
                 },
                 "status": {
                     "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "title": {
                     "type": "string"

@@ -76,7 +76,7 @@ func Run(ctx context.Context, cfg config.Config) error {
 	entryRepo := entries.NewRepository(queries)
 	entrySvc := entries.NewService(entryRepo, logger)
 
-	seriesRepo := series.NewRepository(queries)
+	seriesRepo := series.NewRepository(db, queries)
 	seriesSvc := series.NewService(seriesRepo, entrySvc, logger)
 
 	if cfg.HasBootstrap() {
