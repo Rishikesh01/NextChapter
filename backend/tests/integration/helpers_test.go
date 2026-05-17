@@ -79,7 +79,7 @@ func TestMain(m *testing.M) {
 		os.Exit(m.Run())
 	}
 	ctx := context.Background()
-	c, err := tcpostgres.Run(ctx, "postgres:16-alpine",
+	c, err := tcpostgres.Run(ctx, "postgres:16.14-alpine",
 		tcpostgres.WithDatabase("nextchapter_test"),
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
