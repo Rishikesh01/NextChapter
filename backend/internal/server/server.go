@@ -22,6 +22,7 @@ import (
 	"github.com/enable-it/nextchapter/backend/internal/httpapi"
 	"github.com/enable-it/nextchapter/backend/internal/models"
 	"github.com/enable-it/nextchapter/backend/internal/series"
+	"github.com/enable-it/nextchapter/backend/internal/sites"
 	"github.com/enable-it/nextchapter/backend/internal/store"
 	gen "github.com/enable-it/nextchapter/backend/internal/store/generated"
 	"github.com/enable-it/nextchapter/backend/internal/users"
@@ -79,8 +80,11 @@ func Run(ctx context.Context, cfg config.Config) error {
 	seriesRepo := series.NewRepository(db, queries)
 	seriesSvc := series.NewService(seriesRepo, entrySvc, logger)
 
+	sitesRepo := sites.NewRepository(queries)
+	sitesSvc := sites.NewService(sitesRepo, logger)
+
 	if cfg.HasBootstrap() {
-		if err := bootstrapFirstUser(ctx, logger, userSvc, cfg.BootstrapUsername, cfg.BootstrapPassword); err != nil {
+		if err := bootstrapFirstUser(ctx, logger, userSvc, sitesSvc, cfg.BootstrapUsername, cfg.BootstrapPassword); err != nil {
 			return fmt.Errorf("server: bootstrap: %w", err)
 		}
 	}
@@ -90,6 +94,7 @@ func Run(ctx context.Context, cfg config.Config) error {
 		Auth:           authSvc,
 		Series:         seriesSvc,
 		Entries:        entrySvc,
+		Sites:          sitesSvc,
 		Logger:         logger,
 		Version:        cfg.Version,
 		AllowedOrigins: cfg.AllowedOrigins,
@@ -130,11 +135,22 @@ func Run(ctx context.Context, cfg config.Config) error {
 	}
 }
 
-func bootstrapFirstUser(ctx context.Context, logger *zap.Logger, svc *users.Service, username, password string) error {
-	_, err := svc.Register(ctx, models.Registration{Username: username, Password: password})
+func bootstrapFirstUser(ctx context.Context, logger *zap.Logger, svc *users.Service, sitesSvc *sites.Service, username, password string) error {
+	u, err := svc.Register(ctx, models.Registration{Username: username, Password: password})
 	switch {
 	case err == nil:
 		logger.Warn("bootstrap: created first user from env vars", zap.String("username", username))
+		// Best-effort seed: same shape as the /auth/register handler.
+		// Failures don't roll the user back — there is no admin
+		// re-seed endpoint today, so a bootstrap-time seed failure
+		// leaves the operator with manual rule entry via
+		// POST /sites/rules.
+		if err := sitesSvc.SeedSiteRulesForUser(ctx, u.ID); err != nil {
+			logger.Warn("bootstrap: seed site rules",
+				zap.Int64("user_id", u.ID),
+				zap.Error(err),
+			)
+		}
 		return nil
 	case errors.Is(err, models.ErrUsernameTaken):
 		// Re-run with the same env vars after a successful first boot.

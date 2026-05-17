@@ -178,6 +178,17 @@ func (r *repository) SeriesExists(ctx context.Context, userID, seriesID int64) (
 	return v != 0, nil
 }
 
+func (r *repository) ListTrackedHosts(ctx context.Context, userID int64) ([]string, error) {
+	hosts, err := r.q.ListTrackedHosts(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("entries: list tracked hosts: %w", err)
+	}
+	if hosts == nil {
+		hosts = []string{}
+	}
+	return hosts, nil
+}
+
 func entryFromGen(r gen.Entry) models.Entry {
 	return models.Entry{
 		ID:             r.ID,

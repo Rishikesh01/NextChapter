@@ -16,6 +16,7 @@ import (
 	"github.com/enable-it/nextchapter/backend/constants"
 	"github.com/enable-it/nextchapter/backend/internal/auth"
 	"github.com/enable-it/nextchapter/backend/internal/models"
+	"github.com/enable-it/nextchapter/backend/internal/sites"
 	gen "github.com/enable-it/nextchapter/backend/internal/store/generated"
 )
 
@@ -1123,4 +1124,304 @@ func TestUserTagsSeriesAndFiltersByTag(t *testing.T) {
 	s3Tags, err := h.queries.GetSeriesTags(context.Background(), s3ID)
 	r.NoError(err)
 	r.Equal([]string{"b"}, s3Tags)
+}
+
+// TestUserManagesSiteRules walks the per-user site-rule CRUD surface
+// end-to-end plus the seed-on-register path:
+//   - registration seeds [sites.Defaults] into the user's site_rule
+//     table; GET /sites reflects them and tracked_hosts is []
+//   - POST /sites/rules accepts a valid new rule (201)
+//   - POST /sites/rules with a bad regex returns 422 on chapter_url_regex
+//   - POST /sites/rules with a missing capture-group name returns 422
+//     on the right field
+//   - POST /sites/rules with a duplicate host returns 422 on host
+//   - PATCH /sites/rules/{id} mutates the rule (200 + store-state)
+//   - DELETE /sites/rules/{id} returns 204 and the row is gone
+//   - DELETE /sites/rules/{unknown} returns 404
+//   - after capturing a chapter on a host, tracked_hosts reflects it
+func TestUserManagesSiteRules(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+	h := newHarness(t)
+
+	(testRequest{
+		Name:           "register alice; seed defaults applied",
+		Method:         http.MethodPost,
+		Path:           "/auth/register",
+		Body:           models.Registration{Username: "alice", Password: "correct horse battery"},
+		ExpectedStatus: http.StatusCreated,
+		ExpectedBody:   models.User{Username: "alice"},
+		SentinelPaths:  []string{"id", "created_at"},
+	}).do(t, h)
+
+	aliceUID := aliceID(t, h)
+
+	// Build the expected seed-rule list from sites.Defaults so this
+	// test stays correct if the operator edits the seed list. Order
+	// matches the ORDER BY host ASC in the repository.
+	expectedSeed := make([]models.SiteRule, 0, len(sites.Defaults))
+	hostsSorted := make([]string, 0, len(sites.Defaults))
+	for _, d := range sites.Defaults {
+		expectedSeed = append(expectedSeed, models.SiteRule{
+			Host:                d.Host,
+			ChapterURLRegex:     d.ChapterURLRegex,
+			SlugCaptureGroup:    d.SlugCaptureGroup,
+			ChapterCaptureGroup: d.ChapterCaptureGroup,
+		})
+		hostsSorted = append(hostsSorted, d.Host)
+	}
+	// Repository returns rules ordered by host ASC; match that here so
+	// JSONEq compares element-by-element.
+	sortByHost(expectedSeed)
+
+	itemSentinels := []string{
+		"rules.*.id",
+		"rules.*.created_at",
+		"rules.*.updated_at",
+	}
+
+	(testRequest{
+		Name:           "GET /sites lists the seeded defaults with empty tracked_hosts",
+		Method:         http.MethodGet,
+		Path:           "/sites",
+		ExpectedStatus: http.StatusOK,
+		ExpectedBody: models.SiteList{
+			Rules:        expectedSeed,
+			TrackedHosts: []string{},
+		},
+		SentinelPaths: itemSentinels,
+	}).do(t, h)
+
+	// Store-state: the site_rule table holds the seed entries for
+	// alice, with the right capture-group config.
+	dbRules, err := h.queries.ListSiteRulesByUser(context.Background(), aliceUID)
+	r.NoError(err)
+	r.Len(dbRules, len(sites.Defaults), "seed must persist one row per default")
+	for _, d := range sites.Defaults {
+		row, err := h.queries.GetSiteRuleByHost(context.Background(), gen.GetSiteRuleByHostParams{
+			UserID: aliceUID, Host: d.Host,
+		})
+		r.NoError(err, "seeded host %q must be present", d.Host)
+		r.Equal(d.ChapterURLRegex, row.ChapterUrlRegex)
+		r.Equal(d.SlugCaptureGroup, row.SlugCaptureGroup)
+		r.Equal(d.ChapterCaptureGroup, row.ChapterCaptureGroup)
+	}
+
+	// Add a new valid rule. Use a custom regex with the two named
+	// groups.
+	(testRequest{
+		Name:   "POST /sites/rules accepts a new valid rule",
+		Method: http.MethodPost,
+		Path:   "/sites/rules",
+		Body: models.SiteRuleNew{
+			Host:                "panels.example.net",
+			ChapterURLRegex:     `^/title/(?P<slug>[^/]+)/(?P<chapter>[0-9]+)$`,
+			SlugCaptureGroup:    "slug",
+			ChapterCaptureGroup: "chapter",
+		},
+		ExpectedStatus: http.StatusCreated,
+		ExpectedBody: models.SiteRule{
+			Host:                "panels.example.net",
+			ChapterURLRegex:     `^/title/(?P<slug>[^/]+)/(?P<chapter>[0-9]+)$`,
+			SlugCaptureGroup:    "slug",
+			ChapterCaptureGroup: "chapter",
+		},
+		SentinelPaths: []string{"id", "created_at", "updated_at"},
+	}).do(t, h)
+
+	// Store-state: panels.example.net now exists for alice.
+	batoRow, err := h.queries.GetSiteRuleByHost(context.Background(), gen.GetSiteRuleByHostParams{
+		UserID: aliceUID, Host: "panels.example.net",
+	})
+	r.NoError(err)
+	r.Equal("panels.example.net", batoRow.Host)
+
+	// Bad regex: doesn't compile.
+	(testRequest{
+		Name:   "POST /sites/rules with an uncompilable regex returns 422",
+		Method: http.MethodPost,
+		Path:   "/sites/rules",
+		Body: models.SiteRuleNew{
+			Host:                "bad-regex.example.com",
+			ChapterURLRegex:     `(unclosed`,
+			SlugCaptureGroup:    "slug",
+			ChapterCaptureGroup: "chapter",
+		},
+		ExpectedStatus: http.StatusUnprocessableEntity,
+		ExpectedBody: errorBody{Error: errorPayload{
+			Code:    "validation",
+			Message: "invalid request",
+			Fields:  map[string]string{"chapter_url_regex": "must compile as a Go regexp"},
+		}},
+	}).do(t, h)
+
+	// Missing capture group: regex compiles, has a "slug" group, but
+	// slug_capture_group references a name not present.
+	(testRequest{
+		Name:   "POST /sites/rules with a missing named capture-group returns 422 on slug_capture_group",
+		Method: http.MethodPost,
+		Path:   "/sites/rules",
+		Body: models.SiteRuleNew{
+			Host:                "missing-group.example.com",
+			ChapterURLRegex:     `^/series/(?P<slug>[^/]+)/(?P<chapter>[0-9]+)$`,
+			SlugCaptureGroup:    "notpresent",
+			ChapterCaptureGroup: "chapter",
+		},
+		ExpectedStatus: http.StatusUnprocessableEntity,
+		ExpectedBody: errorBody{Error: errorPayload{
+			Code:    "validation",
+			Message: "invalid request",
+			Fields:  map[string]string{"slug_capture_group": "named capture group is missing from chapter_url_regex"},
+		}},
+	}).do(t, h)
+
+	// Duplicate host: one of the seeded defaults.
+	dupeHost := hostsSorted[0]
+	(testRequest{
+		Name:   "POST /sites/rules with a duplicate host returns 422 on host",
+		Method: http.MethodPost,
+		Path:   "/sites/rules",
+		Body: models.SiteRuleNew{
+			Host:                dupeHost,
+			ChapterURLRegex:     `^/anything/(?P<slug>[^/]+)/(?P<chapter>[0-9]+)$`,
+			SlugCaptureGroup:    "slug",
+			ChapterCaptureGroup: "chapter",
+		},
+		ExpectedStatus: http.StatusUnprocessableEntity,
+		ExpectedBody: errorBody{Error: errorPayload{
+			Code:    "validation",
+			Message: "invalid request",
+			Fields:  map[string]string{"host": "you already have a rule for this host"},
+		}},
+	}).do(t, h)
+
+	// PATCH: change the chapter regex on the first seeded rule.
+	firstSeed := dbRules[0]
+	newRegex := `^/series/(?P<slug>[^/]+)/chapter/(?P<chapter>[0-9]+)$`
+	(testRequest{
+		Name:   "PATCH /sites/rules/{id} mutates the rule",
+		Method: http.MethodPatch,
+		Path:   fmt.Sprintf("/sites/rules/%d", firstSeed.ID),
+		Body: models.SiteRulePatch{
+			ChapterURLRegex: &newRegex,
+		},
+		ExpectedStatus: http.StatusOK,
+		ExpectedBody: models.SiteRule{
+			ID:                  firstSeed.ID,
+			Host:                firstSeed.Host,
+			ChapterURLRegex:     newRegex,
+			SlugCaptureGroup:    firstSeed.SlugCaptureGroup,
+			ChapterCaptureGroup: firstSeed.ChapterCaptureGroup,
+		},
+		SentinelPaths: []string{"created_at", "updated_at"},
+	}).do(t, h)
+
+	// Store-state: the persisted regex now reflects the patch.
+	patched, err := h.queries.GetSiteRuleByID(context.Background(), gen.GetSiteRuleByIDParams{
+		ID: firstSeed.ID, UserID: aliceUID,
+	})
+	r.NoError(err)
+	r.Equal(newRegex, patched.ChapterUrlRegex)
+
+	// DELETE panels.example.net.
+	(testRequest{
+		Name:           "DELETE /sites/rules/{id} returns 204",
+		Method:         http.MethodDelete,
+		Path:           fmt.Sprintf("/sites/rules/%d", batoRow.ID),
+		ExpectedStatus: http.StatusNoContent,
+	}).do(t, h)
+
+	// Store-state: the row is gone.
+	_, err = h.queries.GetSiteRuleByID(context.Background(), gen.GetSiteRuleByIDParams{
+		ID: batoRow.ID, UserID: aliceUID,
+	})
+	r.True(errors.Is(err, sql.ErrNoRows), "deleted rule must be gone from the DB (got err=%v)", err)
+
+	// DELETE unknown id → 404.
+	(testRequest{
+		Name:           "DELETE /sites/rules/99999 returns 404",
+		Method:         http.MethodDelete,
+		Path:           "/sites/rules/99999",
+		ExpectedStatus: http.StatusNotFound,
+		ExpectedBody:   errorBody{Error: errorPayload{Code: "not_found", Message: "not found"}},
+	}).do(t, h)
+
+	// Capture a chapter on a fresh host; then GET /sites should
+	// reflect the tracked_host.
+	_, sBody := (testRequest{
+		Name:           "seed a series for the capture",
+		Method:         http.MethodPost,
+		Path:           "/series",
+		Body:           models.SeriesNew{Title: "Hosts Test"},
+		ExpectedStatus: http.StatusCreated,
+		ExpectedBody:   models.Series{Title: "Hosts Test", Status: constants.StatusReading, Tags: []string{}},
+		SentinelPaths:  []string{"id", "created_at", "updated_at"},
+	}).do(t, h)
+	sID := decodeSeriesID(t, sBody)
+
+	chapter1 := 1.0
+	(testRequest{
+		Name:   "capture on a new host registers it in tracked_hosts",
+		Method: http.MethodPost,
+		Path:   "/entries/capture",
+		Body: models.EntryCapture{
+			SiteHost:   "newhost.example.com",
+			SeriesSlug: "hosts-test",
+			SiteTitle:  "Hosts Test",
+			Chapter:    &chapter1,
+			URL:        "https://newhost.example.com/title/hosts-test/1",
+			SeriesID:   &sID,
+		},
+		ExpectedStatus: http.StatusCreated,
+		ExpectedBody: models.Entry{
+			SeriesID:    sID,
+			SiteHost:    "newhost.example.com",
+			SeriesSlug:  "hosts-test",
+			SiteTitle:   "Hosts Test",
+			LastChapter: 1,
+			LastURL:     "https://newhost.example.com/title/hosts-test/1",
+		},
+		SentinelPaths: []string{"id", "last_captured_at", "created_at", "updated_at"},
+	}).do(t, h)
+
+	// Final GET /sites: the patched first-seed rule + remaining
+	// seeds; panels.example.net gone; tracked_hosts = ["newhost.example.com"].
+	finalRules := make([]models.SiteRule, 0, len(sites.Defaults))
+	for _, d := range sites.Defaults {
+		regex := d.ChapterURLRegex
+		if d.Host == firstSeed.Host {
+			regex = newRegex
+		}
+		finalRules = append(finalRules, models.SiteRule{
+			Host:                d.Host,
+			ChapterURLRegex:     regex,
+			SlugCaptureGroup:    d.SlugCaptureGroup,
+			ChapterCaptureGroup: d.ChapterCaptureGroup,
+		})
+	}
+	sortByHost(finalRules)
+	(testRequest{
+		Name:           "GET /sites reflects patch + delete + tracked host",
+		Method:         http.MethodGet,
+		Path:           "/sites",
+		ExpectedStatus: http.StatusOK,
+		ExpectedBody: models.SiteList{
+			Rules:        finalRules,
+			TrackedHosts: []string{"newhost.example.com"},
+		},
+		SentinelPaths: itemSentinels,
+	}).do(t, h)
+}
+
+// sortByHost sorts a slice of SiteRule by Host ascending so test
+// expected-bodies match the repository's ORDER BY host ASC.
+func sortByHost(rules []models.SiteRule) {
+	// Bubble — n is tiny (the seed list).
+	for i := 0; i < len(rules); i++ {
+		for j := i + 1; j < len(rules); j++ {
+			if rules[j].Host < rules[i].Host {
+				rules[i], rules[j] = rules[j], rules[i]
+			}
+		}
+	}
 }

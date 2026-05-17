@@ -49,4 +49,28 @@ var (
 	// slug) key and the caller supplied neither SeriesID nor
 	// NewSeriesTitle. Handlers turn this into 422.
 	ErrEntryCaptureSeriesRequired = errors.New("entries: series_id or new_series_title required when creating")
+
+	// ErrSiteRuleNotFound is returned by SitesService.EditSiteRule /
+	// RemoveSiteRule when the rule id is unknown or belongs to another
+	// user. Handlers turn this into 404.
+	ErrSiteRuleNotFound = errors.New("sites: rule not found")
+
+	// ErrSiteRuleInvalidRegex is returned by SitesService.AddSiteRule /
+	// EditSiteRule when the supplied ChapterURLRegex does not compile
+	// as a Go regexp. Handlers turn this into 422 with a field-level
+	// error on chapter_url_regex.
+	ErrSiteRuleInvalidRegex = errors.New("sites: chapter_url_regex must compile as a Go regexp")
+
+	// ErrSiteRuleMissingCaptureGroup is returned by
+	// SitesService.AddSiteRule / EditSiteRule when one of the
+	// configured capture-group names is not present as a named
+	// sub-expression in the compiled regex. Handlers turn this into
+	// 422 with a field-level error on slug_capture_group and/or
+	// chapter_capture_group.
+	ErrSiteRuleMissingCaptureGroup = errors.New("sites: capture group is missing from chapter_url_regex")
+
+	// ErrSiteRuleHostTaken is returned by SitesService.AddSiteRule when
+	// a rule for the same (user, host) pair already exists. Handlers
+	// turn this into 422 with a field-level error on host.
+	ErrSiteRuleHostTaken = errors.New("sites: a rule for this host already exists")
 )

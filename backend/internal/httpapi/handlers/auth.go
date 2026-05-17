@@ -29,6 +29,7 @@ import (
 	"github.com/enable-it/nextchapter/backend/constants"
 	"github.com/enable-it/nextchapter/backend/internal/auth"
 	"github.com/enable-it/nextchapter/backend/internal/models"
+	"github.com/enable-it/nextchapter/backend/internal/sites"
 	"github.com/enable-it/nextchapter/backend/internal/users"
 )
 
@@ -41,9 +42,15 @@ const sessionCookieMaxAge = 30 * 24 * 60 * 60 // seconds
 // AuthDeps groups the dependencies the auth handlers need. The
 // service fields are typed against each domain package's interface so
 // handlers stay decoupled from the concrete service implementations.
+//
+// Sites is wired so [AuthDeps.Register] can seed the compiled-in
+// default site rules ([sites.Defaults]) for the freshly-created
+// user. Seeding is best-effort: a failure is logged at Warn but
+// does not roll back the account.
 type AuthDeps struct {
 	Users        users.UsersService
 	Auth         auth.AuthService
+	Sites        sites.SitesService
 	Logger       *zap.Logger
 	CookieDomain string
 	CookieSecure bool
@@ -99,6 +106,14 @@ func (d AuthDeps) Register(c *gin.Context) {
 			Message: "internal server error",
 		}})
 		return
+	}
+	// Seed the compiled-in default site rules for the new user.
+	// Best-effort: a failure here doesn't roll back the account.
+	if err := d.Sites.SeedSiteRulesForUser(c.Request.Context(), u.ID); err != nil {
+		d.Logger.Warn("register: seed site rules",
+			zap.Int64("user_id", u.ID),
+			zap.Error(err),
+		)
 	}
 	tok, err := d.Auth.CreateSession(c.Request.Context(), u.ID)
 	if err != nil {

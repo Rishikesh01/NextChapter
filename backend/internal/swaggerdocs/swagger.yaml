@@ -302,6 +302,77 @@ definitions:
       updated_at:
         type: string
     type: object
+  models.SiteList:
+    properties:
+      rules:
+        items:
+          $ref: '#/definitions/models.SiteRule'
+        type: array
+      tracked_hosts:
+        items:
+          type: string
+        type: array
+    type: object
+  models.SiteRule:
+    properties:
+      chapter_capture_group:
+        type: string
+      chapter_url_regex:
+        type: string
+      created_at:
+        type: string
+      host:
+        type: string
+      id:
+        type: integer
+      slug_capture_group:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.SiteRuleNew:
+    properties:
+      chapter_capture_group:
+        maxLength: 64
+        minLength: 1
+        type: string
+      chapter_url_regex:
+        maxLength: 1024
+        minLength: 1
+        type: string
+      host:
+        maxLength: 253
+        minLength: 1
+        type: string
+      slug_capture_group:
+        maxLength: 64
+        minLength: 1
+        type: string
+    required:
+    - chapter_capture_group
+    - chapter_url_regex
+    - host
+    - slug_capture_group
+    type: object
+  models.SiteRulePatch:
+    properties:
+      chapter_capture_group:
+        maxLength: 64
+        minLength: 1
+        type: string
+      chapter_url_regex:
+        maxLength: 1024
+        minLength: 1
+        type: string
+      host:
+        maxLength: 253
+        minLength: 1
+        type: string
+      slug_capture_group:
+        maxLength: 64
+        minLength: 1
+        type: string
+    type: object
   models.User:
     properties:
       created_at:
@@ -875,6 +946,142 @@ paths:
       summary: Update mutable fields on a tracked series
       tags:
       - series
+  /sites:
+    get:
+      description: 'Returns two parallel lists: `rules` is the per-user site_rule
+        rows (seeded from compiled-in defaults at registration); `tracked_hosts` is
+        the distinct site_host values across the caller''s entries. The two are independent
+        — a host can be tracked without a rule, and a rule can exist without any captures.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SiteList'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorBody'
+      security:
+      - CookieAuth: []
+      - BearerAuth: []
+      summary: List the user's site rules plus the hosts they've captured chapters
+        on
+      tags:
+      - sites
+  /sites/rules:
+    post:
+      consumes:
+      - application/json
+      description: Adds a per-user site_rule. The regex must compile as a Go regexp
+        and contain named capture groups matching `slug_capture_group` and `chapter_capture_group`.
+        The (user, host) pair is unique — adding a duplicate host returns 422.
+      parameters:
+      - description: rule definition
+        in: body
+        name: rule
+        required: true
+        schema:
+          $ref: '#/definitions/models.SiteRuleNew'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.SiteRule'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorBody'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/handlers.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorBody'
+      security:
+      - CookieAuth: []
+      - BearerAuth: []
+      summary: Add a new site rule
+      tags:
+      - sites
+  /sites/rules/{id}:
+    delete:
+      parameters:
+      - description: site rule id
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: no content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorBody'
+      security:
+      - CookieAuth: []
+      - BearerAuth: []
+      summary: Remove a site rule
+      tags:
+      - sites
+    patch:
+      consumes:
+      - application/json
+      description: 'Pointer fields use the absent/present binary: missing fields are
+        left unchanged. The post-patch (host, regex, capture-group) configuration
+        is re-validated; a partial edit that leaves the row in an invalid state is
+        rejected with 422.'
+      parameters:
+      - description: site rule id
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: fields to update
+        in: body
+        name: rule
+        required: true
+        schema:
+          $ref: '#/definitions/models.SiteRulePatch'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SiteRule'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorBody'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/handlers.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorBody'
+      security:
+      - CookieAuth: []
+      - BearerAuth: []
+      summary: Edit a site rule
+      tags:
+      - sites
 schemes:
 - http
 - https

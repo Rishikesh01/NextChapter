@@ -32,6 +32,7 @@ type EntriesService interface {
 	ListReadingPositions(ctx context.Context, userID int64, filter models.EntryFilter) (models.EntryList, error)
 	AdjustReadingPosition(ctx context.Context, userID, entryID int64, patch models.EntryPatch) (models.Entry, error)
 	ForgetReadingPosition(ctx context.Context, userID, entryID int64) error
+	ListTrackedHosts(ctx context.Context, userID int64) ([]string, error)
 }
 
 // Service exposes the entries domain to handlers.
@@ -307,6 +308,26 @@ func (s *Service) AdjustReadingPosition(ctx context.Context, userID, entryID int
 		zap.Float64("last_chapter", lastChapter),
 	)
 	return row, nil
+}
+
+// ListTrackedHosts returns the distinct site_host values across the
+// user's entry rows. Empty slice (never nil) when the user has no
+// captures, so the JSON wire shape stays `[]`. Consumed by the sites
+// handler for GET /sites to build the tracked_hosts half of the
+// response envelope.
+func (s *Service) ListTrackedHosts(ctx context.Context, userID int64) ([]string, error) {
+	hosts, err := s.repo.ListTrackedHosts(ctx, userID)
+	if err != nil {
+		s.logger.Error("list tracked hosts",
+			zap.Int64("user_id", userID),
+			zap.Error(err),
+		)
+		return nil, err
+	}
+	if hosts == nil {
+		hosts = []string{}
+	}
+	return hosts, nil
 }
 
 // ForgetReadingPosition removes an entry ("forget where I was on this

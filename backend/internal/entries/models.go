@@ -91,6 +91,7 @@ type Repository interface {
 	CountEntriesAll(ctx context.Context, userID int64) (int64, error)
 	CountEntriesBySeries(ctx context.Context, userID, seriesID int64) (int64, error)
 	SeriesExists(ctx context.Context, userID, seriesID int64) (bool, error)
+	ListTrackedHosts(ctx context.Context, userID int64) ([]string, error)
 }
 
 // repository is the concrete sqlc-backed implementation of [Repository].

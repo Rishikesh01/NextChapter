@@ -879,6 +879,213 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/sites": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    },
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns two parallel lists: ` + "`" + `rules` + "`" + ` is the per-user site_rule rows (seeded from compiled-in defaults at registration); ` + "`" + `tracked_hosts` + "`" + ` is the distinct site_host values across the caller's entries. The two are independent — a host can be tracked without a rule, and a rule can exist without any captures.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sites"
+                ],
+                "summary": "List the user's site rules plus the hosts they've captured chapters on",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SiteList"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/sites/rules": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    },
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Adds a per-user site_rule. The regex must compile as a Go regexp and contain named capture groups matching ` + "`" + `slug_capture_group` + "`" + ` and ` + "`" + `chapter_capture_group` + "`" + `. The (user, host) pair is unique — adding a duplicate host returns 422.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sites"
+                ],
+                "summary": "Add a new site rule",
+                "parameters": [
+                    {
+                        "description": "rule definition",
+                        "name": "rule",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.SiteRuleNew"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.SiteRule"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorBody"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorBody"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/sites/rules/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    },
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "sites"
+                ],
+                "summary": "Remove a site rule",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "site rule id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "no content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorBody"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorBody"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    },
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Pointer fields use the absent/present binary: missing fields are left unchanged. The post-patch (host, regex, capture-group) configuration is re-validated; a partial edit that leaves the row in an invalid state is rejected with 422.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sites"
+                ],
+                "summary": "Edit a site rule",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "site rule id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "fields to update",
+                        "name": "rule",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.SiteRulePatch"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SiteRule"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorBody"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorBody"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorBody"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -1311,6 +1518,105 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "models.SiteList": {
+            "type": "object",
+            "properties": {
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SiteRule"
+                    }
+                },
+                "tracked_hosts": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "models.SiteRule": {
+            "type": "object",
+            "properties": {
+                "chapter_capture_group": {
+                    "type": "string"
+                },
+                "chapter_url_regex": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "host": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "slug_capture_group": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.SiteRuleNew": {
+            "type": "object",
+            "required": [
+                "chapter_capture_group",
+                "chapter_url_regex",
+                "host",
+                "slug_capture_group"
+            ],
+            "properties": {
+                "chapter_capture_group": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "minLength": 1
+                },
+                "chapter_url_regex": {
+                    "type": "string",
+                    "maxLength": 1024,
+                    "minLength": 1
+                },
+                "host": {
+                    "type": "string",
+                    "maxLength": 253,
+                    "minLength": 1
+                },
+                "slug_capture_group": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "minLength": 1
+                }
+            }
+        },
+        "models.SiteRulePatch": {
+            "type": "object",
+            "properties": {
+                "chapter_capture_group": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "minLength": 1
+                },
+                "chapter_url_regex": {
+                    "type": "string",
+                    "maxLength": 1024,
+                    "minLength": 1
+                },
+                "host": {
+                    "type": "string",
+                    "maxLength": 253,
+                    "minLength": 1
+                },
+                "slug_capture_group": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "minLength": 1
                 }
             }
         },

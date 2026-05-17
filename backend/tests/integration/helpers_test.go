@@ -27,6 +27,7 @@ import (
 	"github.com/enable-it/nextchapter/backend/internal/httpapi"
 	"github.com/enable-it/nextchapter/backend/internal/models"
 	"github.com/enable-it/nextchapter/backend/internal/series"
+	"github.com/enable-it/nextchapter/backend/internal/sites"
 	"github.com/enable-it/nextchapter/backend/internal/store"
 	gen "github.com/enable-it/nextchapter/backend/internal/store/generated"
 	"github.com/enable-it/nextchapter/backend/internal/users"
@@ -74,17 +75,19 @@ func startServer(t *testing.T, cfg config.Config) *harness {
 	authSvc := auth.NewService(auth.NewRepository(q), userRepo, zap.NewNop())
 	entSvc := entries.NewService(entries.NewRepository(q), zap.NewNop())
 	srsSvc := series.NewService(series.NewRepository(db, q), entSvc, zap.NewNop())
+	stsSvc := sites.NewService(sites.NewRepository(q), zap.NewNop())
 
 	if cfg.HasBootstrap() {
 		// Env-var bootstrap pre-seeds the operator's account. The
 		// /auth/register route stays open regardless; tests build a
 		// fresh tempfile DB per harness so the first call always
 		// succeeds.
-		_, err := usrSvc.Register(ctx, models.Registration{
+		u, err := usrSvc.Register(ctx, models.Registration{
 			Username: cfg.BootstrapUsername,
 			Password: cfg.BootstrapPassword,
 		})
 		r.NoError(err)
+		r.NoError(stsSvc.SeedSiteRulesForUser(ctx, u.ID))
 	}
 
 	engine := httpapi.New(httpapi.Deps{
@@ -92,6 +95,7 @@ func startServer(t *testing.T, cfg config.Config) *harness {
 		Auth:    authSvc,
 		Series:  srsSvc,
 		Entries: entSvc,
+		Sites:   stsSvc,
 		Logger:  zap.NewNop(),
 		Version: cfg.Version,
 	})

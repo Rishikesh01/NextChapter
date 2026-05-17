@@ -27,15 +27,19 @@ type Querier interface {
 	DeleteAuthTokenByID(ctx context.Context, arg DeleteAuthTokenByIDParams) (int64, error)
 	DeleteEntry(ctx context.Context, arg DeleteEntryParams) (int64, error)
 	DeleteSeries(ctx context.Context, arg DeleteSeriesParams) (int64, error)
+	DeleteSiteRule(ctx context.Context, arg DeleteSiteRuleParams) (int64, error)
 	GetAuthTokenByHash(ctx context.Context, tokenHash string) (GetAuthTokenByHashRow, error)
 	GetEntryByID(ctx context.Context, arg GetEntryByIDParams) (Entry, error)
 	GetEntryByKey(ctx context.Context, arg GetEntryByKeyParams) (Entry, error)
 	GetSeriesByID(ctx context.Context, arg GetSeriesByIDParams) (Series, error)
 	GetSeriesSummary(ctx context.Context, arg GetSeriesSummaryParams) (GetSeriesSummaryRow, error)
 	GetSeriesTags(ctx context.Context, seriesID int64) ([]string, error)
+	GetSiteRuleByHost(ctx context.Context, arg GetSiteRuleByHostParams) (SiteRule, error)
+	GetSiteRuleByID(ctx context.Context, arg GetSiteRuleByIDParams) (SiteRule, error)
 	GetUserByID(ctx context.Context, id int64) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
 	InsertSeriesTagLink(ctx context.Context, arg InsertSeriesTagLinkParams) error
+	InsertSiteRule(ctx context.Context, arg InsertSiteRuleParams) (SiteRule, error)
 	ListAPITokens(ctx context.Context, userID int64) ([]AuthToken, error)
 	ListEntriesAll(ctx context.Context, arg ListEntriesAllParams) ([]Entry, error)
 	ListEntriesAllForSeries(ctx context.Context, arg ListEntriesAllForSeriesParams) ([]Entry, error)
@@ -44,13 +48,16 @@ type Querier interface {
 	ListSeriesByStatus(ctx context.Context, arg ListSeriesByStatusParams) ([]ListSeriesByStatusRow, error)
 	ListSeriesTagsBatch(ctx context.Context, seriesIds []int64) ([]ListSeriesTagsBatchRow, error)
 	ListSessionTokens(ctx context.Context, userID int64) ([]AuthToken, error)
+	ListSiteRulesByUser(ctx context.Context, userID int64) ([]SiteRule, error)
 	// Test-only helper: lists every tag name owned by the given user in
 	// sorted order. Used in the integration tests to assert store-state
 	// after tag CRUD operations.
 	ListTagsByUser(ctx context.Context, userID int64) ([]string, error)
+	ListTrackedHosts(ctx context.Context, userID int64) ([]string, error)
 	SeriesExists(ctx context.Context, arg SeriesExistsParams) (int64, error)
 	UpdateEntry(ctx context.Context, arg UpdateEntryParams) (Entry, error)
 	UpdateSeries(ctx context.Context, arg UpdateSeriesParams) (Series, error)
+	UpdateSiteRule(ctx context.Context, arg UpdateSiteRuleParams) (SiteRule, error)
 	// Idempotent insert of a tag for (user_id, name). Returns the id either
 	// way thanks to the UNIQUE(user_id, name) index.
 	UpsertTag(ctx context.Context, arg UpsertTagParams) (int64, error)

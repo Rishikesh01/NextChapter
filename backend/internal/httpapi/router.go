@@ -16,6 +16,7 @@ import (
 	"github.com/enable-it/nextchapter/backend/internal/httpapi/handlers"
 	"github.com/enable-it/nextchapter/backend/internal/httpapi/middleware"
 	"github.com/enable-it/nextchapter/backend/internal/series"
+	"github.com/enable-it/nextchapter/backend/internal/sites"
 	_ "github.com/enable-it/nextchapter/backend/internal/swaggerdocs" // registers with gin-swagger
 	"github.com/enable-it/nextchapter/backend/internal/users"
 )
@@ -29,6 +30,7 @@ type Deps struct {
 	Auth           *auth.Service
 	Series         *series.Service
 	Entries        *entries.Service
+	Sites          *sites.Service
 	Logger         *zap.Logger
 	Version        string
 	AllowedOrigins []string
@@ -82,6 +84,7 @@ func (d Deps) registerRoutes(r *gin.Engine) {
 	authDeps := handlers.AuthDeps{
 		Users:        d.Users,
 		Auth:         d.Auth,
+		Sites:        d.Sites,
 		Logger:       d.Logger,
 		CookieDomain: d.CookieDomain,
 		CookieSecure: d.CookieSecure,
@@ -121,6 +124,16 @@ func (d Deps) registerRoutes(r *gin.Engine) {
 	authed.POST("/entries/capture", entriesDeps.Capture)
 	authed.PATCH("/entries/:id", entriesDeps.Patch)
 	authed.DELETE("/entries/:id", entriesDeps.Delete)
+
+	sitesDeps := handlers.SitesDeps{
+		Sites:   d.Sites,
+		Entries: d.Entries,
+		Logger:  d.Logger,
+	}
+	authed.GET("/sites", sitesDeps.List)
+	authed.POST("/sites/rules", sitesDeps.AddRule)
+	authed.PATCH("/sites/rules/:id", sitesDeps.EditRule)
+	authed.DELETE("/sites/rules/:id", sitesDeps.RemoveRule)
 
 	// Method-mismatch / unknown-route fallback.
 	r.NoRoute(func(c *gin.Context) {

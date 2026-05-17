@@ -50,6 +50,17 @@ type SeriesTag struct {
 	TagID    int64
 }
 
+type SiteRule struct {
+	ID                  int64
+	UserID              int64
+	Host                string
+	ChapterUrlRegex     string
+	SlugCaptureGroup    string
+	ChapterCaptureGroup string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
 type Tag struct {
 	ID        int64
 	UserID    int64
