@@ -61,10 +61,6 @@ type EntryPatch struct {
 // here, in the binding layer, not in the service — out-of-range
 // values surface as 422 with a field-level error via the handler's
 // standard validator.ValidationErrors path.
-//
-// The literal 50 / 200 / 0 duplicate [constants.ListLimitDefault] /
-// [constants.ListLimitMax] / [constants.ListOffsetMin]; Go struct
-// tags can't reference constants. Update both when the bounds change.
 type EntryFilter struct {
 	SeriesID *int64 `form:"series_id"        binding:"omitempty,min=1"`
 	Limit    int    `form:"limit,default=50" binding:"omitempty,min=1,max=200"`

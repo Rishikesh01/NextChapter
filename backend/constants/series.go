@@ -34,22 +34,3 @@ var AllSeriesStatuses = []string{
 	StatusDropped,
 	StatusPlanToRead,
 }
-
-// Field bounds for series.* columns. Numbers mirror the OpenAPI schema
-// (`Series` definition); update both in the same change.
-const (
-	// SeriesTitleMin is the inclusive lower bound on series.title length
-	// after trimming.
-	SeriesTitleMin = 1
-	// SeriesTitleMax is the inclusive upper bound on series.title length.
-	SeriesTitleMax = 256
-
-	// SeriesNotesMax is the inclusive upper bound on series.notes length.
-	// notes has no minimum — the empty string is the unset value.
-	SeriesNotesMax = 8192
-
-	// RatingMin / RatingMax are the inclusive bounds on series.rating,
-	// the 1-10 manga-style rating column.
-	RatingMin = 1
-	RatingMax = 10
-)

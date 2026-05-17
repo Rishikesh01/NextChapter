@@ -30,38 +30,23 @@ jobs:
           cache: true
           cache-dependency-path: backend/go.sum
 
-      - name: gofmt
-        run: |
-          out=$(gofmt -l .)
-          if [ -n "$out" ]; then
-            echo "::error::unformatted files:"
-            echo "$out"
-            exit 1
-          fi
+      - name: lint (gofmt + go vet + golangci-lint)
+        run: make lint
 
-      - name: go vet
-        run: go vet ./...
-
-      - name: golangci-lint
-        run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4 run ./...
-
-      - name: go test -race
-        run: go test -race -count=1 ./...
+      - name: test (race)
+        run: make test-race
 
       - name: go mod tidy is clean
         run: |
-          go mod tidy
+          make tidy
           if ! git diff --exit-code -- go.mod go.sum; then
-            echo "::error::go.mod / go.sum drift — run 'go mod tidy' locally and commit"
+            echo "::error::go.mod / go.sum drift — run 'make tidy' locally and commit"
             exit 1
           fi
 
       - name: swagger is up to date
         run: |
-          go run github.com/swaggo/swag/cmd/swag@v1.16.2 init \
-            -g cmd/nextchapter/main.go \
-            -o internal/swaggerdocs \
-            --parseInternal --parseDependency=false
+          make swagger
           if ! git diff --exit-code -- internal/swaggerdocs; then
             echo "::error::internal/swaggerdocs is stale — run 'make swagger' locally and commit"
             exit 1
@@ -93,7 +78,5 @@ jobs:
           cache: true
           cache-dependency-path: backend/go.sum
 
-      - name: go test -race (postgres testcontainer)
-        env:
-          NEXTCHAPTER_TEST_POSTGRES: "1"
-        run: go test -race -count=1 ./tests/integration/...
+      - name: test-postgres (testcontainer)
+        run: make test-postgres

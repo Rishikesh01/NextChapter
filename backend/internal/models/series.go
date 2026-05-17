@@ -52,11 +52,7 @@ type SeriesList struct {
 }
 
 // SeriesNew is both the POST /series JSON body and the input to the
-// series service's Create method. Field bounds duplicate the numbers
-// in [constants.SeriesTitleMin] / [constants.SeriesTitleMax] /
-// [constants.RatingMin] / [constants.RatingMax] /
-// [constants.SeriesNotesMax] because Go struct tags can't reference
-// constants. Update both when the bounds change.
+// series service's Create method.
 //
 // Tags is an optional list of user-defined free-text labels. The
 // `tagname` validator enforces the per-tag pattern
@@ -98,10 +94,6 @@ type SeriesPatch struct {
 // here, in the binding layer, not in the service — out-of-range
 // values surface as 422 with a field-level error via the handler's
 // standard validator.ValidationErrors path.
-//
-// The literal 50 / 200 / 0 duplicate [constants.ListLimitDefault] /
-// [constants.ListLimitMax] / [constants.ListOffsetMin]; Go struct
-// tags can't reference constants. Update both when the bounds change.
 //
 // Tags applies an AND-semantic filter — a series only appears in the
 // result if it carries every supplied tag. The `?tag=foo&tag=bar`
