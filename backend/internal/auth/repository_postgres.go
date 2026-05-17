@@ -38,15 +38,15 @@ func (r *postgresRepo) CreateToken(ctx context.Context, p InsertTokenParams) (mo
 	return tokenFromPostgres(row), nil
 }
 
-func (r *postgresRepo) GetTokenByHash(ctx context.Context, tokenHash string) (LookupRow, error) {
+func (r *postgresRepo) GetTokenByHash(ctx context.Context, tokenHash string) (TokenWithUser, error) {
 	row, err := r.q.GetAuthTokenByHash(ctx, tokenHash)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return LookupRow{}, ErrTokenNotFound
+			return TokenWithUser{}, ErrTokenNotFound
 		}
-		return LookupRow{}, fmt.Errorf("auth: lookup token: %w", err)
+		return TokenWithUser{}, fmt.Errorf("auth: lookup token: %w", err)
 	}
-	return LookupRow{
+	return TokenWithUser{
 		Token: models.Token{
 			ID:         row.ID,
 			UserID:     row.UserID,

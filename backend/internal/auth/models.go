@@ -18,10 +18,10 @@ type Resolved struct {
 	LastUsedAt *time.Time
 }
 
-// LookupRow is the joined user+token shape returned by
+// TokenWithUser is the joined user+token shape returned by
 // [Repository.GetTokenByHash], used by the middleware to resolve a raw
 // token to its owner without a second round trip.
-type LookupRow struct {
+type TokenWithUser struct {
 	Token       models.Token
 	UserID      int64
 	Username    string
@@ -48,7 +48,7 @@ type InsertTokenParams struct {
 // import sqlc-generated code.
 type Repository interface {
 	CreateToken(ctx context.Context, p InsertTokenParams) (models.Token, error)
-	GetTokenByHash(ctx context.Context, tokenHash string) (LookupRow, error)
+	GetTokenByHash(ctx context.Context, tokenHash string) (TokenWithUser, error)
 	DeleteTokenByID(ctx context.Context, userID, tokenID int64) (int64, error)
 	DeleteTokenByHash(ctx context.Context, tokenHash string) error
 }

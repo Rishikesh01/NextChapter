@@ -38,15 +38,15 @@ func (r *sqliteRepo) CreateToken(ctx context.Context, p InsertTokenParams) (mode
 	return tokenFromSQLite(row), nil
 }
 
-func (r *sqliteRepo) GetTokenByHash(ctx context.Context, tokenHash string) (LookupRow, error) {
+func (r *sqliteRepo) GetTokenByHash(ctx context.Context, tokenHash string) (TokenWithUser, error) {
 	row, err := r.q.GetAuthTokenByHash(ctx, tokenHash)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return LookupRow{}, ErrTokenNotFound
+			return TokenWithUser{}, ErrTokenNotFound
 		}
-		return LookupRow{}, fmt.Errorf("auth: lookup token: %w", err)
+		return TokenWithUser{}, fmt.Errorf("auth: lookup token: %w", err)
 	}
-	return LookupRow{
+	return TokenWithUser{
 		Token: models.Token{
 			ID:         row.ID,
 			UserID:     row.UserID,
