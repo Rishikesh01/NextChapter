@@ -8,16 +8,15 @@ import (
 	"github.com/enable-it/nextchapter/backend/internal/models"
 )
 
-// validStatuses is the set built from [constants.AllSeriesStatuses]
-// for O(1) lookup during validation. Mirrors the CHECK constraint on
-// series.status.
-var validStatuses = func() map[string]struct{} {
-	out := make(map[string]struct{}, len(constants.AllSeriesStatuses))
-	for _, s := range constants.AllSeriesStatuses {
-		out[s] = struct{}{}
-	}
-	return out
-}()
+// validStatuses backs the O(1) status check; mirrors the CHECK
+// constraint on series.status.
+var validStatuses = map[string]struct{}{
+	constants.StatusReading:    {},
+	constants.StatusCompleted:  {},
+	constants.StatusOnHold:     {},
+	constants.StatusDropped:    {},
+	constants.StatusPlanToRead: {},
+}
 
 // InsertSeriesParams is the input for [Repository.InsertSeries].
 type InsertSeriesParams struct {

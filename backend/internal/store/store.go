@@ -15,9 +15,9 @@ import (
 	"github.com/enable-it/nextchapter/backend/internal/store/sqlite"
 )
 
-// ErrUnsupportedScheme is returned when the database URL scheme is unknown
+// errUnsupportedScheme is returned when the database URL scheme is unknown
 // or its driver is not yet implemented.
-var ErrUnsupportedScheme = errors.New("store: unsupported database URL scheme")
+var errUnsupportedScheme = errors.New("store: unsupported database URL scheme")
 
 // Open dispatches on the URL scheme and returns a configured *sql.DB.
 // The caller owns the returned handle and must Close it.
@@ -28,6 +28,6 @@ func Open(ctx context.Context, databaseURL string) (*sql.DB, error) {
 	case strings.HasPrefix(databaseURL, "postgres://"), strings.HasPrefix(databaseURL, "postgresql://"):
 		return postgres.Open(ctx, databaseURL)
 	default:
-		return nil, fmt.Errorf("%w: %q", ErrUnsupportedScheme, databaseURL)
+		return nil, fmt.Errorf("%w: %q", errUnsupportedScheme, databaseURL)
 	}
 }

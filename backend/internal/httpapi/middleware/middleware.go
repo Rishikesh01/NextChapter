@@ -17,10 +17,10 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// HeaderRequestID is the HTTP header we both accept (if the caller
+// headerRequestID is the HTTP header we both accept (if the caller
 // supplied one) and echo back to the client. Matches the convention
 // used by most proxies.
-const HeaderRequestID = "X-Request-Id"
+const headerRequestID = "X-Request-Id"
 
 type ctxKey int
 
@@ -33,11 +33,11 @@ const (
 // downstream pick it up via [RequestIDFromContext].
 func RequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id := c.GetHeader(HeaderRequestID)
+		id := c.GetHeader(headerRequestID)
 		if id == "" {
 			id = uuid.NewString()
 		}
-		c.Writer.Header().Set(HeaderRequestID, id)
+		c.Writer.Header().Set(headerRequestID, id)
 		ctx := context.WithValue(c.Request.Context(), ctxRequestIDKey, id)
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()

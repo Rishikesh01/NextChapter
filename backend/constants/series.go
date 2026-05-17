@@ -23,14 +23,3 @@ const (
 // status field. Kept here so any code that needs to "fill in the
 // default" reads from a single named value.
 const DefaultSeriesStatus = StatusReading
-
-// AllSeriesStatuses lists every valid status value in the order they
-// should appear in user-facing prompts/messages. Callers that want a
-// set/lookup map should build one once at init time.
-var AllSeriesStatuses = []string{
-	StatusReading,
-	StatusCompleted,
-	StatusOnHold,
-	StatusDropped,
-	StatusPlanToRead,
-}
