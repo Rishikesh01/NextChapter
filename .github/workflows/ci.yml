@@ -1,0 +1,75 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/**'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/**'
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.2'
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: gofmt
+        run: |
+          out=$(gofmt -l .)
+          if [ -n "$out" ]; then
+            echo "::error::unformatted files:"
+            echo "$out"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: golangci-lint
+        run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4 run ./...
+
+      - name: go test -race
+        run: go test -race -count=1 ./...
+
+      - name: go mod tidy is clean
+        run: |
+          go mod tidy
+          if ! git diff --exit-code -- go.mod go.sum; then
+            echo "::error::go.mod / go.sum drift — run 'go mod tidy' locally and commit"
+            exit 1
+          fi
+
+      - name: swagger is up to date
+        run: |
+          go run github.com/swaggo/swag/cmd/swag@v1.16.2 init \
+            -g cmd/nextchapter/main.go \
+            -o internal/swaggerdocs \
+            --parseInternal --parseDependency=false
+          if ! git diff --exit-code -- internal/swaggerdocs; then
+            echo "::error::internal/swaggerdocs is stale — run 'make swagger' locally and commit"
+            exit 1
+          fi
+
+      # govulncheck is intentionally NOT run in CI yet. ADR-0007
+      # documents three reachable stdlib CVEs in go1.26.2 that close
+      # out with a toolchain bump to go1.26.3. Until the host runners
+      # have 1.26.3 (or we flip to GOTOOLCHAIN=auto), running
+      # govulncheck here would just be a documented red. Re-enable
+      # after the bump.
