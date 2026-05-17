@@ -385,7 +385,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Upserts on (user, site_host, series_slug). The handler lowercases site_host and strips a leading `www.` before persisting (ADR-0008). If no entry exists for that key, the caller must supply either `series_id` (existing) or `new_series_title` (the handler will materialise a series row); otherwise 422. Returns 201 on first capture for the (host,slug) key, 200 when an existing entry was advanced.",
+                "description": "Upserts on (user, site_host, series_slug). The handler lowercases site_host and strips a leading `www.` before persisting. If no entry exists for that key, the caller must supply either `series_id` (existing) or `new_series_title` (the handler will materialise a series row); otherwise 422. Returns 201 on first capture for the (host,slug) key, 200 when an existing entry was advanced.",
                 "consumes": [
                     "application/json"
                 ],

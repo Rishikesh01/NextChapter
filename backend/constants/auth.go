@@ -9,9 +9,9 @@ const (
 	TokenKindAPI     = "api"
 )
 
-// Token prefixes per ADR-0001. A leaked token is greppable by prefix.
-// As with the kinds, these are persisted in the plaintext token shown
-// to the user; changing them would invalidate every existing token.
+// Token prefixes. A leaked token is greppable by prefix. As with the
+// kinds, these are persisted in the plaintext token shown to the
+// user; changing them would invalidate every existing token.
 const (
 	TokenPrefixSession = "ncs_"
 	TokenPrefixAPI     = "nca_"

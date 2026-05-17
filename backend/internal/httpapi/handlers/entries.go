@@ -80,7 +80,7 @@ func (d EntriesDeps) List(c *gin.Context) {
 // Capture implements POST /entries/capture.
 //
 // @Summary      Capture or advance a reading position
-// @Description  Upserts on (user, site_host, series_slug). The handler lowercases site_host and strips a leading `www.` before persisting (ADR-0008). If no entry exists for that key, the caller must supply either `series_id` (existing) or `new_series_title` (the handler will materialise a series row); otherwise 422. Returns 201 on first capture for the (host,slug) key, 200 when an existing entry was advanced.
+// @Description  Upserts on (user, site_host, series_slug). The handler lowercases site_host and strips a leading `www.` before persisting. If no entry exists for that key, the caller must supply either `series_id` (existing) or `new_series_title` (the handler will materialise a series row); otherwise 422. Returns 201 on first capture for the (host,slug) key, 200 when an existing entry was advanced.
 // @Tags         entries
 // @Accept       json
 // @Produce      json
@@ -120,9 +120,9 @@ func (d EntriesDeps) Capture(c *gin.Context) {
 		}})
 		return
 	}
-	// ADR-0005 host normalisation: lowercase + strip leading www.
-	// before it reaches the service so the (user, host, slug) upsert
-	// key matches the canonical form.
+	// Host normalisation: lowercase + strip leading www. before it
+	// reaches the service so the (user, host, slug) upsert key
+	// matches the canonical form.
 	req.SiteHost = strings.TrimPrefix(strings.ToLower(req.SiteHost), "www.")
 	entry, created, err := d.Entries.CaptureChapter(c.Request.Context(), u.ID, req, d.SeriesTracker)
 	if err != nil {

@@ -1,7 +1,7 @@
 // Package postgres wires github.com/jackc/pgx/v5/stdlib (pure-Go) into
-// database/sql for NextChapter. ADR-0002 picks Postgres as a production
-// option alongside the pure-Go SQLite default; pgx/v5's stdlib adapter
-// keeps the build CGO-free, matching the rest of the project.
+// database/sql for NextChapter. Postgres is the production option
+// alongside the pure-Go SQLite default; pgx/v5's stdlib adapter keeps
+// the build CGO-free, matching the rest of the project.
 package postgres
 
 import (

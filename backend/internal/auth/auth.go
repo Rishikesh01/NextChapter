@@ -1,6 +1,6 @@
 // Package auth implements NextChapter's password hashing, opaque-token
 // mint/verify, and the gin middleware that resolves a session cookie or
-// bearer token to a *User. See ADR-0001.
+// bearer token to a *User.
 package auth
 
 import (

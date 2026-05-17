@@ -1,7 +1,7 @@
 // Package sqlite wires modernc.org/sqlite (pure-Go) into database/sql for
 // NextChapter. The only thing it does beyond `sql.Open` is enforce that
 // every connection enables foreign-key checks; SQLite ships them off by
-// default and ADR-0005 relies on ON DELETE CASCADE.
+// default and the schema relies on ON DELETE CASCADE.
 package sqlite
 
 import (

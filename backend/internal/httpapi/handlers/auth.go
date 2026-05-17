@@ -338,7 +338,6 @@ func (d AuthDeps) DeleteToken(c *gin.Context) {
 }
 
 func (d AuthDeps) setSessionCookie(c *gin.Context, raw string, maxAgeSec int) {
-	// SameSite=Lax matches ADR-0001.
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie(constants.SessionCookieName, raw, maxAgeSec, "/", d.CookieDomain, d.CookieSecure, true)
 }

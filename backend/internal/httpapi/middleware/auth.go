@@ -100,8 +100,8 @@ const (
 )
 
 // extractAuthToken pulls the raw token out of the cookie or
-// Authorization header in that order, per ADR-0001. The returned
-// source records which channel the token came in on.
+// Authorization header in that order. The returned source records
+// which channel the token came in on.
 func extractAuthToken(c *gin.Context) (string, authTokenSource, bool) {
 	if cookie, err := c.Cookie(constants.SessionCookieName); err == nil && cookie != "" {
 		return cookie, authTokenSourceCookie, true

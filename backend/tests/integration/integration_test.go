@@ -875,8 +875,8 @@ func TestPatchSeriesFieldSemantics(t *testing.T) {
 	}).do(t, h)
 }
 
-// TestCaptureNormalisesSiteHost pins ADR-0005's host-normalisation
-// contract on POST /entries/capture: the inbound SiteHost is
+// TestCaptureNormalisesSiteHost pins the host-normalisation contract
+// on POST /entries/capture: the inbound SiteHost is
 // lowercased and the leading "www." (case-insensitive) is stripped
 // before the (user_id, site_host, series_slug) upsert key is computed.
 // Two captures against the same logical site must therefore hit the

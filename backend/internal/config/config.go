@@ -21,7 +21,7 @@ type Config struct {
 	// "sqlite://" (modernc.org/sqlite) and "postgres://" (stub).
 	DatabaseURL string
 	// BootstrapUsername / BootstrapPassword create the first user on a
-	// fresh DB. See ADR-0006. Both must be set or both must be empty.
+	// fresh DB. Both must be set or both must be empty.
 	BootstrapUsername string
 	BootstrapPassword string
 	// LogLevel is one of "debug", "info", "warn", "error".
@@ -92,7 +92,7 @@ func (c Config) Validate() error {
 	}
 	switch {
 	case c.BootstrapUsername == "" && c.BootstrapPassword == "":
-		// fine: open-registration window will be used per ADR-0006.
+		// fine: open registration is always available.
 	case c.BootstrapUsername != "" && c.BootstrapPassword != "":
 		// fine: env-var bootstrap.
 		if len(c.BootstrapPassword) < 8 {

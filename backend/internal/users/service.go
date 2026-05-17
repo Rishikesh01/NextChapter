@@ -1,5 +1,5 @@
 // Package users owns the user-account domain: creation, lookup, and
-// the env-var bootstrap convenience described in ADR-0006.
+// the env-var bootstrap convenience for pre-seeding the first account.
 package users
 
 import (

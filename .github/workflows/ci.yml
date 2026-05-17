@@ -67,12 +67,11 @@ jobs:
             exit 1
           fi
 
-      # govulncheck is intentionally NOT run in CI yet. ADR-0007
-      # documents three reachable stdlib CVEs in go1.26.2 that close
-      # out with a toolchain bump to go1.26.3. Until the host runners
-      # have 1.26.3 (or we flip to GOTOOLCHAIN=auto), running
-      # govulncheck here would just be a documented red. Re-enable
-      # after the bump.
+      # govulncheck is intentionally NOT run in CI yet. There are
+      # three reachable stdlib CVEs in go1.26.2 that close out with a
+      # toolchain bump to go1.26.3. Until the host runners have
+      # 1.26.3 (or we flip to GOTOOLCHAIN=auto), running govulncheck
+      # here would just be a documented red. Re-enable after the bump.
 
   backend-postgres:
     # Dual-engine coverage. The default `backend` job exercises the
