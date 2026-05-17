@@ -36,7 +36,6 @@ type Querier interface {
 	GetSeriesTags(ctx context.Context, seriesID int64) ([]string, error)
 	GetSiteRuleByHost(ctx context.Context, arg GetSiteRuleByHostParams) (SiteRule, error)
 	GetSiteRuleByID(ctx context.Context, arg GetSiteRuleByIDParams) (SiteRule, error)
-	GetUserByID(ctx context.Context, id int64) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
 	InsertSeriesTagLink(ctx context.Context, arg InsertSeriesTagLinkParams) error
 	InsertSiteRule(ctx context.Context, arg InsertSiteRuleParams) (SiteRule, error)

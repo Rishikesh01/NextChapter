@@ -14,9 +14,7 @@ SELECT
     t.last_used_at,
     t.expires_at,
     u.username AS user_username,
-    u.password_hash AS user_password_hash,
-    u.created_at AS user_created_at,
-    u.updated_at AS user_updated_at
+    u.created_at AS user_created_at
 FROM auth_tokens t
 JOIN users u ON u.id = t.user_id
 WHERE t.token_hash = $1;

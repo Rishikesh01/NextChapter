@@ -43,7 +43,5 @@ type InsertUserParams struct {
 // package's Authenticate needs the hash to bcrypt-compare.
 type Repository interface {
 	InsertUser(ctx context.Context, p InsertUserParams) (models.User, error)
-	GetUserByID(ctx context.Context, id int64) (models.User, error)
 	GetAuthRecordByUsername(ctx context.Context, username string) (AuthRecord, error)
-	CountUsers(ctx context.Context) (int64, error)
 }

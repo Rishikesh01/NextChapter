@@ -6,7 +6,6 @@ package auth
 import (
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -28,15 +27,6 @@ var ErrInvalidCredentials = errors.New("auth: invalid credentials")
 // ErrTokenNotFound is returned by Resolve when no matching auth_token row exists
 // or the row is expired.
 var ErrTokenNotFound = errors.New("auth: token not found or expired")
-
-// HashPassword bcrypt-hashes the given password using the default cost.
-func HashPassword(password string) (string, error) {
-	h, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return "", fmt.Errorf("auth: hash password: %w", err)
-	}
-	return string(h), nil
-}
 
 // VerifyPassword returns nil if the password matches the stored hash,
 // [ErrInvalidCredentials] otherwise.
@@ -74,10 +64,4 @@ func MintToken(kind string) (string, error) {
 func HashToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
-}
-
-// ConstantTimeCompare exposes subtle.ConstantTimeCompare for callers that
-// want to avoid timing leaks on hex-token comparisons.
-func ConstantTimeCompare(a, b string) bool {
-	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }

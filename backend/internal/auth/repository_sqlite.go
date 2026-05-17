@@ -58,11 +58,9 @@ func (r *sqliteRepo) GetTokenByHash(ctx context.Context, tokenHash string) (Look
 			LastUsedAt: nullTimeToPtr(row.LastUsedAt),
 			ExpiresAt:  nullTimeToPtr(row.ExpiresAt),
 		},
-		UserID:       row.UserID,
-		Username:     row.UserUsername,
-		PasswordHash: row.UserPasswordHash,
-		UserCreated:  row.UserCreatedAt,
-		UserUpdated:  row.UserUpdatedAt,
+		UserID:      row.UserID,
+		Username:    row.UserUsername,
+		UserCreated: row.UserCreatedAt,
 	}, nil
 }
 
@@ -85,30 +83,6 @@ func (r *sqliteRepo) DeleteTokenByHash(ctx context.Context, tokenHash string) er
 		return fmt.Errorf("auth: delete token by hash: %w", err)
 	}
 	return nil
-}
-
-func (r *sqliteRepo) ListAPITokens(ctx context.Context, userID int64) ([]models.Token, error) {
-	rows, err := r.q.ListAPITokens(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("auth: list api tokens: %w", err)
-	}
-	out := make([]models.Token, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, tokenFromSQLite(row))
-	}
-	return out, nil
-}
-
-func (r *sqliteRepo) ListSessionTokens(ctx context.Context, userID int64) ([]models.Token, error) {
-	rows, err := r.q.ListSessionTokens(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("auth: list session tokens: %w", err)
-	}
-	out := make([]models.Token, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, tokenFromSQLite(row))
-	}
-	return out, nil
 }
 
 func tokenFromSQLite(t gen.AuthToken) models.Token {

@@ -89,27 +89,23 @@ SELECT
     t.last_used_at,
     t.expires_at,
     u.username AS user_username,
-    u.password_hash AS user_password_hash,
-    u.created_at AS user_created_at,
-    u.updated_at AS user_updated_at
+    u.created_at AS user_created_at
 FROM auth_tokens t
 JOIN users u ON u.id = t.user_id
 WHERE t.token_hash = ?
 `
 
 type GetAuthTokenByHashRow struct {
-	ID               int64
-	UserID           int64
-	Kind             string
-	TokenHash        string
-	Label            sql.NullString
-	CreatedAt        time.Time
-	LastUsedAt       sql.NullTime
-	ExpiresAt        sql.NullTime
-	UserUsername     string
-	UserPasswordHash string
-	UserCreatedAt    time.Time
-	UserUpdatedAt    time.Time
+	ID            int64
+	UserID        int64
+	Kind          string
+	TokenHash     string
+	Label         sql.NullString
+	CreatedAt     time.Time
+	LastUsedAt    sql.NullTime
+	ExpiresAt     sql.NullTime
+	UserUsername  string
+	UserCreatedAt time.Time
 }
 
 func (q *Queries) GetAuthTokenByHash(ctx context.Context, tokenHash string) (GetAuthTokenByHashRow, error) {
@@ -125,9 +121,7 @@ func (q *Queries) GetAuthTokenByHash(ctx context.Context, tokenHash string) (Get
 		&i.LastUsedAt,
 		&i.ExpiresAt,
 		&i.UserUsername,
-		&i.UserPasswordHash,
 		&i.UserCreatedAt,
-		&i.UserUpdatedAt,
 	)
 	return i, err
 }

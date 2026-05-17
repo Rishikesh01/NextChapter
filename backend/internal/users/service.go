@@ -42,10 +42,9 @@ type UsersService interface {
 // [internal/auth].Service.Authenticate via [Repository.GetAuthRecordByUsername].
 // Nothing else in the codebase reads PasswordHash.
 //
-// We bcrypt-hash here directly (rather than calling [internal/auth].HashPassword)
-// so this package does not import internal/auth: the inverse arrow —
-// auth depending on users.Repository for credential lookup — is the
-// one we want, and a mutual import would not compile.
+// We bcrypt-hash inline rather than importing internal/auth: the
+// inverse arrow — auth depending on users.Repository for credential
+// lookup — is the one we want, and a mutual import would not compile.
 type Service struct {
 	repo   Repository
 	logger *zap.Logger

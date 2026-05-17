@@ -20,16 +20,12 @@ type Resolved struct {
 
 // LookupRow is the joined user+token shape returned by
 // [Repository.GetTokenByHash], used by the middleware to resolve a raw
-// token to its owner without a second round trip. PasswordHash is
-// carried for completeness but auth-package code does not read it;
-// the users package is the only consumer of password hashes.
+// token to its owner without a second round trip.
 type LookupRow struct {
-	Token        models.Token
-	UserID       int64
-	Username     string
-	PasswordHash string
-	UserCreated  time.Time
-	UserUpdated  time.Time
+	Token       models.Token
+	UserID      int64
+	Username    string
+	UserCreated time.Time
 }
 
 // InsertTokenParams is the persistence-layer input for inserting a
@@ -55,6 +51,4 @@ type Repository interface {
 	GetTokenByHash(ctx context.Context, tokenHash string) (LookupRow, error)
 	DeleteTokenByID(ctx context.Context, userID, tokenID int64) (int64, error)
 	DeleteTokenByHash(ctx context.Context, tokenHash string) error
-	ListAPITokens(ctx context.Context, userID int64) ([]models.Token, error)
-	ListSessionTokens(ctx context.Context, userID int64) ([]models.Token, error)
 }

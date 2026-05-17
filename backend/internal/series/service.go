@@ -365,12 +365,6 @@ func (s *Service) UntrackSeries(ctx context.Context, userID, seriesID int64) err
 	return nil
 }
 
-// ValidStatus reports whether status is in the SeriesStatus enum.
-func ValidStatus(status string) bool {
-	_, ok := validStatuses[status]
-	return ok
-}
-
 // TrackImplicitSeries satisfies [models.SeriesTracker]. It materialises
 // a series row from a bare title when the entries service's
 // CaptureChapter path is called with new_series_title rather than

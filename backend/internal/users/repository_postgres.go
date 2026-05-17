@@ -41,21 +41,6 @@ func (r *postgresRepo) InsertUser(ctx context.Context, p InsertUserParams) (mode
 	}, nil
 }
 
-func (r *postgresRepo) GetUserByID(ctx context.Context, userID int64) (models.User, error) {
-	u, err := r.q.GetUserByID(ctx, userID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return models.User{}, models.ErrUserNotFound
-		}
-		return models.User{}, fmt.Errorf("users: get by id: %w", err)
-	}
-	return models.User{
-		ID:        u.ID,
-		Username:  u.Username,
-		CreatedAt: u.CreatedAt,
-	}, nil
-}
-
 func (r *postgresRepo) GetAuthRecordByUsername(ctx context.Context, username string) (AuthRecord, error) {
 	u, err := r.q.GetUserByUsername(ctx, username)
 	if err != nil {
@@ -71,12 +56,4 @@ func (r *postgresRepo) GetAuthRecordByUsername(ctx context.Context, username str
 		CreatedAt:    u.CreatedAt,
 		UpdatedAt:    u.UpdatedAt,
 	}, nil
-}
-
-func (r *postgresRepo) CountUsers(ctx context.Context) (int64, error) {
-	n, err := r.q.CountUsers(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("users: count: %w", err)
-	}
-	return n, nil
 }

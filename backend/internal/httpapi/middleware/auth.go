@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -68,25 +67,9 @@ func Auth(cfg AuthMiddlewareConfig) gin.HandlerFunc {
 			return
 		}
 		ctx := models.WithUser(c.Request.Context(), resolved.User)
-		ctx = context.WithValue(ctx, ctxAuthResolvedKey, resolved)
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	}
-}
-
-// ctxAuthResolvedKey is the unexported context-key used to stash the
-// auth lookup metadata. Callers that need the token id/kind use
-// [AuthResolvedFromContext]; the authenticated user is read via
-// [models.UserFromContext].
-var ctxAuthResolvedKey = &struct{ name string }{name: "auth.resolved"}
-
-// AuthResolvedFromContext returns the auth lookup metadata stashed by
-// the Auth middleware. Currently unused by handlers (the authenticated
-// user is read via models.UserFromContext); kept available for future
-// flows that need to know the token id/kind.
-func AuthResolvedFromContext(ctx context.Context) (auth.Resolved, bool) {
-	r, ok := ctx.Value(ctxAuthResolvedKey).(auth.Resolved)
-	return r, ok
 }
 
 // authTokenSource records where a credential came from on the wire so
