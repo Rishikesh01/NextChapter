@@ -36,25 +36,25 @@ import (
 // @in                          header
 // @name                        Authorization
 func main() {
-	os.Exit(run())
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
 
 // run is split out from main so deferred cleanup (signal.NotifyContext's
-// stop, etc.) actually executes before os.Exit. Returns the process
-// exit code.
-func run() int {
+// stop, etc.) actually executes before os.Exit.
+func run() error {
 	cfg, err := config.FromEnv()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "config:", err)
-		return 2
+		return fmt.Errorf("config: %w", err)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	if err := server.Run(ctx, cfg); err != nil {
-		fmt.Fprintln(os.Stderr, "server:", err)
-		return 1
+		return fmt.Errorf("server: %w", err)
 	}
-	return 0
+	return nil
 }

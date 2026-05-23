@@ -74,12 +74,8 @@ type Service struct {
 var _ SeriesService = (*Service)(nil)
 
 // NewService builds a Service. The entries.Service is used to load
-// the per-series entry list inside [InspectSeries]. Passing a nil
-// logger is fine for tests; a no-op logger is substituted.
+// the per-series entry list inside [InspectSeries].
 func NewService(repo Repository, e *entries.Service, logger *zap.Logger) *Service {
-	if logger == nil {
-		logger = zap.NewNop()
-	}
 	return &Service{repo: repo, entries: e, logger: logger}
 }
 

@@ -29,9 +29,6 @@ type AuthMiddlewareConfig struct {
 // that happens to consume the auth service, not part of the auth
 // domain itself.
 func Auth(cfg AuthMiddlewareConfig) gin.HandlerFunc {
-	if cfg.Logger == nil {
-		cfg.Logger = zap.NewNop()
-	}
 	if cfg.Service == nil {
 		panic("middleware: AuthMiddlewareConfig.Service must not be nil")
 	}

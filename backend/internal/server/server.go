@@ -184,11 +184,7 @@ func newLogger(level zapcore.Level) (*zap.Logger, error) {
 	cfg.Level = zap.NewAtomicLevelAt(level)
 	cfg.EncoderConfig.TimeKey = "ts"
 	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	logger, err := cfg.Build()
-	if err != nil {
-		return nil, err
-	}
-	return logger, nil
+	return cfg.Build()
 }
 
 // isHTTPS reports whether every configured origin is https://; we use

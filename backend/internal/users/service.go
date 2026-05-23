@@ -54,13 +54,9 @@ type Service struct {
 // UsersService surface that handlers consume.
 var _ UsersService = (*Service)(nil)
 
-// NewService constructs a Service. Passing a nil logger is fine for
-// tests that don't care about log output; a no-op logger is substituted.
-// Real wiring in [internal/server] passes the root zap logger.
+// NewService constructs a Service. Real wiring in [internal/server]
+// passes the root zap logger; tests pass [zap.NewNop].
 func NewService(repo Repository, logger *zap.Logger) *Service {
-	if logger == nil {
-		logger = zap.NewNop()
-	}
 	return &Service{repo: repo, logger: logger}
 }
 

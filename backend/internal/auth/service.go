@@ -57,12 +57,8 @@ var _ AuthService = (*Service)(nil)
 // NewService constructs a Service. The users repository is read by
 // [Service.Authenticate] to fetch the stored bcrypt hash; if you are
 // wiring a test fixture that never calls Authenticate, passing nil is
-// fine. Passing a nil logger is also fine; a no-op logger is
-// substituted, which is what the integration tests do.
+// fine.
 func NewService(repo Repository, userRepo users.Repository, logger *zap.Logger) *Service {
-	if logger == nil {
-		logger = zap.NewNop()
-	}
 	return &Service{repo: repo, users: userRepo, logger: logger}
 }
 

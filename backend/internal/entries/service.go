@@ -45,12 +45,8 @@ type Service struct {
 // EntriesService surface that handlers consume.
 var _ EntriesService = (*Service)(nil)
 
-// NewService builds a Service. Passing a nil logger is fine for tests;
-// a no-op logger is substituted. The integration tests do exactly that.
+// NewService builds a Service.
 func NewService(repo Repository, logger *zap.Logger) *Service {
-	if logger == nil {
-		logger = zap.NewNop()
-	}
 	return &Service{repo: repo, logger: logger}
 }
 

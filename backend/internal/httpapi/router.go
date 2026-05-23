@@ -50,9 +50,6 @@ type Deps struct {
 // otherwise leave the engine accepting payloads that should be
 // rejected.
 func New(d Deps) *gin.Engine {
-	if d.Logger == nil {
-		d.Logger = zap.NewNop()
-	}
 	if err := handlers.RegisterCustomValidators(); err != nil {
 		d.Logger.Fatal("register custom validators", zap.Error(err))
 	}
