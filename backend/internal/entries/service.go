@@ -37,7 +37,7 @@ type EntriesService interface {
 
 // Service exposes the entries domain to handlers.
 type Service struct {
-	repo   Repository
+	repo   repository
 	logger *zap.Logger
 }
 
@@ -46,7 +46,7 @@ type Service struct {
 var _ EntriesService = (*Service)(nil)
 
 // NewService builds a Service.
-func NewService(repo Repository, logger *zap.Logger) *Service {
+func NewService(repo repository, logger *zap.Logger) *Service {
 	return &Service{repo: repo, logger: logger}
 }
 
@@ -71,7 +71,7 @@ func (s *Service) CaptureChapter(ctx context.Context, userID int64, capture mode
 		// at Info so an operator can correlate a 422 to a service
 		// decision without it polluting the error stream.
 		switch {
-		case errors.Is(err, ErrSeriesRequired), errors.Is(err, ErrSeriesNotFound):
+		case errors.Is(err, errSeriesRequired), errors.Is(err, errSeriesNotFound):
 			s.logger.Info("capture rejected",
 				zap.Int64("user_id", userID),
 				zap.String("site_host", capture.SiteHost),
@@ -107,7 +107,7 @@ func (s *Service) capture(ctx context.Context, userID int64, capture models.Entr
 	// chapter (binding:"required" rejects the missing case). Once
 	// we're past ShouldBindJSON it's safe to deref.
 	chapter := *capture.Chapter
-	existing, err := s.repo.GetEntryByKey(ctx, GetEntryByKeyParams{
+	existing, err := s.repo.getEntryByKey(ctx, getEntryByKeyParams{
 		UserID:     userID,
 		SiteHost:   capture.SiteHost,
 		SeriesSlug: capture.SeriesSlug,
@@ -126,7 +126,7 @@ func (s *Service) capture(ctx context.Context, userID int64, capture models.Entr
 		// Even a no-op click bumps last_captured_at, per "where was
 		// I" product framing: the user clicked again so they're
 		// reading it again right now.
-		row, err := s.repo.AdvanceEntry(ctx, AdvanceEntryParams{
+		row, err := s.repo.advanceEntry(ctx, advanceEntryParams{
 			ID:             existing.ID,
 			UserID:         userID,
 			LastChapter:    newChapter,
@@ -140,7 +140,7 @@ func (s *Service) capture(ctx context.Context, userID int64, capture models.Entr
 		}
 		return captureResult{Entry: row, Created: false}, nil
 	}
-	if !errors.Is(err, ErrNotFound) {
+	if !errors.Is(err, errNotFound) {
 		return captureResult{}, err
 	}
 
@@ -148,12 +148,12 @@ func (s *Service) capture(ctx context.Context, userID int64, capture models.Entr
 	var seriesID int64
 	switch {
 	case capture.SeriesID != nil:
-		ok, err := s.repo.SeriesExists(ctx, userID, *capture.SeriesID)
+		ok, err := s.repo.seriesExists(ctx, userID, *capture.SeriesID)
 		if err != nil {
 			return captureResult{}, err
 		}
 		if !ok {
-			return captureResult{}, ErrSeriesNotFound
+			return captureResult{}, errSeriesNotFound
 		}
 		seriesID = *capture.SeriesID
 	case capture.NewSeriesTitle != nil && *capture.NewSeriesTitle != "":
@@ -163,11 +163,11 @@ func (s *Service) capture(ctx context.Context, userID int64, capture models.Entr
 		}
 		seriesID = id
 	default:
-		return captureResult{}, ErrSeriesRequired
+		return captureResult{}, errSeriesRequired
 	}
 
 	now := time.Now().UTC()
-	row, err := s.repo.InsertEntry(ctx, InsertEntryParams{
+	row, err := s.repo.insertEntry(ctx, insertEntryParams{
 		UserID:         userID,
 		SeriesID:       seriesID,
 		SiteHost:       capture.SiteHost,
@@ -191,7 +191,7 @@ func (s *Service) capture(ctx context.Context, userID int64, capture models.Entr
 // this method assumes Limit / Offset are already valid.
 func (s *Service) ListReadingPositions(ctx context.Context, userID int64, filter models.EntryFilter) (models.EntryList, error) {
 	if filter.SeriesID != nil {
-		rows, err := s.repo.ListEntriesBySeries(ctx, ListEntriesBySeriesParams{
+		rows, err := s.repo.listEntriesBySeries(ctx, listEntriesBySeriesParams{
 			UserID:   userID,
 			SeriesID: *filter.SeriesID,
 			Limit:    int64(filter.Limit),
@@ -200,13 +200,13 @@ func (s *Service) ListReadingPositions(ctx context.Context, userID int64, filter
 		if err != nil {
 			return models.EntryList{}, err
 		}
-		total, err := s.repo.CountEntriesBySeries(ctx, userID, *filter.SeriesID)
+		total, err := s.repo.countEntriesBySeries(ctx, userID, *filter.SeriesID)
 		if err != nil {
 			return models.EntryList{}, err
 		}
 		return models.EntryList{Items: rows, Total: total}, nil
 	}
-	rows, err := s.repo.ListEntriesAll(ctx, ListEntriesAllParams{
+	rows, err := s.repo.listEntriesAll(ctx, listEntriesAllParams{
 		UserID: userID,
 		Limit:  int64(filter.Limit),
 		Offset: int64(filter.Offset),
@@ -214,7 +214,7 @@ func (s *Service) ListReadingPositions(ctx context.Context, userID int64, filter
 	if err != nil {
 		return models.EntryList{}, err
 	}
-	total, err := s.repo.CountEntriesAll(ctx, userID)
+	total, err := s.repo.countEntriesAll(ctx, userID)
 	if err != nil {
 		return models.EntryList{}, err
 	}
@@ -226,14 +226,14 @@ func (s *Service) ListReadingPositions(ctx context.Context, userID int64, filter
 // public models.EntriesService interface because it's an
 // internal-only cross-service call.
 func (s *Service) ListForSeries(ctx context.Context, userID, seriesID int64) ([]models.Entry, error) {
-	return s.repo.ListEntriesAllForSeries(ctx, userID, seriesID)
+	return s.repo.listEntriesAllForSeries(ctx, userID, seriesID)
 }
 
 // get returns one entry, scoped to the owning user. Unexported — only
 // [Service.AdjustReadingPosition] uses it. Kept off the
 // [EntriesService] surface so the interface stays domain-verb only.
 func (s *Service) get(ctx context.Context, userID, entryID int64) (models.Entry, error) {
-	return s.repo.GetEntryByID(ctx, userID, entryID)
+	return s.repo.getEntryByID(ctx, userID, entryID)
 }
 
 // AdjustReadingPosition applies a partial update ("adjust this
@@ -247,7 +247,7 @@ func (s *Service) AdjustReadingPosition(ctx context.Context, userID, entryID int
 	}
 	seriesID := current.SeriesID
 	if patch.SeriesID != nil && *patch.SeriesID != seriesID {
-		ok, err := s.repo.SeriesExists(ctx, userID, *patch.SeriesID)
+		ok, err := s.repo.seriesExists(ctx, userID, *patch.SeriesID)
 		if err != nil {
 			s.logger.Error("adjust: series exists check",
 				zap.Int64("user_id", userID),
@@ -263,7 +263,7 @@ func (s *Service) AdjustReadingPosition(ctx context.Context, userID, entryID int
 				zap.Int64("entry_id", entryID),
 				zap.Int64("series_id", *patch.SeriesID),
 			)
-			return models.Entry{}, ErrSeriesNotFound
+			return models.Entry{}, errSeriesNotFound
 		}
 		seriesID = *patch.SeriesID
 	}
@@ -280,7 +280,7 @@ func (s *Service) AdjustReadingPosition(ctx context.Context, userID, entryID int
 		siteTitle = *patch.SiteTitle
 	}
 	now := time.Now().UTC()
-	row, err := s.repo.UpdateEntry(ctx, UpdateEntryParams{
+	row, err := s.repo.updateEntry(ctx, updateEntryParams{
 		ID:          entryID,
 		UserID:      userID,
 		SeriesID:    seriesID,
@@ -312,7 +312,7 @@ func (s *Service) AdjustReadingPosition(ctx context.Context, userID, entryID int
 // handler for GET /sites to build the tracked_hosts half of the
 // response envelope.
 func (s *Service) ListTrackedHosts(ctx context.Context, userID int64) ([]string, error) {
-	hosts, err := s.repo.ListTrackedHosts(ctx, userID)
+	hosts, err := s.repo.listTrackedHosts(ctx, userID)
 	if err != nil {
 		s.logger.Error("list tracked hosts",
 			zap.Int64("user_id", userID),
@@ -329,7 +329,7 @@ func (s *Service) ListTrackedHosts(ctx context.Context, userID int64) ([]string,
 // ForgetReadingPosition removes an entry ("forget where I was on this
 // site").
 func (s *Service) ForgetReadingPosition(ctx context.Context, userID, entryID int64) error {
-	n, err := s.repo.DeleteEntry(ctx, userID, entryID)
+	n, err := s.repo.deleteEntry(ctx, userID, entryID)
 	if err != nil {
 		s.logger.Error("forget: delete entry",
 			zap.Int64("user_id", userID),
@@ -343,7 +343,7 @@ func (s *Service) ForgetReadingPosition(ctx context.Context, userID, entryID int
 			zap.Int64("user_id", userID),
 			zap.Int64("entry_id", entryID),
 		)
-		return ErrNotFound
+		return errNotFound
 	}
 	s.logger.Info("reading position forgotten",
 		zap.Int64("user_id", userID),

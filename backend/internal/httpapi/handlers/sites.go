@@ -39,7 +39,7 @@ func (d SitesDeps) List(c *gin.Context) {
 	if !ok {
 		d.Logger.Error("handler: user missing from context", zap.String("handler", "Sites.List"))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -48,7 +48,7 @@ func (d SitesDeps) List(c *gin.Context) {
 	if err != nil {
 		d.Logger.Error("list site rules", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -57,7 +57,7 @@ func (d SitesDeps) List(c *gin.Context) {
 	if err != nil {
 		d.Logger.Error("list tracked hosts", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -85,7 +85,7 @@ func (d SitesDeps) AddRule(c *gin.Context) {
 	if !ok {
 		d.Logger.Error("handler: user missing from context", zap.String("handler", "Sites.AddRule"))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -95,14 +95,14 @@ func (d SitesDeps) AddRule(c *gin.Context) {
 		var verr validator.ValidationErrors
 		if errors.As(err, &verr) {
 			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
-				Code:    CodeValidation,
+				Code:    codeValidation,
 				Message: "invalid request",
 				Fields:  validationFieldsFromErr(verr),
 			}})
 			return
 		}
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorBody{Error: ErrorDetail{
-			Code:    CodeBadRequest,
+			Code:    codeBadRequest,
 			Message: "invalid request body",
 		}})
 		return
@@ -114,7 +114,7 @@ func (d SitesDeps) AddRule(c *gin.Context) {
 		}
 		d.Logger.Error("add site rule", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -144,7 +144,7 @@ func (d SitesDeps) EditRule(c *gin.Context) {
 	if !ok {
 		d.Logger.Error("handler: user missing from context", zap.String("handler", "Sites.EditRule"))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -162,14 +162,14 @@ func (d SitesDeps) EditRule(c *gin.Context) {
 		var verr validator.ValidationErrors
 		if errors.As(err, &verr) {
 			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
-				Code:    CodeValidation,
+				Code:    codeValidation,
 				Message: "invalid request",
 				Fields:  validationFieldsFromErr(verr),
 			}})
 			return
 		}
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorBody{Error: ErrorDetail{
-			Code:    CodeBadRequest,
+			Code:    codeBadRequest,
 			Message: "invalid request body",
 		}})
 		return
@@ -188,7 +188,7 @@ func (d SitesDeps) EditRule(c *gin.Context) {
 		}
 		d.Logger.Error("edit site rule", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -212,7 +212,7 @@ func (d SitesDeps) RemoveRule(c *gin.Context) {
 	if !ok {
 		d.Logger.Error("handler: user missing from context", zap.String("handler", "Sites.RemoveRule"))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -235,7 +235,7 @@ func (d SitesDeps) RemoveRule(c *gin.Context) {
 		}
 		d.Logger.Error("remove site rule", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -254,7 +254,7 @@ func writeSiteRuleErr(c *gin.Context, err error) bool {
 	switch {
 	case errors.Is(err, models.ErrSiteRuleInvalidRegex):
 		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
-			Code:    CodeValidation,
+			Code:    codeValidation,
 			Message: "invalid request",
 			Fields:  map[string]string{"chapter_url_regex": "must compile as a Go regexp"},
 		}})
@@ -269,14 +269,14 @@ func writeSiteRuleErr(c *gin.Context, err error) bool {
 			field = mcg.JSONField
 		}
 		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
-			Code:    CodeValidation,
+			Code:    codeValidation,
 			Message: "invalid request",
 			Fields:  map[string]string{field: "named capture group is missing from chapter_url_regex"},
 		}})
 		return true
 	case errors.Is(err, models.ErrSiteRuleHostTaken):
 		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
-			Code:    CodeValidation,
+			Code:    codeValidation,
 			Message: "invalid request",
 			Fields:  map[string]string{"host": "you already have a rule for this host"},
 		}})

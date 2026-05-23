@@ -43,7 +43,7 @@ func (d EntriesDeps) List(c *gin.Context) {
 	if !ok {
 		d.Logger.Error("handler: user missing from context", zap.String("handler", "Entries.List"))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -53,14 +53,14 @@ func (d EntriesDeps) List(c *gin.Context) {
 		var verr validator.ValidationErrors
 		if errors.As(err, &verr) {
 			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
-				Code:    CodeValidation,
+				Code:    codeValidation,
 				Message: "invalid query",
 				Fields:  validationFieldsFromErr(verr),
 			}})
 			return
 		}
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorBody{Error: ErrorDetail{
-			Code:    CodeBadRequest,
+			Code:    codeBadRequest,
 			Message: "invalid query",
 		}})
 		return
@@ -69,7 +69,7 @@ func (d EntriesDeps) List(c *gin.Context) {
 	if err != nil {
 		d.Logger.Error("list entries", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -98,7 +98,7 @@ func (d EntriesDeps) Capture(c *gin.Context) {
 	if !ok {
 		d.Logger.Error("handler: user missing from context", zap.String("handler", "Entries.Capture"))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -108,14 +108,14 @@ func (d EntriesDeps) Capture(c *gin.Context) {
 		var verr validator.ValidationErrors
 		if errors.As(err, &verr) {
 			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
-				Code:    CodeValidation,
+				Code:    codeValidation,
 				Message: "invalid request",
 				Fields:  validationFieldsFromErr(verr),
 			}})
 			return
 		}
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorBody{Error: ErrorDetail{
-			Code:    CodeBadRequest,
+			Code:    codeBadRequest,
 			Message: "invalid request body",
 		}})
 		return
@@ -129,14 +129,14 @@ func (d EntriesDeps) Capture(c *gin.Context) {
 		switch {
 		case errors.Is(err, models.ErrEntryCaptureSeriesRequired):
 			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
-				Code:    CodeValidation,
+				Code:    codeValidation,
 				Message: "series_id or new_series_title is required when creating a new entry",
 				Fields:  map[string]string{"series_id": "required (or new_series_title)"},
 			}})
 			return
 		case errors.Is(err, models.ErrSeriesNotFound):
 			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
-				Code:    CodeValidation,
+				Code:    codeValidation,
 				Message: "series_id does not exist",
 				Fields:  map[string]string{"series_id": "does not exist"},
 			}})
@@ -144,7 +144,7 @@ func (d EntriesDeps) Capture(c *gin.Context) {
 		}
 		d.Logger.Error("capture", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -178,7 +178,7 @@ func (d EntriesDeps) Patch(c *gin.Context) {
 	if !ok {
 		d.Logger.Error("handler: user missing from context", zap.String("handler", "Entries.Patch"))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -196,14 +196,14 @@ func (d EntriesDeps) Patch(c *gin.Context) {
 		var verr validator.ValidationErrors
 		if errors.As(err, &verr) {
 			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
-				Code:    CodeValidation,
+				Code:    codeValidation,
 				Message: "invalid request",
 				Fields:  validationFieldsFromErr(verr),
 			}})
 			return
 		}
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorBody{Error: ErrorDetail{
-			Code:    CodeBadRequest,
+			Code:    codeBadRequest,
 			Message: "invalid request body",
 		}})
 		return
@@ -219,7 +219,7 @@ func (d EntriesDeps) Patch(c *gin.Context) {
 			return
 		case errors.Is(err, models.ErrSeriesNotFound):
 			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
-				Code:    CodeValidation,
+				Code:    codeValidation,
 				Message: "series_id does not exist",
 				Fields:  map[string]string{"series_id": "does not exist"},
 			}})
@@ -227,7 +227,7 @@ func (d EntriesDeps) Patch(c *gin.Context) {
 		}
 		d.Logger.Error("patch entry", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -251,7 +251,7 @@ func (d EntriesDeps) Delete(c *gin.Context) {
 	if !ok {
 		d.Logger.Error("handler: user missing from context", zap.String("handler", "Entries.Delete"))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -274,7 +274,7 @@ func (d EntriesDeps) Delete(c *gin.Context) {
 		}
 		d.Logger.Error("delete entry", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return

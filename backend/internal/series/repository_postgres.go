@@ -22,7 +22,7 @@ func newPostgresRepository(db *sql.DB) *postgresRepo {
 	return &postgresRepo{db: db, q: pg.New(db)}
 }
 
-func (r *postgresRepo) InsertSeries(ctx context.Context, p InsertSeriesParams) (models.Series, error) {
+func (r *postgresRepo) insertSeries(ctx context.Context, p insertSeriesParams) (models.Series, error) {
 	row, err := r.q.CreateSeries(ctx, pg.CreateSeriesParams{
 		UserID:    p.UserID,
 		Title:     p.Title,
@@ -38,18 +38,18 @@ func (r *postgresRepo) InsertSeries(ctx context.Context, p InsertSeriesParams) (
 	return seriesFromPostgres(row), nil
 }
 
-func (r *postgresRepo) GetSeriesByID(ctx context.Context, userID, seriesID int64) (models.Series, error) {
+func (r *postgresRepo) getSeriesByID(ctx context.Context, userID, seriesID int64) (models.Series, error) {
 	row, err := r.q.GetSeriesByID(ctx, pg.GetSeriesByIDParams{ID: seriesID, UserID: userID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Series{}, ErrNotFound
+			return models.Series{}, errNotFound
 		}
 		return models.Series{}, fmt.Errorf("series: get by id: %w", err)
 	}
 	return seriesFromPostgres(row), nil
 }
 
-func (r *postgresRepo) UpdateSeries(ctx context.Context, p UpdateSeriesParams) (models.Series, error) {
+func (r *postgresRepo) updateSeries(ctx context.Context, p updateSeriesParams) (models.Series, error) {
 	row, err := r.q.UpdateSeries(ctx, pg.UpdateSeriesParams{
 		Title:     p.Title,
 		Status:    p.Status,
@@ -61,14 +61,14 @@ func (r *postgresRepo) UpdateSeries(ctx context.Context, p UpdateSeriesParams) (
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Series{}, ErrNotFound
+			return models.Series{}, errNotFound
 		}
 		return models.Series{}, fmt.Errorf("series: update: %w", err)
 	}
 	return seriesFromPostgres(row), nil
 }
 
-func (r *postgresRepo) DeleteSeries(ctx context.Context, userID, seriesID int64) (int64, error) {
+func (r *postgresRepo) deleteSeries(ctx context.Context, userID, seriesID int64) (int64, error) {
 	n, err := r.q.DeleteSeries(ctx, pg.DeleteSeriesParams{ID: seriesID, UserID: userID})
 	if err != nil {
 		return 0, fmt.Errorf("series: delete: %w", err)
@@ -76,7 +76,7 @@ func (r *postgresRepo) DeleteSeries(ctx context.Context, userID, seriesID int64)
 	return n, nil
 }
 
-func (r *postgresRepo) ListSummariesAll(ctx context.Context, p ListSummariesAllParams) ([]models.SeriesSummary, error) {
+func (r *postgresRepo) listSummariesAll(ctx context.Context, p listSummariesAllParams) ([]models.SeriesSummary, error) {
 	if len(p.Tags) > 0 {
 		return r.listSummariesFilteredByTags(ctx, listFilterArgs{
 			userID:   p.UserID,
@@ -100,7 +100,7 @@ func (r *postgresRepo) ListSummariesAll(ctx context.Context, p ListSummariesAllP
 	return out, nil
 }
 
-func (r *postgresRepo) ListSummariesByStatus(ctx context.Context, p ListSummariesByStatusParams) ([]models.SeriesSummary, error) {
+func (r *postgresRepo) listSummariesByStatus(ctx context.Context, p listSummariesByStatusParams) ([]models.SeriesSummary, error) {
 	if len(p.Tags) > 0 {
 		return r.listSummariesFilteredByTags(ctx, listFilterArgs{
 			userID:   p.UserID,
@@ -126,18 +126,18 @@ func (r *postgresRepo) ListSummariesByStatus(ctx context.Context, p ListSummarie
 	return out, nil
 }
 
-func (r *postgresRepo) GetSummary(ctx context.Context, userID, seriesID int64) (models.SeriesSummary, error) {
+func (r *postgresRepo) getSummary(ctx context.Context, userID, seriesID int64) (models.SeriesSummary, error) {
 	row, err := r.q.GetSeriesSummary(ctx, pg.GetSeriesSummaryParams{ID: seriesID, UserID: userID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.SeriesSummary{}, ErrNotFound
+			return models.SeriesSummary{}, errNotFound
 		}
 		return models.SeriesSummary{}, fmt.Errorf("series: get summary: %w", err)
 	}
 	return summaryFromPostgresSummaryRow(row), nil
 }
 
-func (r *postgresRepo) CountAll(ctx context.Context, p CountAllParams) (int64, error) {
+func (r *postgresRepo) countAll(ctx context.Context, p countAllParams) (int64, error) {
 	if len(p.Tags) > 0 {
 		return r.countFilteredByTags(ctx, listFilterArgs{
 			userID:   p.UserID,
@@ -151,7 +151,7 @@ func (r *postgresRepo) CountAll(ctx context.Context, p CountAllParams) (int64, e
 	return n, nil
 }
 
-func (r *postgresRepo) CountByStatus(ctx context.Context, p CountByStatusParams) (int64, error) {
+func (r *postgresRepo) countByStatus(ctx context.Context, p countByStatusParams) (int64, error) {
 	if len(p.Tags) > 0 {
 		return r.countFilteredByTags(ctx, listFilterArgs{
 			userID:   p.UserID,
@@ -166,7 +166,7 @@ func (r *postgresRepo) CountByStatus(ctx context.Context, p CountByStatusParams)
 	return n, nil
 }
 
-func (r *postgresRepo) SetSeriesTags(ctx context.Context, userID, seriesID int64, names []string) error {
+func (r *postgresRepo) setSeriesTags(ctx context.Context, userID, seriesID int64, names []string) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("series: begin tx: %w", err)
@@ -200,7 +200,7 @@ func (r *postgresRepo) SetSeriesTags(ctx context.Context, userID, seriesID int64
 	return nil
 }
 
-func (r *postgresRepo) GetSeriesTags(ctx context.Context, seriesID int64) ([]string, error) {
+func (r *postgresRepo) getSeriesTags(ctx context.Context, seriesID int64) ([]string, error) {
 	names, err := r.q.GetSeriesTags(ctx, seriesID)
 	if err != nil {
 		return nil, fmt.Errorf("series: get tags: %w", err)
@@ -211,7 +211,7 @@ func (r *postgresRepo) GetSeriesTags(ctx context.Context, seriesID int64) ([]str
 	return names, nil
 }
 
-func (r *postgresRepo) ListSeriesTagsBatch(ctx context.Context, seriesIDs []int64) (map[int64][]string, error) {
+func (r *postgresRepo) listSeriesTagsBatch(ctx context.Context, seriesIDs []int64) (map[int64][]string, error) {
 	if len(seriesIDs) == 0 {
 		return map[int64][]string{}, nil
 	}

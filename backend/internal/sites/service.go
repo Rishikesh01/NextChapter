@@ -63,7 +63,7 @@ func (e *MissingCaptureGroupError) Is(target error) bool {
 
 // Service exposes the sites domain to handlers.
 type Service struct {
-	repo   Repository
+	repo   repository
 	logger *zap.Logger
 }
 
@@ -72,7 +72,7 @@ type Service struct {
 var _ SitesService = (*Service)(nil)
 
 // NewService builds a Service.
-func NewService(repo Repository, logger *zap.Logger) *Service {
+func NewService(repo repository, logger *zap.Logger) *Service {
 	return &Service{repo: repo, logger: logger}
 }
 
@@ -80,7 +80,7 @@ func NewService(repo Repository, logger *zap.Logger) *Service {
 // The slice is always non-nil so the GET /sites wire shape carries
 // `rules: []` rather than `rules: null` for a user with no rules.
 func (s *Service) ListSiteRules(ctx context.Context, userID int64) ([]models.SiteRule, error) {
-	rows, err := s.repo.ListSiteRulesByUser(ctx, userID)
+	rows, err := s.repo.listSiteRulesByUser(ctx, userID)
 	if err != nil {
 		s.logger.Error("list site rules",
 			zap.Int64("user_id", userID),
@@ -114,7 +114,7 @@ func (s *Service) AddSiteRule(ctx context.Context, userID int64, draft models.Si
 	// Pre-check the (user, host) uniqueness rather than rely on the
 	// sqlite unique-violation error string: a typed sentinel return
 	// is cleaner and the extra round-trip is cheap.
-	_, err := s.repo.GetSiteRuleByHost(ctx, userID, draft.Host)
+	_, err := s.repo.getSiteRuleByHost(ctx, userID, draft.Host)
 	switch {
 	case err == nil:
 		s.logger.Info("add site rule rejected: host taken",
@@ -133,7 +133,7 @@ func (s *Service) AddSiteRule(ctx context.Context, userID int64, draft models.Si
 		return models.SiteRule{}, err
 	}
 	now := time.Now().UTC()
-	row, err := s.repo.InsertSiteRule(ctx, InsertSiteRuleParams{
+	row, err := s.repo.insertSiteRule(ctx, insertSiteRuleParams{
 		UserID:              userID,
 		Host:                draft.Host,
 		ChapterURLRegex:     draft.ChapterURLRegex,
@@ -164,7 +164,7 @@ func (s *Service) AddSiteRule(ctx context.Context, userID int64, draft models.Si
 // before persistence so a partial edit can't leave the row in a
 // state that fails on read.
 func (s *Service) EditSiteRule(ctx context.Context, userID, ruleID int64, patch models.SiteRulePatch) (models.SiteRule, error) {
-	current, err := s.repo.GetSiteRuleByID(ctx, userID, ruleID)
+	current, err := s.repo.getSiteRuleByID(ctx, userID, ruleID)
 	if err != nil {
 		return models.SiteRule{}, err
 	}
@@ -195,7 +195,7 @@ func (s *Service) EditSiteRule(ctx context.Context, userID, ruleID int64, patch 
 	// If host is being changed, ensure the new host isn't already
 	// taken by a different rule under this user.
 	if host != current.Host {
-		other, err := s.repo.GetSiteRuleByHost(ctx, userID, host)
+		other, err := s.repo.getSiteRuleByHost(ctx, userID, host)
 		switch {
 		case err == nil && other.ID != ruleID:
 			s.logger.Info("edit site rule rejected: host taken",
@@ -215,7 +215,7 @@ func (s *Service) EditSiteRule(ctx context.Context, userID, ruleID int64, patch 
 		}
 	}
 	now := time.Now().UTC()
-	row, err := s.repo.UpdateSiteRule(ctx, UpdateSiteRuleParams{
+	row, err := s.repo.updateSiteRule(ctx, updateSiteRuleParams{
 		ID:                  ruleID,
 		UserID:              userID,
 		Host:                host,
@@ -243,7 +243,7 @@ func (s *Service) EditSiteRule(ctx context.Context, userID, ruleID int64, patch 
 // RemoveSiteRule deletes a site rule. Returns
 // [models.ErrSiteRuleNotFound] if no row matched.
 func (s *Service) RemoveSiteRule(ctx context.Context, userID, ruleID int64) error {
-	n, err := s.repo.DeleteSiteRule(ctx, userID, ruleID)
+	n, err := s.repo.deleteSiteRule(ctx, userID, ruleID)
 	if err != nil {
 		s.logger.Error("remove site rule: delete",
 			zap.Int64("user_id", userID),
@@ -287,7 +287,7 @@ func (s *Service) SeedSiteRulesForUser(ctx context.Context, userID int64) error 
 	for _, d := range Defaults {
 		// Skip if already present — bootstrap retries shouldn't 422
 		// on duplicate-host.
-		if _, err := s.repo.GetSiteRuleByHost(ctx, userID, d.Host); err == nil {
+		if _, err := s.repo.getSiteRuleByHost(ctx, userID, d.Host); err == nil {
 			continue
 		} else if !errors.Is(err, models.ErrSiteRuleNotFound) {
 			s.logger.Error("seed: host lookup",
@@ -297,7 +297,7 @@ func (s *Service) SeedSiteRulesForUser(ctx context.Context, userID int64) error 
 			)
 			return err
 		}
-		if _, err := s.repo.InsertSiteRule(ctx, InsertSiteRuleParams{
+		if _, err := s.repo.insertSiteRule(ctx, insertSiteRuleParams{
 			UserID:              userID,
 			Host:                d.Host,
 			ChapterURLRegex:     d.ChapterURLRegex,

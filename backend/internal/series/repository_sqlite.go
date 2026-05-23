@@ -21,7 +21,7 @@ func newSQLiteRepository(db *sql.DB) *sqliteRepo {
 	return &sqliteRepo{db: db, q: gen.New(db)}
 }
 
-func (r *sqliteRepo) InsertSeries(ctx context.Context, p InsertSeriesParams) (models.Series, error) {
+func (r *sqliteRepo) insertSeries(ctx context.Context, p insertSeriesParams) (models.Series, error) {
 	row, err := r.q.CreateSeries(ctx, gen.CreateSeriesParams{
 		UserID:    p.UserID,
 		Title:     p.Title,
@@ -37,18 +37,18 @@ func (r *sqliteRepo) InsertSeries(ctx context.Context, p InsertSeriesParams) (mo
 	return seriesFromSQLite(row), nil
 }
 
-func (r *sqliteRepo) GetSeriesByID(ctx context.Context, userID, seriesID int64) (models.Series, error) {
+func (r *sqliteRepo) getSeriesByID(ctx context.Context, userID, seriesID int64) (models.Series, error) {
 	row, err := r.q.GetSeriesByID(ctx, gen.GetSeriesByIDParams{ID: seriesID, UserID: userID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Series{}, ErrNotFound
+			return models.Series{}, errNotFound
 		}
 		return models.Series{}, fmt.Errorf("series: get by id: %w", err)
 	}
 	return seriesFromSQLite(row), nil
 }
 
-func (r *sqliteRepo) UpdateSeries(ctx context.Context, p UpdateSeriesParams) (models.Series, error) {
+func (r *sqliteRepo) updateSeries(ctx context.Context, p updateSeriesParams) (models.Series, error) {
 	row, err := r.q.UpdateSeries(ctx, gen.UpdateSeriesParams{
 		Title:     p.Title,
 		Status:    p.Status,
@@ -60,14 +60,14 @@ func (r *sqliteRepo) UpdateSeries(ctx context.Context, p UpdateSeriesParams) (mo
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Series{}, ErrNotFound
+			return models.Series{}, errNotFound
 		}
 		return models.Series{}, fmt.Errorf("series: update: %w", err)
 	}
 	return seriesFromSQLite(row), nil
 }
 
-func (r *sqliteRepo) DeleteSeries(ctx context.Context, userID, seriesID int64) (int64, error) {
+func (r *sqliteRepo) deleteSeries(ctx context.Context, userID, seriesID int64) (int64, error) {
 	n, err := r.q.DeleteSeries(ctx, gen.DeleteSeriesParams{ID: seriesID, UserID: userID})
 	if err != nil {
 		return 0, fmt.Errorf("series: delete: %w", err)
@@ -75,7 +75,7 @@ func (r *sqliteRepo) DeleteSeries(ctx context.Context, userID, seriesID int64) (
 	return n, nil
 }
 
-func (r *sqliteRepo) ListSummariesAll(ctx context.Context, p ListSummariesAllParams) ([]models.SeriesSummary, error) {
+func (r *sqliteRepo) listSummariesAll(ctx context.Context, p listSummariesAllParams) ([]models.SeriesSummary, error) {
 	if len(p.Tags) > 0 {
 		return r.listSummariesFilteredByTags(ctx, listFilterArgs{
 			userID:   p.UserID,
@@ -99,7 +99,7 @@ func (r *sqliteRepo) ListSummariesAll(ctx context.Context, p ListSummariesAllPar
 	return out, nil
 }
 
-func (r *sqliteRepo) ListSummariesByStatus(ctx context.Context, p ListSummariesByStatusParams) ([]models.SeriesSummary, error) {
+func (r *sqliteRepo) listSummariesByStatus(ctx context.Context, p listSummariesByStatusParams) ([]models.SeriesSummary, error) {
 	if len(p.Tags) > 0 {
 		return r.listSummariesFilteredByTags(ctx, listFilterArgs{
 			userID:   p.UserID,
@@ -125,18 +125,18 @@ func (r *sqliteRepo) ListSummariesByStatus(ctx context.Context, p ListSummariesB
 	return out, nil
 }
 
-func (r *sqliteRepo) GetSummary(ctx context.Context, userID, seriesID int64) (models.SeriesSummary, error) {
+func (r *sqliteRepo) getSummary(ctx context.Context, userID, seriesID int64) (models.SeriesSummary, error) {
 	row, err := r.q.GetSeriesSummary(ctx, gen.GetSeriesSummaryParams{ID: seriesID, UserID: userID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.SeriesSummary{}, ErrNotFound
+			return models.SeriesSummary{}, errNotFound
 		}
 		return models.SeriesSummary{}, fmt.Errorf("series: get summary: %w", err)
 	}
 	return summaryFromSQLiteSummaryRow(row), nil
 }
 
-func (r *sqliteRepo) CountAll(ctx context.Context, p CountAllParams) (int64, error) {
+func (r *sqliteRepo) countAll(ctx context.Context, p countAllParams) (int64, error) {
 	if len(p.Tags) > 0 {
 		return r.countFilteredByTags(ctx, listFilterArgs{
 			userID:   p.UserID,
@@ -150,7 +150,7 @@ func (r *sqliteRepo) CountAll(ctx context.Context, p CountAllParams) (int64, err
 	return n, nil
 }
 
-func (r *sqliteRepo) CountByStatus(ctx context.Context, p CountByStatusParams) (int64, error) {
+func (r *sqliteRepo) countByStatus(ctx context.Context, p countByStatusParams) (int64, error) {
 	if len(p.Tags) > 0 {
 		return r.countFilteredByTags(ctx, listFilterArgs{
 			userID:   p.UserID,
@@ -165,12 +165,12 @@ func (r *sqliteRepo) CountByStatus(ctx context.Context, p CountByStatusParams) (
 	return n, nil
 }
 
-// SetSeriesTags is a transactional full-replace of the supplied
+// setSeriesTags is a transactional full-replace of the supplied
 // series' tag links. Each name is upserted into `tag` (idempotent via
 // UNIQUE(user_id, name)) and the existing `series_tag` rows for this
 // series are dropped before the new links are inserted. An empty
 // `names` slice clears the series' tags.
-func (r *sqliteRepo) SetSeriesTags(ctx context.Context, userID, seriesID int64, names []string) error {
+func (r *sqliteRepo) setSeriesTags(ctx context.Context, userID, seriesID int64, names []string) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("series: begin tx: %w", err)
@@ -204,7 +204,7 @@ func (r *sqliteRepo) SetSeriesTags(ctx context.Context, userID, seriesID int64, 
 	return nil
 }
 
-func (r *sqliteRepo) GetSeriesTags(ctx context.Context, seriesID int64) ([]string, error) {
+func (r *sqliteRepo) getSeriesTags(ctx context.Context, seriesID int64) ([]string, error) {
 	names, err := r.q.GetSeriesTags(ctx, seriesID)
 	if err != nil {
 		return nil, fmt.Errorf("series: get tags: %w", err)
@@ -215,7 +215,7 @@ func (r *sqliteRepo) GetSeriesTags(ctx context.Context, seriesID int64) ([]strin
 	return names, nil
 }
 
-func (r *sqliteRepo) ListSeriesTagsBatch(ctx context.Context, seriesIDs []int64) (map[int64][]string, error) {
+func (r *sqliteRepo) listSeriesTagsBatch(ctx context.Context, seriesIDs []int64) (map[int64][]string, error) {
 	if len(seriesIDs) == 0 {
 		return map[int64][]string{}, nil
 	}

@@ -18,7 +18,7 @@ func newSQLiteRepository(db *sql.DB) *sqliteRepo {
 	return &sqliteRepo{q: gen.New(db)}
 }
 
-func (r *sqliteRepo) CreateToken(ctx context.Context, p InsertTokenParams) (models.Token, error) {
+func (r *sqliteRepo) createToken(ctx context.Context, p insertTokenParams) (models.Token, error) {
 	var label sql.NullString
 	if p.LabelValid {
 		label = sql.NullString{String: p.Label, Valid: true}
@@ -38,15 +38,15 @@ func (r *sqliteRepo) CreateToken(ctx context.Context, p InsertTokenParams) (mode
 	return tokenFromSQLite(row), nil
 }
 
-func (r *sqliteRepo) GetTokenByHash(ctx context.Context, tokenHash string) (TokenWithUser, error) {
+func (r *sqliteRepo) getTokenByHash(ctx context.Context, tokenHash string) (tokenWithUser, error) {
 	row, err := r.q.GetAuthTokenByHash(ctx, tokenHash)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return TokenWithUser{}, ErrTokenNotFound
+			return tokenWithUser{}, ErrTokenNotFound
 		}
-		return TokenWithUser{}, fmt.Errorf("auth: lookup token: %w", err)
+		return tokenWithUser{}, fmt.Errorf("auth: lookup token: %w", err)
 	}
-	return TokenWithUser{
+	return tokenWithUser{
 		Token: models.Token{
 			ID:         row.ID,
 			UserID:     row.UserID,
@@ -64,7 +64,7 @@ func (r *sqliteRepo) GetTokenByHash(ctx context.Context, tokenHash string) (Toke
 	}, nil
 }
 
-func (r *sqliteRepo) DeleteTokenByID(ctx context.Context, userID, tokenID int64) (int64, error) {
+func (r *sqliteRepo) deleteTokenByID(ctx context.Context, userID, tokenID int64) (int64, error) {
 	n, err := r.q.DeleteAuthTokenByID(ctx, gen.DeleteAuthTokenByIDParams{
 		ID:     tokenID,
 		UserID: userID,
@@ -75,7 +75,7 @@ func (r *sqliteRepo) DeleteTokenByID(ctx context.Context, userID, tokenID int64)
 	return n, nil
 }
 
-func (r *sqliteRepo) DeleteTokenByHash(ctx context.Context, tokenHash string) error {
+func (r *sqliteRepo) deleteTokenByHash(ctx context.Context, tokenHash string) error {
 	if err := r.q.DeleteAuthTokenByHash(ctx, tokenHash); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil

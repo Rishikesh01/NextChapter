@@ -18,7 +18,7 @@ func newSQLiteRepository(db *sql.DB) *sqliteRepo {
 	return &sqliteRepo{q: gen.New(db)}
 }
 
-func (r *sqliteRepo) InsertSiteRule(ctx context.Context, p InsertSiteRuleParams) (models.SiteRule, error) {
+func (r *sqliteRepo) insertSiteRule(ctx context.Context, p insertSiteRuleParams) (models.SiteRule, error) {
 	row, err := r.q.InsertSiteRule(ctx, gen.InsertSiteRuleParams{
 		UserID:              p.UserID,
 		Host:                p.Host,
@@ -34,7 +34,7 @@ func (r *sqliteRepo) InsertSiteRule(ctx context.Context, p InsertSiteRuleParams)
 	return siteRuleFromSQLite(row), nil
 }
 
-func (r *sqliteRepo) GetSiteRuleByID(ctx context.Context, userID, ruleID int64) (models.SiteRule, error) {
+func (r *sqliteRepo) getSiteRuleByID(ctx context.Context, userID, ruleID int64) (models.SiteRule, error) {
 	row, err := r.q.GetSiteRuleByID(ctx, gen.GetSiteRuleByIDParams{ID: ruleID, UserID: userID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -45,7 +45,7 @@ func (r *sqliteRepo) GetSiteRuleByID(ctx context.Context, userID, ruleID int64) 
 	return siteRuleFromSQLite(row), nil
 }
 
-func (r *sqliteRepo) GetSiteRuleByHost(ctx context.Context, userID int64, host string) (models.SiteRule, error) {
+func (r *sqliteRepo) getSiteRuleByHost(ctx context.Context, userID int64, host string) (models.SiteRule, error) {
 	row, err := r.q.GetSiteRuleByHost(ctx, gen.GetSiteRuleByHostParams{UserID: userID, Host: host})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -56,7 +56,7 @@ func (r *sqliteRepo) GetSiteRuleByHost(ctx context.Context, userID int64, host s
 	return siteRuleFromSQLite(row), nil
 }
 
-func (r *sqliteRepo) ListSiteRulesByUser(ctx context.Context, userID int64) ([]models.SiteRule, error) {
+func (r *sqliteRepo) listSiteRulesByUser(ctx context.Context, userID int64) ([]models.SiteRule, error) {
 	rows, err := r.q.ListSiteRulesByUser(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("sites: list by user: %w", err)
@@ -68,7 +68,7 @@ func (r *sqliteRepo) ListSiteRulesByUser(ctx context.Context, userID int64) ([]m
 	return out, nil
 }
 
-func (r *sqliteRepo) UpdateSiteRule(ctx context.Context, p UpdateSiteRuleParams) (models.SiteRule, error) {
+func (r *sqliteRepo) updateSiteRule(ctx context.Context, p updateSiteRuleParams) (models.SiteRule, error) {
 	row, err := r.q.UpdateSiteRule(ctx, gen.UpdateSiteRuleParams{
 		Host:                p.Host,
 		ChapterUrlRegex:     p.ChapterURLRegex,
@@ -87,7 +87,7 @@ func (r *sqliteRepo) UpdateSiteRule(ctx context.Context, p UpdateSiteRuleParams)
 	return siteRuleFromSQLite(row), nil
 }
 
-func (r *sqliteRepo) DeleteSiteRule(ctx context.Context, userID, ruleID int64) (int64, error) {
+func (r *sqliteRepo) deleteSiteRule(ctx context.Context, userID, ruleID int64) (int64, error) {
 	n, err := r.q.DeleteSiteRule(ctx, gen.DeleteSiteRuleParams{ID: ruleID, UserID: userID})
 	if err != nil {
 		return 0, fmt.Errorf("sites: delete: %w", err)

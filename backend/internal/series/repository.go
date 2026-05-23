@@ -6,12 +6,12 @@ import (
 	"time"
 )
 
-// NewRepository returns the engine-appropriate [Repository] for the
+// NewRepository returns the engine-appropriate repository for the
 // given dialect. The dialect string mirrors what [store.DialectFor]
 // returns ("sqlite3" or "postgres"). The repository keeps a handle on
-// db so [SetSeriesTags] and the hand-rolled tag-filter queries can
+// db so setSeriesTags and the hand-rolled tag-filter queries can
 // open transactions / run raw QueryContext respectively.
-func NewRepository(dialect string, db *sql.DB) (Repository, error) {
+func NewRepository(dialect string, db *sql.DB) (repository, error) {
 	switch dialect {
 	case "sqlite3":
 		return newSQLiteRepository(db), nil

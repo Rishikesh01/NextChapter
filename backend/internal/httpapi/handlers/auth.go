@@ -77,14 +77,14 @@ func (d AuthDeps) Register(c *gin.Context) {
 		var verr validator.ValidationErrors
 		if errors.As(err, &verr) {
 			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
-				Code:    CodeValidation,
+				Code:    codeValidation,
 				Message: "invalid request",
 				Fields:  validationFieldsFromErr(verr),
 			}})
 			return
 		}
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorBody{Error: ErrorDetail{
-			Code:    CodeBadRequest,
+			Code:    codeBadRequest,
 			Message: "invalid request body",
 		}})
 		return
@@ -94,7 +94,7 @@ func (d AuthDeps) Register(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, models.ErrUsernameTaken) {
 			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
-				Code:    CodeValidation,
+				Code:    codeValidation,
 				Message: "username already taken",
 				Fields:  map[string]string{"username": "already taken"},
 			}})
@@ -102,7 +102,7 @@ func (d AuthDeps) Register(c *gin.Context) {
 		}
 		d.Logger.Error("register: create user", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -119,7 +119,7 @@ func (d AuthDeps) Register(c *gin.Context) {
 	if err != nil {
 		d.Logger.Error("register: mint session", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -148,14 +148,14 @@ func (d AuthDeps) Login(c *gin.Context) {
 		var verr validator.ValidationErrors
 		if errors.As(err, &verr) {
 			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
-				Code:    CodeValidation,
+				Code:    codeValidation,
 				Message: "invalid request",
 				Fields:  validationFieldsFromErr(verr),
 			}})
 			return
 		}
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorBody{Error: ErrorDetail{
-			Code:    CodeBadRequest,
+			Code:    codeBadRequest,
 			Message: "invalid request body",
 		}})
 		return
@@ -174,7 +174,7 @@ func (d AuthDeps) Login(c *gin.Context) {
 		}
 		d.Logger.Error("login: authenticate", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -183,7 +183,7 @@ func (d AuthDeps) Login(c *gin.Context) {
 	if err != nil {
 		d.Logger.Error("login: mint session", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -255,7 +255,7 @@ func (d AuthDeps) CreateToken(c *gin.Context) {
 	if !ok {
 		d.Logger.Error("handler: user missing from context", zap.String("handler", "Auth.CreateToken"))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -265,14 +265,14 @@ func (d AuthDeps) CreateToken(c *gin.Context) {
 		var verr validator.ValidationErrors
 		if errors.As(err, &verr) {
 			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorBody{Error: ErrorDetail{
-				Code:    CodeValidation,
+				Code:    codeValidation,
 				Message: "invalid request",
 				Fields:  validationFieldsFromErr(verr),
 			}})
 			return
 		}
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorBody{Error: ErrorDetail{
-			Code:    CodeBadRequest,
+			Code:    codeBadRequest,
 			Message: "invalid request body",
 		}})
 		return
@@ -281,7 +281,7 @@ func (d AuthDeps) CreateToken(c *gin.Context) {
 	if err != nil {
 		d.Logger.Error("create token", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -305,7 +305,7 @@ func (d AuthDeps) DeleteToken(c *gin.Context) {
 	if !ok {
 		d.Logger.Error("handler: user missing from context", zap.String("handler", "Auth.DeleteToken"))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return
@@ -322,7 +322,7 @@ func (d AuthDeps) DeleteToken(c *gin.Context) {
 	if err != nil {
 		d.Logger.Error("delete token", zap.Error(err))
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorBody{Error: ErrorDetail{
-			Code:    CodeInternal,
+			Code:    codeInternal,
 			Message: "internal server error",
 		}})
 		return

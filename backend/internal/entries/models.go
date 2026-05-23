@@ -15,15 +15,15 @@ type captureResult struct {
 	Created bool
 }
 
-// GetEntryByKeyParams is the input for [Repository.GetEntryByKey].
-type GetEntryByKeyParams struct {
+// getEntryByKeyParams is the input for [repository.getEntryByKey].
+type getEntryByKeyParams struct {
 	UserID     int64
 	SiteHost   string
 	SeriesSlug string
 }
 
-// InsertEntryParams is the input for [Repository.InsertEntry].
-type InsertEntryParams struct {
+// insertEntryParams is the input for [repository.insertEntry].
+type insertEntryParams struct {
 	UserID         int64
 	SeriesID       int64
 	SiteHost       string
@@ -36,8 +36,8 @@ type InsertEntryParams struct {
 	UpdatedAt      time.Time
 }
 
-// AdvanceEntryParams is the input for [Repository.AdvanceEntry].
-type AdvanceEntryParams struct {
+// advanceEntryParams is the input for [repository.advanceEntry].
+type advanceEntryParams struct {
 	ID             int64
 	UserID         int64
 	LastChapter    float64
@@ -47,8 +47,8 @@ type AdvanceEntryParams struct {
 	UpdatedAt      time.Time
 }
 
-// UpdateEntryParams is the input for [Repository.UpdateEntry].
-type UpdateEntryParams struct {
+// updateEntryParams is the input for [repository.updateEntry].
+type updateEntryParams struct {
 	ID          int64
 	UserID      int64
 	SeriesID    int64
@@ -58,37 +58,37 @@ type UpdateEntryParams struct {
 	UpdatedAt   time.Time
 }
 
-// ListEntriesAllParams paginates the user-wide entry list.
-type ListEntriesAllParams struct {
+// listEntriesAllParams paginates the user-wide entry list.
+type listEntriesAllParams struct {
 	UserID int64
 	Limit  int64
 	Offset int64
 }
 
-// ListEntriesBySeriesParams paginates the per-series entry list.
-type ListEntriesBySeriesParams struct {
+// listEntriesBySeriesParams paginates the per-series entry list.
+type listEntriesBySeriesParams struct {
 	UserID   int64
 	SeriesID int64
 	Limit    int64
 	Offset   int64
 }
 
-// Repository is the persistence surface for the entries domain. The
+// repository is the persistence surface for the entries domain. The
 // service in this package depends on this interface; the concrete
 // implementations in repository_sqlite.go and repository_postgres.go
 // are the only things in the package that import sqlc-generated code.
-type Repository interface {
-	GetEntryByID(ctx context.Context, userID, entryID int64) (models.Entry, error)
-	GetEntryByKey(ctx context.Context, p GetEntryByKeyParams) (models.Entry, error)
-	InsertEntry(ctx context.Context, p InsertEntryParams) (models.Entry, error)
-	AdvanceEntry(ctx context.Context, p AdvanceEntryParams) (models.Entry, error)
-	UpdateEntry(ctx context.Context, p UpdateEntryParams) (models.Entry, error)
-	DeleteEntry(ctx context.Context, userID, entryID int64) (int64, error)
-	ListEntriesAll(ctx context.Context, p ListEntriesAllParams) ([]models.Entry, error)
-	ListEntriesBySeries(ctx context.Context, p ListEntriesBySeriesParams) ([]models.Entry, error)
-	ListEntriesAllForSeries(ctx context.Context, userID, seriesID int64) ([]models.Entry, error)
-	CountEntriesAll(ctx context.Context, userID int64) (int64, error)
-	CountEntriesBySeries(ctx context.Context, userID, seriesID int64) (int64, error)
-	SeriesExists(ctx context.Context, userID, seriesID int64) (bool, error)
-	ListTrackedHosts(ctx context.Context, userID int64) ([]string, error)
+type repository interface {
+	getEntryByID(ctx context.Context, userID, entryID int64) (models.Entry, error)
+	getEntryByKey(ctx context.Context, p getEntryByKeyParams) (models.Entry, error)
+	insertEntry(ctx context.Context, p insertEntryParams) (models.Entry, error)
+	advanceEntry(ctx context.Context, p advanceEntryParams) (models.Entry, error)
+	updateEntry(ctx context.Context, p updateEntryParams) (models.Entry, error)
+	deleteEntry(ctx context.Context, userID, entryID int64) (int64, error)
+	listEntriesAll(ctx context.Context, p listEntriesAllParams) ([]models.Entry, error)
+	listEntriesBySeries(ctx context.Context, p listEntriesBySeriesParams) ([]models.Entry, error)
+	listEntriesAllForSeries(ctx context.Context, userID, seriesID int64) ([]models.Entry, error)
+	countEntriesAll(ctx context.Context, userID int64) (int64, error)
+	countEntriesBySeries(ctx context.Context, userID, seriesID int64) (int64, error)
+	seriesExists(ctx context.Context, userID, seriesID int64) (bool, error)
+	listTrackedHosts(ctx context.Context, userID int64) ([]string, error)
 }

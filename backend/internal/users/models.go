@@ -25,8 +25,8 @@ type AuthRecord struct {
 	UpdatedAt    time.Time
 }
 
-// InsertUserParams is the persistence input for [Repository.InsertUser].
-type InsertUserParams struct {
+// insertUserParams is the persistence input for [Repository.InsertUser].
+type insertUserParams struct {
 	Username     string
 	PasswordHash string
 	CreatedAt    time.Time
@@ -42,6 +42,6 @@ type InsertUserParams struct {
 // GetAuthRecordByUsername returns [AuthRecord] because the auth
 // package's Authenticate needs the hash to bcrypt-compare.
 type Repository interface {
-	InsertUser(ctx context.Context, p InsertUserParams) (models.User, error)
+	InsertUser(ctx context.Context, p insertUserParams) (models.User, error)
 	GetAuthRecordByUsername(ctx context.Context, username string) (AuthRecord, error)
 }

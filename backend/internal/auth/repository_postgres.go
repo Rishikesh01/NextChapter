@@ -18,7 +18,7 @@ func newPostgresRepository(db *sql.DB) *postgresRepo {
 	return &postgresRepo{q: pg.New(db)}
 }
 
-func (r *postgresRepo) CreateToken(ctx context.Context, p InsertTokenParams) (models.Token, error) {
+func (r *postgresRepo) createToken(ctx context.Context, p insertTokenParams) (models.Token, error) {
 	var label sql.NullString
 	if p.LabelValid {
 		label = sql.NullString{String: p.Label, Valid: true}
@@ -38,15 +38,15 @@ func (r *postgresRepo) CreateToken(ctx context.Context, p InsertTokenParams) (mo
 	return tokenFromPostgres(row), nil
 }
 
-func (r *postgresRepo) GetTokenByHash(ctx context.Context, tokenHash string) (TokenWithUser, error) {
+func (r *postgresRepo) getTokenByHash(ctx context.Context, tokenHash string) (tokenWithUser, error) {
 	row, err := r.q.GetAuthTokenByHash(ctx, tokenHash)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return TokenWithUser{}, ErrTokenNotFound
+			return tokenWithUser{}, ErrTokenNotFound
 		}
-		return TokenWithUser{}, fmt.Errorf("auth: lookup token: %w", err)
+		return tokenWithUser{}, fmt.Errorf("auth: lookup token: %w", err)
 	}
-	return TokenWithUser{
+	return tokenWithUser{
 		Token: models.Token{
 			ID:         row.ID,
 			UserID:     row.UserID,
@@ -64,7 +64,7 @@ func (r *postgresRepo) GetTokenByHash(ctx context.Context, tokenHash string) (To
 	}, nil
 }
 
-func (r *postgresRepo) DeleteTokenByID(ctx context.Context, userID, tokenID int64) (int64, error) {
+func (r *postgresRepo) deleteTokenByID(ctx context.Context, userID, tokenID int64) (int64, error) {
 	n, err := r.q.DeleteAuthTokenByID(ctx, pg.DeleteAuthTokenByIDParams{
 		ID:     tokenID,
 		UserID: userID,
@@ -75,7 +75,7 @@ func (r *postgresRepo) DeleteTokenByID(ctx context.Context, userID, tokenID int6
 	return n, nil
 }
 
-func (r *postgresRepo) DeleteTokenByHash(ctx context.Context, tokenHash string) error {
+func (r *postgresRepo) deleteTokenByHash(ctx context.Context, tokenHash string) error {
 	if err := r.q.DeleteAuthTokenByHash(ctx, tokenHash); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil

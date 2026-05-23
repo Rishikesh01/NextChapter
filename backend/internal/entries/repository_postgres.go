@@ -18,18 +18,18 @@ func newPostgresRepository(db *sql.DB) *postgresRepo {
 	return &postgresRepo{q: pg.New(db)}
 }
 
-func (r *postgresRepo) GetEntryByID(ctx context.Context, userID, entryID int64) (models.Entry, error) {
+func (r *postgresRepo) getEntryByID(ctx context.Context, userID, entryID int64) (models.Entry, error) {
 	row, err := r.q.GetEntryByID(ctx, pg.GetEntryByIDParams{ID: entryID, UserID: userID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Entry{}, ErrNotFound
+			return models.Entry{}, errNotFound
 		}
 		return models.Entry{}, fmt.Errorf("entries: get by id: %w", err)
 	}
 	return entryFromPostgres(row), nil
 }
 
-func (r *postgresRepo) GetEntryByKey(ctx context.Context, p GetEntryByKeyParams) (models.Entry, error) {
+func (r *postgresRepo) getEntryByKey(ctx context.Context, p getEntryByKeyParams) (models.Entry, error) {
 	row, err := r.q.GetEntryByKey(ctx, pg.GetEntryByKeyParams{
 		UserID:     p.UserID,
 		SiteHost:   p.SiteHost,
@@ -37,14 +37,14 @@ func (r *postgresRepo) GetEntryByKey(ctx context.Context, p GetEntryByKeyParams)
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Entry{}, ErrNotFound
+			return models.Entry{}, errNotFound
 		}
 		return models.Entry{}, fmt.Errorf("entries: get by key: %w", err)
 	}
 	return entryFromPostgres(row), nil
 }
 
-func (r *postgresRepo) InsertEntry(ctx context.Context, p InsertEntryParams) (models.Entry, error) {
+func (r *postgresRepo) insertEntry(ctx context.Context, p insertEntryParams) (models.Entry, error) {
 	row, err := r.q.CreateEntry(ctx, pg.CreateEntryParams{
 		UserID:         p.UserID,
 		SeriesID:       p.SeriesID,
@@ -63,7 +63,7 @@ func (r *postgresRepo) InsertEntry(ctx context.Context, p InsertEntryParams) (mo
 	return entryFromPostgres(row), nil
 }
 
-func (r *postgresRepo) AdvanceEntry(ctx context.Context, p AdvanceEntryParams) (models.Entry, error) {
+func (r *postgresRepo) advanceEntry(ctx context.Context, p advanceEntryParams) (models.Entry, error) {
 	row, err := r.q.AdvanceEntry(ctx, pg.AdvanceEntryParams{
 		LastChapter:    p.LastChapter,
 		LastUrl:        p.LastURL,
@@ -79,7 +79,7 @@ func (r *postgresRepo) AdvanceEntry(ctx context.Context, p AdvanceEntryParams) (
 	return entryFromPostgres(row), nil
 }
 
-func (r *postgresRepo) UpdateEntry(ctx context.Context, p UpdateEntryParams) (models.Entry, error) {
+func (r *postgresRepo) updateEntry(ctx context.Context, p updateEntryParams) (models.Entry, error) {
 	row, err := r.q.UpdateEntry(ctx, pg.UpdateEntryParams{
 		SeriesID:    p.SeriesID,
 		LastChapter: p.LastChapter,
@@ -91,14 +91,14 @@ func (r *postgresRepo) UpdateEntry(ctx context.Context, p UpdateEntryParams) (mo
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Entry{}, ErrNotFound
+			return models.Entry{}, errNotFound
 		}
 		return models.Entry{}, fmt.Errorf("entries: update: %w", err)
 	}
 	return entryFromPostgres(row), nil
 }
 
-func (r *postgresRepo) DeleteEntry(ctx context.Context, userID, entryID int64) (int64, error) {
+func (r *postgresRepo) deleteEntry(ctx context.Context, userID, entryID int64) (int64, error) {
 	n, err := r.q.DeleteEntry(ctx, pg.DeleteEntryParams{ID: entryID, UserID: userID})
 	if err != nil {
 		return 0, fmt.Errorf("entries: delete: %w", err)
@@ -106,7 +106,7 @@ func (r *postgresRepo) DeleteEntry(ctx context.Context, userID, entryID int64) (
 	return n, nil
 }
 
-func (r *postgresRepo) ListEntriesAll(ctx context.Context, p ListEntriesAllParams) ([]models.Entry, error) {
+func (r *postgresRepo) listEntriesAll(ctx context.Context, p listEntriesAllParams) ([]models.Entry, error) {
 	rows, err := r.q.ListEntriesAll(ctx, pg.ListEntriesAllParams{
 		UserID: p.UserID,
 		Lim:    p.Limit,
@@ -122,7 +122,7 @@ func (r *postgresRepo) ListEntriesAll(ctx context.Context, p ListEntriesAllParam
 	return out, nil
 }
 
-func (r *postgresRepo) ListEntriesBySeries(ctx context.Context, p ListEntriesBySeriesParams) ([]models.Entry, error) {
+func (r *postgresRepo) listEntriesBySeries(ctx context.Context, p listEntriesBySeriesParams) ([]models.Entry, error) {
 	rows, err := r.q.ListEntriesBySeries(ctx, pg.ListEntriesBySeriesParams{
 		UserID:   p.UserID,
 		SeriesID: p.SeriesID,
@@ -139,7 +139,7 @@ func (r *postgresRepo) ListEntriesBySeries(ctx context.Context, p ListEntriesByS
 	return out, nil
 }
 
-func (r *postgresRepo) ListEntriesAllForSeries(ctx context.Context, userID, seriesID int64) ([]models.Entry, error) {
+func (r *postgresRepo) listEntriesAllForSeries(ctx context.Context, userID, seriesID int64) ([]models.Entry, error) {
 	rows, err := r.q.ListEntriesAllForSeries(ctx, pg.ListEntriesAllForSeriesParams{
 		UserID:   userID,
 		SeriesID: seriesID,
@@ -154,7 +154,7 @@ func (r *postgresRepo) ListEntriesAllForSeries(ctx context.Context, userID, seri
 	return out, nil
 }
 
-func (r *postgresRepo) CountEntriesAll(ctx context.Context, userID int64) (int64, error) {
+func (r *postgresRepo) countEntriesAll(ctx context.Context, userID int64) (int64, error) {
 	n, err := r.q.CountEntriesAll(ctx, userID)
 	if err != nil {
 		return 0, fmt.Errorf("entries: count all: %w", err)
@@ -162,7 +162,7 @@ func (r *postgresRepo) CountEntriesAll(ctx context.Context, userID int64) (int64
 	return n, nil
 }
 
-func (r *postgresRepo) CountEntriesBySeries(ctx context.Context, userID, seriesID int64) (int64, error) {
+func (r *postgresRepo) countEntriesBySeries(ctx context.Context, userID, seriesID int64) (int64, error) {
 	n, err := r.q.CountEntriesBySeries(ctx, pg.CountEntriesBySeriesParams{
 		UserID:   userID,
 		SeriesID: seriesID,
@@ -173,7 +173,7 @@ func (r *postgresRepo) CountEntriesBySeries(ctx context.Context, userID, seriesI
 	return n, nil
 }
 
-func (r *postgresRepo) SeriesExists(ctx context.Context, userID, seriesID int64) (bool, error) {
+func (r *postgresRepo) seriesExists(ctx context.Context, userID, seriesID int64) (bool, error) {
 	v, err := r.q.SeriesExists(ctx, pg.SeriesExistsParams{ID: seriesID, UserID: userID})
 	if err != nil {
 		return false, fmt.Errorf("entries: series exists: %w", err)
@@ -181,7 +181,7 @@ func (r *postgresRepo) SeriesExists(ctx context.Context, userID, seriesID int64)
 	return v != 0, nil
 }
 
-func (r *postgresRepo) ListTrackedHosts(ctx context.Context, userID int64) ([]string, error) {
+func (r *postgresRepo) listTrackedHosts(ctx context.Context, userID int64) ([]string, error) {
 	hosts, err := r.q.ListTrackedHosts(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("entries: list tracked hosts: %w", err)

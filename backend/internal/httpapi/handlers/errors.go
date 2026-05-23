@@ -1,14 +1,14 @@
 package handlers
 
 // Error codes used in the ErrorBody envelope. The set matches the
-// openapi schema description.
+// openapi schema description. CodeUnauthorized and CodeNotFound are
+// referenced by middleware / router; the rest are handler-internal.
 const (
-	CodeBadRequest   = "bad_request"
+	codeBadRequest   = "bad_request"
 	CodeUnauthorized = "unauthorized"
 	CodeNotFound     = "not_found"
-	CodeValidation   = "validation"
-	CodeConflict     = "conflict"
-	CodeInternal     = "internal"
+	codeValidation   = "validation"
+	codeInternal     = "internal"
 )
 
 // ErrorBody is the JSON envelope returned on any non-2xx (except 204).

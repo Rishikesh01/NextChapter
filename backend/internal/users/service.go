@@ -14,15 +14,6 @@ import (
 	"github.com/enable-it/nextchapter/backend/internal/models"
 )
 
-// Re-exported sentinels so callers inside this package (and the
-// integration tests, historically) can use the short name. The
-// canonical values live in [models] so handlers can errors.Is without
-// importing this package.
-var (
-	ErrUsernameTaken = models.ErrUsernameTaken
-	ErrNotFound      = models.ErrUserNotFound
-)
-
 // UsersService is the surface the HTTP handlers consume for user
 // account lifecycle. Credential verification lives on
 // [internal/auth].Service.Authenticate, not here: the users service
@@ -77,7 +68,7 @@ func (s *Service) Register(ctx context.Context, registration models.Registration
 		return models.User{}, fmt.Errorf("users: hash password: %w", err)
 	}
 	now := time.Now().UTC()
-	u, err := s.repo.InsertUser(ctx, InsertUserParams{
+	u, err := s.repo.InsertUser(ctx, insertUserParams{
 		Username:     registration.Username,
 		PasswordHash: string(h),
 		CreatedAt:    now,

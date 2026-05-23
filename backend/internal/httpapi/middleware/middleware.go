@@ -30,7 +30,7 @@ const (
 
 // RequestID assigns an opaque request id to every request, stores it on
 // the gin context, the request context, and the response header. Logs
-// downstream pick it up via [RequestIDFromContext].
+// downstream pick it up via requestIDFromContext.
 func RequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.GetHeader(headerRequestID)
@@ -44,7 +44,7 @@ func RequestID() gin.HandlerFunc {
 	}
 }
 
-// RequestIDFromContext returns the request id attached by [RequestID].
+// requestIDFromContext returns the request id attached by [RequestID].
 // The empty-string return covers two contracted cases:
 //   - the request did not pass through [RequestID] (e.g. a deeply nested
 //     internal call with a background context);
@@ -54,7 +54,7 @@ func RequestID() gin.HandlerFunc {
 // Both branches collapse to "" because callers (the access-log
 // middleware, downstream log lines) skip the field when it's empty.
 // The bool from the type assertion is therefore discarded by design.
-func RequestIDFromContext(ctx context.Context) string {
+func requestIDFromContext(ctx context.Context) string {
 	v, ok := ctx.Value(ctxRequestIDKey).(string)
 	if !ok {
 		return ""
@@ -82,7 +82,7 @@ func Logger(log *zap.Logger) gin.HandlerFunc {
 			zap.Duration("latency", latency),
 			zap.String("ip", c.ClientIP()),
 		)
-		if rid := RequestIDFromContext(c.Request.Context()); rid != "" {
+		if rid := requestIDFromContext(c.Request.Context()); rid != "" {
 			fields = append(fields, zap.String("request_id", rid))
 		}
 		level := zapcore.InfoLevel

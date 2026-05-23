@@ -18,18 +18,18 @@ func newSQLiteRepository(db *sql.DB) *sqliteRepo {
 	return &sqliteRepo{q: gen.New(db)}
 }
 
-func (r *sqliteRepo) GetEntryByID(ctx context.Context, userID, entryID int64) (models.Entry, error) {
+func (r *sqliteRepo) getEntryByID(ctx context.Context, userID, entryID int64) (models.Entry, error) {
 	row, err := r.q.GetEntryByID(ctx, gen.GetEntryByIDParams{ID: entryID, UserID: userID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Entry{}, ErrNotFound
+			return models.Entry{}, errNotFound
 		}
 		return models.Entry{}, fmt.Errorf("entries: get by id: %w", err)
 	}
 	return entryFromSQLite(row), nil
 }
 
-func (r *sqliteRepo) GetEntryByKey(ctx context.Context, p GetEntryByKeyParams) (models.Entry, error) {
+func (r *sqliteRepo) getEntryByKey(ctx context.Context, p getEntryByKeyParams) (models.Entry, error) {
 	row, err := r.q.GetEntryByKey(ctx, gen.GetEntryByKeyParams{
 		UserID:     p.UserID,
 		SiteHost:   p.SiteHost,
@@ -37,14 +37,14 @@ func (r *sqliteRepo) GetEntryByKey(ctx context.Context, p GetEntryByKeyParams) (
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Entry{}, ErrNotFound
+			return models.Entry{}, errNotFound
 		}
 		return models.Entry{}, fmt.Errorf("entries: get by key: %w", err)
 	}
 	return entryFromSQLite(row), nil
 }
 
-func (r *sqliteRepo) InsertEntry(ctx context.Context, p InsertEntryParams) (models.Entry, error) {
+func (r *sqliteRepo) insertEntry(ctx context.Context, p insertEntryParams) (models.Entry, error) {
 	row, err := r.q.CreateEntry(ctx, gen.CreateEntryParams{
 		UserID:         p.UserID,
 		SeriesID:       p.SeriesID,
@@ -63,7 +63,7 @@ func (r *sqliteRepo) InsertEntry(ctx context.Context, p InsertEntryParams) (mode
 	return entryFromSQLite(row), nil
 }
 
-func (r *sqliteRepo) AdvanceEntry(ctx context.Context, p AdvanceEntryParams) (models.Entry, error) {
+func (r *sqliteRepo) advanceEntry(ctx context.Context, p advanceEntryParams) (models.Entry, error) {
 	row, err := r.q.AdvanceEntry(ctx, gen.AdvanceEntryParams{
 		LastChapter:    p.LastChapter,
 		LastUrl:        p.LastURL,
@@ -79,7 +79,7 @@ func (r *sqliteRepo) AdvanceEntry(ctx context.Context, p AdvanceEntryParams) (mo
 	return entryFromSQLite(row), nil
 }
 
-func (r *sqliteRepo) UpdateEntry(ctx context.Context, p UpdateEntryParams) (models.Entry, error) {
+func (r *sqliteRepo) updateEntry(ctx context.Context, p updateEntryParams) (models.Entry, error) {
 	row, err := r.q.UpdateEntry(ctx, gen.UpdateEntryParams{
 		SeriesID:    p.SeriesID,
 		LastChapter: p.LastChapter,
@@ -91,14 +91,14 @@ func (r *sqliteRepo) UpdateEntry(ctx context.Context, p UpdateEntryParams) (mode
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Entry{}, ErrNotFound
+			return models.Entry{}, errNotFound
 		}
 		return models.Entry{}, fmt.Errorf("entries: update: %w", err)
 	}
 	return entryFromSQLite(row), nil
 }
 
-func (r *sqliteRepo) DeleteEntry(ctx context.Context, userID, entryID int64) (int64, error) {
+func (r *sqliteRepo) deleteEntry(ctx context.Context, userID, entryID int64) (int64, error) {
 	n, err := r.q.DeleteEntry(ctx, gen.DeleteEntryParams{ID: entryID, UserID: userID})
 	if err != nil {
 		return 0, fmt.Errorf("entries: delete: %w", err)
@@ -106,7 +106,7 @@ func (r *sqliteRepo) DeleteEntry(ctx context.Context, userID, entryID int64) (in
 	return n, nil
 }
 
-func (r *sqliteRepo) ListEntriesAll(ctx context.Context, p ListEntriesAllParams) ([]models.Entry, error) {
+func (r *sqliteRepo) listEntriesAll(ctx context.Context, p listEntriesAllParams) ([]models.Entry, error) {
 	rows, err := r.q.ListEntriesAll(ctx, gen.ListEntriesAllParams{
 		UserID: p.UserID,
 		Limit:  p.Limit,
@@ -122,7 +122,7 @@ func (r *sqliteRepo) ListEntriesAll(ctx context.Context, p ListEntriesAllParams)
 	return out, nil
 }
 
-func (r *sqliteRepo) ListEntriesBySeries(ctx context.Context, p ListEntriesBySeriesParams) ([]models.Entry, error) {
+func (r *sqliteRepo) listEntriesBySeries(ctx context.Context, p listEntriesBySeriesParams) ([]models.Entry, error) {
 	rows, err := r.q.ListEntriesBySeries(ctx, gen.ListEntriesBySeriesParams{
 		UserID:   p.UserID,
 		SeriesID: p.SeriesID,
@@ -139,7 +139,7 @@ func (r *sqliteRepo) ListEntriesBySeries(ctx context.Context, p ListEntriesBySer
 	return out, nil
 }
 
-func (r *sqliteRepo) ListEntriesAllForSeries(ctx context.Context, userID, seriesID int64) ([]models.Entry, error) {
+func (r *sqliteRepo) listEntriesAllForSeries(ctx context.Context, userID, seriesID int64) ([]models.Entry, error) {
 	rows, err := r.q.ListEntriesAllForSeries(ctx, gen.ListEntriesAllForSeriesParams{
 		UserID:   userID,
 		SeriesID: seriesID,
@@ -154,7 +154,7 @@ func (r *sqliteRepo) ListEntriesAllForSeries(ctx context.Context, userID, series
 	return out, nil
 }
 
-func (r *sqliteRepo) CountEntriesAll(ctx context.Context, userID int64) (int64, error) {
+func (r *sqliteRepo) countEntriesAll(ctx context.Context, userID int64) (int64, error) {
 	n, err := r.q.CountEntriesAll(ctx, userID)
 	if err != nil {
 		return 0, fmt.Errorf("entries: count all: %w", err)
@@ -162,7 +162,7 @@ func (r *sqliteRepo) CountEntriesAll(ctx context.Context, userID int64) (int64, 
 	return n, nil
 }
 
-func (r *sqliteRepo) CountEntriesBySeries(ctx context.Context, userID, seriesID int64) (int64, error) {
+func (r *sqliteRepo) countEntriesBySeries(ctx context.Context, userID, seriesID int64) (int64, error) {
 	n, err := r.q.CountEntriesBySeries(ctx, gen.CountEntriesBySeriesParams{
 		UserID:   userID,
 		SeriesID: seriesID,
@@ -173,7 +173,7 @@ func (r *sqliteRepo) CountEntriesBySeries(ctx context.Context, userID, seriesID 
 	return n, nil
 }
 
-func (r *sqliteRepo) SeriesExists(ctx context.Context, userID, seriesID int64) (bool, error) {
+func (r *sqliteRepo) seriesExists(ctx context.Context, userID, seriesID int64) (bool, error) {
 	v, err := r.q.SeriesExists(ctx, gen.SeriesExistsParams{ID: seriesID, UserID: userID})
 	if err != nil {
 		return false, fmt.Errorf("entries: series exists: %w", err)
@@ -181,7 +181,7 @@ func (r *sqliteRepo) SeriesExists(ctx context.Context, userID, seriesID int64) (
 	return v != 0, nil
 }
 
-func (r *sqliteRepo) ListTrackedHosts(ctx context.Context, userID int64) ([]string, error) {
+func (r *sqliteRepo) listTrackedHosts(ctx context.Context, userID int64) ([]string, error) {
 	hosts, err := r.q.ListTrackedHosts(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("entries: list tracked hosts: %w", err)

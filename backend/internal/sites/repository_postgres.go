@@ -18,7 +18,7 @@ func newPostgresRepository(db *sql.DB) *postgresRepo {
 	return &postgresRepo{q: pg.New(db)}
 }
 
-func (r *postgresRepo) InsertSiteRule(ctx context.Context, p InsertSiteRuleParams) (models.SiteRule, error) {
+func (r *postgresRepo) insertSiteRule(ctx context.Context, p insertSiteRuleParams) (models.SiteRule, error) {
 	row, err := r.q.InsertSiteRule(ctx, pg.InsertSiteRuleParams{
 		UserID:              p.UserID,
 		Host:                p.Host,
@@ -34,7 +34,7 @@ func (r *postgresRepo) InsertSiteRule(ctx context.Context, p InsertSiteRuleParam
 	return siteRuleFromPostgres(row), nil
 }
 
-func (r *postgresRepo) GetSiteRuleByID(ctx context.Context, userID, ruleID int64) (models.SiteRule, error) {
+func (r *postgresRepo) getSiteRuleByID(ctx context.Context, userID, ruleID int64) (models.SiteRule, error) {
 	row, err := r.q.GetSiteRuleByID(ctx, pg.GetSiteRuleByIDParams{ID: ruleID, UserID: userID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -45,7 +45,7 @@ func (r *postgresRepo) GetSiteRuleByID(ctx context.Context, userID, ruleID int64
 	return siteRuleFromPostgres(row), nil
 }
 
-func (r *postgresRepo) GetSiteRuleByHost(ctx context.Context, userID int64, host string) (models.SiteRule, error) {
+func (r *postgresRepo) getSiteRuleByHost(ctx context.Context, userID int64, host string) (models.SiteRule, error) {
 	row, err := r.q.GetSiteRuleByHost(ctx, pg.GetSiteRuleByHostParams{UserID: userID, Host: host})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -56,7 +56,7 @@ func (r *postgresRepo) GetSiteRuleByHost(ctx context.Context, userID int64, host
 	return siteRuleFromPostgres(row), nil
 }
 
-func (r *postgresRepo) ListSiteRulesByUser(ctx context.Context, userID int64) ([]models.SiteRule, error) {
+func (r *postgresRepo) listSiteRulesByUser(ctx context.Context, userID int64) ([]models.SiteRule, error) {
 	rows, err := r.q.ListSiteRulesByUser(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("sites: list by user: %w", err)
@@ -68,7 +68,7 @@ func (r *postgresRepo) ListSiteRulesByUser(ctx context.Context, userID int64) ([
 	return out, nil
 }
 
-func (r *postgresRepo) UpdateSiteRule(ctx context.Context, p UpdateSiteRuleParams) (models.SiteRule, error) {
+func (r *postgresRepo) updateSiteRule(ctx context.Context, p updateSiteRuleParams) (models.SiteRule, error) {
 	row, err := r.q.UpdateSiteRule(ctx, pg.UpdateSiteRuleParams{
 		Host:                p.Host,
 		ChapterUrlRegex:     p.ChapterURLRegex,
@@ -87,7 +87,7 @@ func (r *postgresRepo) UpdateSiteRule(ctx context.Context, p UpdateSiteRuleParam
 	return siteRuleFromPostgres(row), nil
 }
 
-func (r *postgresRepo) DeleteSiteRule(ctx context.Context, userID, ruleID int64) (int64, error) {
+func (r *postgresRepo) deleteSiteRule(ctx context.Context, userID, ruleID int64) (int64, error) {
 	n, err := r.q.DeleteSiteRule(ctx, pg.DeleteSiteRuleParams{ID: ruleID, UserID: userID})
 	if err != nil {
 		return 0, fmt.Errorf("sites: delete: %w", err)

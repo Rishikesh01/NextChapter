@@ -44,8 +44,8 @@ func normaliseTags(names []string) []string {
 // short name. The canonical values live in [models] so handlers can
 // errors.Is without importing this package.
 var (
-	ErrNotFound      = models.ErrSeriesNotFound
-	ErrInvalidStatus = models.ErrSeriesInvalidStatus
+	errNotFound      = models.ErrSeriesNotFound
+	errInvalidStatus = models.ErrSeriesInvalidStatus
 )
 
 // SeriesService is the surface the HTTP handlers consume for the
@@ -64,7 +64,7 @@ type SeriesService interface {
 
 // Service exposes the series domain to handlers.
 type Service struct {
-	repo    Repository
+	repo    repository
 	entries *entries.Service
 	logger  *zap.Logger
 }
@@ -75,7 +75,7 @@ var _ SeriesService = (*Service)(nil)
 
 // NewService builds a Service. The entries.Service is used to load
 // the per-series entry list inside [InspectSeries].
-func NewService(repo Repository, e *entries.Service, logger *zap.Logger) *Service {
+func NewService(repo repository, e *entries.Service, logger *zap.Logger) *Service {
 	return &Service{repo: repo, entries: e, logger: logger}
 }
 
@@ -97,10 +97,10 @@ func (s *Service) TrackSeries(ctx context.Context, userID int64, draft models.Se
 			zap.Int64("user_id", userID),
 			zap.String("status", status),
 		)
-		return models.Series{}, ErrInvalidStatus
+		return models.Series{}, errInvalidStatus
 	}
 	now := time.Now().UTC()
-	row, err := s.repo.InsertSeries(ctx, InsertSeriesParams{
+	row, err := s.repo.insertSeries(ctx, insertSeriesParams{
 		UserID:    userID,
 		Title:     draft.Title,
 		Status:    status,
@@ -118,7 +118,7 @@ func (s *Service) TrackSeries(ctx context.Context, userID int64, draft models.Se
 		return models.Series{}, err
 	}
 	tags := normaliseTags(draft.Tags)
-	if err := s.repo.SetSeriesTags(ctx, userID, row.ID, tags); err != nil {
+	if err := s.repo.setSeriesTags(ctx, userID, row.ID, tags); err != nil {
 		s.logger.Error("track: set tags",
 			zap.Int64("user_id", userID),
 			zap.Int64("series_id", row.ID),
@@ -137,13 +137,13 @@ func (s *Service) TrackSeries(ctx context.Context, userID int64, draft models.Se
 }
 
 // FindSeries returns a single Series row for the owning user, or
-// ErrNotFound. Tags is populated from `series_tag` before return.
+// errNotFound. Tags is populated from `series_tag` before return.
 func (s *Service) FindSeries(ctx context.Context, userID, seriesID int64) (models.Series, error) {
-	row, err := s.repo.GetSeriesByID(ctx, userID, seriesID)
+	row, err := s.repo.getSeriesByID(ctx, userID, seriesID)
 	if err != nil {
 		return models.Series{}, err
 	}
-	tags, err := s.repo.GetSeriesTags(ctx, seriesID)
+	tags, err := s.repo.getSeriesTags(ctx, seriesID)
 	if err != nil {
 		return models.Series{}, err
 	}
@@ -172,7 +172,7 @@ func (s *Service) ListTrackedSeries(ctx context.Context, userID int64, filter mo
 		err   error
 	)
 	if filter.Status != "" {
-		rows, err = s.repo.ListSummariesByStatus(ctx, ListSummariesByStatusParams{
+		rows, err = s.repo.listSummariesByStatus(ctx, listSummariesByStatusParams{
 			UserID: userID,
 			Status: filter.Status,
 			Limit:  int64(filter.Limit),
@@ -182,7 +182,7 @@ func (s *Service) ListTrackedSeries(ctx context.Context, userID int64, filter mo
 		if err != nil {
 			return models.SeriesList{}, err
 		}
-		total, err = s.repo.CountByStatus(ctx, CountByStatusParams{
+		total, err = s.repo.countByStatus(ctx, countByStatusParams{
 			UserID: userID,
 			Status: filter.Status,
 			Tags:   tagFilter,
@@ -191,7 +191,7 @@ func (s *Service) ListTrackedSeries(ctx context.Context, userID int64, filter mo
 			return models.SeriesList{}, err
 		}
 	} else {
-		rows, err = s.repo.ListSummariesAll(ctx, ListSummariesAllParams{
+		rows, err = s.repo.listSummariesAll(ctx, listSummariesAllParams{
 			UserID: userID,
 			Limit:  int64(filter.Limit),
 			Offset: int64(filter.Offset),
@@ -200,7 +200,7 @@ func (s *Service) ListTrackedSeries(ctx context.Context, userID int64, filter mo
 		if err != nil {
 			return models.SeriesList{}, err
 		}
-		total, err = s.repo.CountAll(ctx, CountAllParams{UserID: userID, Tags: tagFilter})
+		total, err = s.repo.countAll(ctx, countAllParams{UserID: userID, Tags: tagFilter})
 		if err != nil {
 			return models.SeriesList{}, err
 		}
@@ -223,7 +223,7 @@ func (s *Service) attachTagsToSummaries(ctx context.Context, rows []models.Serie
 	for _, r := range rows {
 		ids = append(ids, r.ID)
 	}
-	byID, err := s.repo.ListSeriesTagsBatch(ctx, ids)
+	byID, err := s.repo.listSeriesTagsBatch(ctx, ids)
 	if err != nil {
 		return err
 	}
@@ -240,11 +240,11 @@ func (s *Service) attachTagsToSummaries(ctx context.Context, rows []models.Serie
 // InspectSeries returns the summary plus the full per-site entry list.
 // Tags is populated from `series_tag` before return.
 func (s *Service) InspectSeries(ctx context.Context, userID, seriesID int64) (models.SeriesDetail, error) {
-	summary, err := s.repo.GetSummary(ctx, userID, seriesID)
+	summary, err := s.repo.getSummary(ctx, userID, seriesID)
 	if err != nil {
 		return models.SeriesDetail{}, err
 	}
-	tags, err := s.repo.GetSeriesTags(ctx, seriesID)
+	tags, err := s.repo.getSeriesTags(ctx, seriesID)
 	if err != nil {
 		return models.SeriesDetail{}, err
 	}
@@ -257,7 +257,7 @@ func (s *Service) InspectSeries(ctx context.Context, userID, seriesID int64) (mo
 }
 
 // EditSeries applies a partial patch to a series. Fields with nil
-// pointers are left untouched. Returns ErrNotFound if no row matched.
+// pointers are left untouched. Returns errNotFound if no row matched.
 //
 // patch.Tags is a `*[]string` carrying the three-state semantic
 // documented on [models.SeriesPatch]: nil leaves the tag set
@@ -280,7 +280,7 @@ func (s *Service) EditSeries(ctx context.Context, userID, seriesID int64, patch 
 				zap.Int64("series_id", seriesID),
 				zap.String("status", *patch.Status),
 			)
-			return models.Series{}, ErrInvalidStatus
+			return models.Series{}, errInvalidStatus
 		}
 		status = *patch.Status
 	}
@@ -293,7 +293,7 @@ func (s *Service) EditSeries(ctx context.Context, userID, seriesID int64, patch 
 		notes = *patch.Notes
 	}
 	now := time.Now().UTC()
-	row, err := s.repo.UpdateSeries(ctx, UpdateSeriesParams{
+	row, err := s.repo.updateSeries(ctx, updateSeriesParams{
 		ID:        seriesID,
 		UserID:    userID,
 		Title:     title,
@@ -313,7 +313,7 @@ func (s *Service) EditSeries(ctx context.Context, userID, seriesID int64, patch 
 	tags := current.Tags
 	if patch.Tags != nil {
 		tags = normaliseTags(*patch.Tags)
-		if err := s.repo.SetSeriesTags(ctx, userID, seriesID, tags); err != nil {
+		if err := s.repo.setSeriesTags(ctx, userID, seriesID, tags); err != nil {
 			s.logger.Error("edit: set tags",
 				zap.Int64("user_id", userID),
 				zap.Int64("series_id", seriesID),
@@ -336,9 +336,9 @@ func (s *Service) EditSeries(ctx context.Context, userID, seriesID int64, patch 
 }
 
 // UntrackSeries removes a series (cascading to its entries). Returns
-// ErrNotFound if no row matched.
+// errNotFound if no row matched.
 func (s *Service) UntrackSeries(ctx context.Context, userID, seriesID int64) error {
-	n, err := s.repo.DeleteSeries(ctx, userID, seriesID)
+	n, err := s.repo.deleteSeries(ctx, userID, seriesID)
 	if err != nil {
 		s.logger.Error("untrack: delete series",
 			zap.Int64("user_id", userID),
@@ -352,7 +352,7 @@ func (s *Service) UntrackSeries(ctx context.Context, userID, seriesID int64) err
 			zap.Int64("user_id", userID),
 			zap.Int64("series_id", seriesID),
 		)
-		return ErrNotFound
+		return errNotFound
 	}
 	s.logger.Info("series untracked",
 		zap.Int64("user_id", userID),

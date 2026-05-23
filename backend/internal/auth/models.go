@@ -7,10 +7,10 @@ import (
 	"github.com/enable-it/nextchapter/backend/internal/models"
 )
 
-// Resolved is the result of a successful token lookup, ready for the
+// resolved is the result of a successful token lookup, ready for the
 // middleware to attach to the request context. Package-internal: the
 // middleware in this package is the only caller.
-type Resolved struct {
+type resolved struct {
 	User       models.User
 	TokenID    int64
 	Kind       string
@@ -18,19 +18,19 @@ type Resolved struct {
 	LastUsedAt *time.Time
 }
 
-// TokenWithUser is the joined user+token shape returned by
-// [Repository.GetTokenByHash], used by the middleware to resolve a raw
+// tokenWithUser is the joined user+token shape returned by
+// [repository.getTokenByHash], used by the middleware to resolve a raw
 // token to its owner without a second round trip.
-type TokenWithUser struct {
+type tokenWithUser struct {
 	Token       models.Token
 	UserID      int64
 	Username    string
 	UserCreated time.Time
 }
 
-// InsertTokenParams is the persistence-layer input for inserting a
+// insertTokenParams is the persistence-layer input for inserting a
 // new auth_tokens row. Service builds this; repository writes it.
-type InsertTokenParams struct {
+type insertTokenParams struct {
 	UserID     int64
 	Kind       string
 	TokenHash  string
@@ -41,14 +41,14 @@ type InsertTokenParams struct {
 	ExpiresAt  *time.Time
 }
 
-// Repository is the persistence surface for auth tokens. The service
+// repository is the persistence surface for auth tokens. The service
 // and middleware in this package depend on this interface; the
 // concrete implementations in repository_sqlite.go and
 // repository_postgres.go are the only things in the auth package that
 // import sqlc-generated code.
-type Repository interface {
-	CreateToken(ctx context.Context, p InsertTokenParams) (models.Token, error)
-	GetTokenByHash(ctx context.Context, tokenHash string) (TokenWithUser, error)
-	DeleteTokenByID(ctx context.Context, userID, tokenID int64) (int64, error)
-	DeleteTokenByHash(ctx context.Context, tokenHash string) error
+type repository interface {
+	createToken(ctx context.Context, p insertTokenParams) (models.Token, error)
+	getTokenByHash(ctx context.Context, tokenHash string) (tokenWithUser, error)
+	deleteTokenByID(ctx context.Context, userID, tokenID int64) (int64, error)
+	deleteTokenByHash(ctx context.Context, tokenHash string) error
 }

@@ -21,7 +21,7 @@ func newPostgresRepository(db *sql.DB) *postgresRepo {
 	return &postgresRepo{q: pg.New(db)}
 }
 
-func (r *postgresRepo) InsertUser(ctx context.Context, p InsertUserParams) (models.User, error) {
+func (r *postgresRepo) InsertUser(ctx context.Context, p insertUserParams) (models.User, error) {
 	u, err := r.q.CreateUser(ctx, pg.CreateUserParams{
 		Username:     p.Username,
 		PasswordHash: p.PasswordHash,

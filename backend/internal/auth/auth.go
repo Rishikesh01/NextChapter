@@ -17,32 +17,31 @@ import (
 	"github.com/enable-it/nextchapter/backend/constants"
 )
 
-// SessionDuration is the sliding expiry window for session cookies.
-// Stays here because it's not consumed cross-package.
-const SessionDuration = 30 * 24 * time.Hour
+// sessionDuration is the sliding expiry window for session cookies.
+const sessionDuration = 30 * 24 * time.Hour
 
-// ErrInvalidCredentials is returned by VerifyPassword on a mismatch.
-var ErrInvalidCredentials = errors.New("auth: invalid credentials")
+// errInvalidCredentials is returned by verifyPassword on a mismatch.
+var errInvalidCredentials = errors.New("auth: invalid credentials")
 
 // ErrTokenNotFound is returned by Resolve when no matching auth_token row exists
 // or the row is expired.
 var ErrTokenNotFound = errors.New("auth: token not found or expired")
 
-// VerifyPassword returns nil if the password matches the stored hash,
-// [ErrInvalidCredentials] otherwise.
-func VerifyPassword(hash, password string) error {
+// verifyPassword returns nil if the password matches the stored hash,
+// [errInvalidCredentials] otherwise.
+func verifyPassword(hash, password string) error {
 	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)); err != nil {
 		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
-			return ErrInvalidCredentials
+			return errInvalidCredentials
 		}
 		return fmt.Errorf("auth: compare password: %w", err)
 	}
 	return nil
 }
 
-// MintToken returns a fresh opaque token suitable for storing as kind.
+// mintToken returns a fresh opaque token suitable for storing as kind.
 // The returned token already carries its prefix.
-func MintToken(kind string) (string, error) {
+func mintToken(kind string) (string, error) {
 	var prefix string
 	switch kind {
 	case constants.TokenKindSession:
