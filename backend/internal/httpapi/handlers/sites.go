@@ -152,7 +152,7 @@ func (d SitesDeps) EditRule(c *gin.Context) {
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
-			Code:    CodeNotFound,
+			Code:    codeNotFound,
 			Message: "not found",
 		}})
 		return
@@ -178,7 +178,7 @@ func (d SitesDeps) EditRule(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, models.ErrSiteRuleNotFound) {
 			c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
-				Code:    CodeNotFound,
+				Code:    codeNotFound,
 				Message: "not found",
 			}})
 			return
@@ -220,7 +220,7 @@ func (d SitesDeps) RemoveRule(c *gin.Context) {
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
-			Code:    CodeNotFound,
+			Code:    codeNotFound,
 			Message: "not found",
 		}})
 		return
@@ -228,7 +228,7 @@ func (d SitesDeps) RemoveRule(c *gin.Context) {
 	if err := d.Sites.RemoveSiteRule(c.Request.Context(), u.ID, uri.ID); err != nil {
 		if errors.Is(err, models.ErrSiteRuleNotFound) {
 			c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
-				Code:    CodeNotFound,
+				Code:    codeNotFound,
 				Message: "not found",
 			}})
 			return

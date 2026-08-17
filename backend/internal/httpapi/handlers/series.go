@@ -162,7 +162,7 @@ func (d SeriesDeps) Get(c *gin.Context) {
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
-			Code:    CodeNotFound,
+			Code:    codeNotFound,
 			Message: "not found",
 		}})
 		return
@@ -171,7 +171,7 @@ func (d SeriesDeps) Get(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, models.ErrSeriesNotFound) {
 			c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
-				Code:    CodeNotFound,
+				Code:    codeNotFound,
 				Message: "not found",
 			}})
 			return
@@ -216,7 +216,7 @@ func (d SeriesDeps) Patch(c *gin.Context) {
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
-			Code:    CodeNotFound,
+			Code:    codeNotFound,
 			Message: "not found",
 		}})
 		return
@@ -246,7 +246,7 @@ func (d SeriesDeps) Patch(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, models.ErrSeriesNotFound) {
 			c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
-				Code:    CodeNotFound,
+				Code:    codeNotFound,
 				Message: "not found",
 			}})
 			return
@@ -285,7 +285,7 @@ func (d SeriesDeps) Delete(c *gin.Context) {
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
-			Code:    CodeNotFound,
+			Code:    codeNotFound,
 			Message: "not found",
 		}})
 		return
@@ -293,7 +293,7 @@ func (d SeriesDeps) Delete(c *gin.Context) {
 	if err := d.Series.UntrackSeries(c.Request.Context(), u.ID, uri.ID); err != nil {
 		if errors.Is(err, models.ErrSeriesNotFound) {
 			c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
-				Code:    CodeNotFound,
+				Code:    codeNotFound,
 				Message: "not found",
 			}})
 			return

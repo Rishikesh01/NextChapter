@@ -40,14 +40,6 @@ func normaliseTags(names []string) []string {
 // pagination tags). Filter.Limit / Filter.Offset arrive
 // already-bounded; this service trusts them and passes them through.
 
-// Re-exported sentinels so callers inside this package keep the
-// short name. The canonical values live in [models] so handlers can
-// errors.Is without importing this package.
-var (
-	errNotFound      = models.ErrSeriesNotFound
-	errInvalidStatus = models.ErrSeriesInvalidStatus
-)
-
 // SeriesService is the surface the HTTP handlers consume for the
 // series CRUD endpoints. Method names are domain verbs qualified by
 // the resource noun (TrackSeries / ListTrackedSeries / FindSeries /
@@ -64,7 +56,7 @@ type SeriesService interface {
 
 // Service exposes the series domain to handlers.
 type Service struct {
-	repo    repository
+	repo    Repository
 	entries *entries.Service
 	logger  *zap.Logger
 }
@@ -75,7 +67,7 @@ var _ SeriesService = (*Service)(nil)
 
 // NewService builds a Service. The entries.Service is used to load
 // the per-series entry list inside [InspectSeries].
-func NewService(repo repository, e *entries.Service, logger *zap.Logger) *Service {
+func NewService(repo Repository, e *entries.Service, logger *zap.Logger) *Service {
 	return &Service{repo: repo, entries: e, logger: logger}
 }
 
@@ -97,7 +89,7 @@ func (s *Service) TrackSeries(ctx context.Context, userID int64, draft models.Se
 			zap.Int64("user_id", userID),
 			zap.String("status", status),
 		)
-		return models.Series{}, errInvalidStatus
+		return models.Series{}, models.ErrSeriesInvalidStatus
 	}
 	now := time.Now().UTC()
 	row, err := s.repo.insertSeries(ctx, insertSeriesParams{
@@ -137,7 +129,7 @@ func (s *Service) TrackSeries(ctx context.Context, userID int64, draft models.Se
 }
 
 // FindSeries returns a single Series row for the owning user, or
-// errNotFound. Tags is populated from `series_tag` before return.
+// models.ErrSeriesNotFound. Tags is populated from `series_tag` before return.
 func (s *Service) FindSeries(ctx context.Context, userID, seriesID int64) (models.Series, error) {
 	row, err := s.repo.getSeriesByID(ctx, userID, seriesID)
 	if err != nil {
@@ -257,7 +249,7 @@ func (s *Service) InspectSeries(ctx context.Context, userID, seriesID int64) (mo
 }
 
 // EditSeries applies a partial patch to a series. Fields with nil
-// pointers are left untouched. Returns errNotFound if no row matched.
+// pointers are left untouched. Returns models.ErrSeriesNotFound if no row matched.
 //
 // patch.Tags is a `*[]string` carrying the three-state semantic
 // documented on [models.SeriesPatch]: nil leaves the tag set
@@ -280,7 +272,7 @@ func (s *Service) EditSeries(ctx context.Context, userID, seriesID int64, patch 
 				zap.Int64("series_id", seriesID),
 				zap.String("status", *patch.Status),
 			)
-			return models.Series{}, errInvalidStatus
+			return models.Series{}, models.ErrSeriesInvalidStatus
 		}
 		status = *patch.Status
 	}
@@ -336,7 +328,7 @@ func (s *Service) EditSeries(ctx context.Context, userID, seriesID int64, patch 
 }
 
 // UntrackSeries removes a series (cascading to its entries). Returns
-// errNotFound if no row matched.
+// models.ErrSeriesNotFound if no row matched.
 func (s *Service) UntrackSeries(ctx context.Context, userID, seriesID int64) error {
 	n, err := s.repo.deleteSeries(ctx, userID, seriesID)
 	if err != nil {
@@ -352,7 +344,7 @@ func (s *Service) UntrackSeries(ctx context.Context, userID, seriesID int64) err
 			zap.Int64("user_id", userID),
 			zap.Int64("series_id", seriesID),
 		)
-		return errNotFound
+		return models.ErrSeriesNotFound
 	}
 	s.logger.Info("series untracked",
 		zap.Int64("user_id", userID),

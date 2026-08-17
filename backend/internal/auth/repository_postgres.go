@@ -14,7 +14,7 @@ type postgresRepo struct {
 	q *pg.Queries
 }
 
-func newPostgresRepository(db *sql.DB) *postgresRepo {
+func NewPostgresRepository(db *sql.DB) *postgresRepo {
 	return &postgresRepo{q: pg.New(db)}
 }
 

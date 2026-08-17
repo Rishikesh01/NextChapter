@@ -14,7 +14,7 @@ type sqliteRepo struct {
 	q *gen.Queries
 }
 
-func newSQLiteRepository(db *sql.DB) *sqliteRepo {
+func NewSQLiteRepository(db *sql.DB) *sqliteRepo {
 	return &sqliteRepo{q: gen.New(db)}
 }
 
@@ -22,7 +22,7 @@ func (r *sqliteRepo) getEntryByID(ctx context.Context, userID, entryID int64) (m
 	row, err := r.q.GetEntryByID(ctx, gen.GetEntryByIDParams{ID: entryID, UserID: userID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Entry{}, errNotFound
+			return models.Entry{}, models.ErrEntryNotFound
 		}
 		return models.Entry{}, fmt.Errorf("entries: get by id: %w", err)
 	}
@@ -37,7 +37,7 @@ func (r *sqliteRepo) getEntryByKey(ctx context.Context, p getEntryByKeyParams) (
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Entry{}, errNotFound
+			return models.Entry{}, models.ErrEntryNotFound
 		}
 		return models.Entry{}, fmt.Errorf("entries: get by key: %w", err)
 	}
@@ -91,7 +91,7 @@ func (r *sqliteRepo) updateEntry(ctx context.Context, p updateEntryParams) (mode
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Entry{}, errNotFound
+			return models.Entry{}, models.ErrEntryNotFound
 		}
 		return models.Entry{}, fmt.Errorf("entries: update: %w", err)
 	}

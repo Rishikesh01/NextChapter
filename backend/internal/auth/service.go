@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/enable-it/nextchapter/backend/constants"
 	"github.com/enable-it/nextchapter/backend/internal/models"
@@ -34,7 +35,7 @@ type AuthService interface {
 // Service owns mint/revoke flows over auth_tokens plus the read-side
 // resolve that the middleware in this package depends on. It also
 // runs the bcrypt-verify step for [Service.Authenticate]: the users
-// repository hands back a [users.AuthRecord] with the stored hash and
+// Repository hands back a [users.AuthRecord] with the stored hash and
 // this service does the compare so the password-hash boundary lives
 // in one place.
 //
@@ -42,10 +43,10 @@ type AuthService interface {
 // extend it on use. There is no Touch / refresh path — an expired
 // session means re-login, full stop.
 //
-// All SQL access goes through [repository] and [users.Repository];
+// All SQL access goes through [Repository] and [users.Repository];
 // this type does not import the sqlc-generated package directly.
 type Service struct {
-	repo   repository
+	repo   Repository
 	users  users.Repository
 	logger *zap.Logger
 }
@@ -54,11 +55,11 @@ type Service struct {
 // AuthService surface that handlers consume.
 var _ AuthService = (*Service)(nil)
 
-// NewService constructs a Service. The users repository is read by
+// NewService constructs a Service. The users Repository is read by
 // [Service.Authenticate] to fetch the stored bcrypt hash; if you are
 // wiring a test fixture that never calls Authenticate, passing nil is
 // fine.
-func NewService(repo repository, userRepo users.Repository, logger *zap.Logger) *Service {
+func NewService(repo Repository, userRepo users.Repository, logger *zap.Logger) *Service {
 	return &Service{repo: repo, users: userRepo, logger: logger}
 }
 
@@ -78,7 +79,7 @@ func (s *Service) CreateSession(ctx context.Context, userID int64) (models.Sessi
 	row, err := s.repo.createToken(ctx, insertTokenParams{
 		UserID:     userID,
 		Kind:       constants.TokenKindSession,
-		TokenHash:  HashToken(raw),
+		TokenHash:  hashToken(raw),
 		CreatedAt:  now,
 		LastUsedAt: &now,
 		ExpiresAt:  &exp,
@@ -121,7 +122,7 @@ func (s *Service) CreateAPIToken(ctx context.Context, userID int64, token models
 	row, err := s.repo.createToken(ctx, insertTokenParams{
 		UserID:     userID,
 		Kind:       constants.TokenKindAPI,
-		TokenHash:  HashToken(raw),
+		TokenHash:  hashToken(raw),
 		Label:      strings.TrimSpace(token.Label),
 		LabelValid: true,
 		CreatedAt:  now,
@@ -174,7 +175,7 @@ func (s *Service) DeleteAPIToken(ctx context.Context, userID, tokenID int64) (bo
 // DeleteSession invalidates a session token by its raw value. Used by
 // /auth/logout. Returns nil if the row was already gone.
 func (s *Service) DeleteSession(ctx context.Context, rawToken string) error {
-	if err := s.repo.deleteTokenByHash(ctx, HashToken(rawToken)); err != nil {
+	if err := s.repo.deleteTokenByHash(ctx, hashToken(rawToken)); err != nil {
 		s.logger.Error("delete session", zap.Error(err))
 		return err
 	}
@@ -212,10 +213,8 @@ func (s *Service) Authenticate(ctx context.Context, creds models.Credentials) (m
 		}
 		return models.User{}, err
 	}
-	if err := verifyPassword(rec.PasswordHash, creds.Password); err != nil {
-		// Surface the canonical sentinel so handlers can errors.Is
-		// without importing this package.
-		if errors.Is(err, errInvalidCredentials) {
+	if err := bcrypt.CompareHashAndPassword([]byte(rec.PasswordHash), []byte(creds.Password)); err != nil {
+		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
 			s.logger.Warn("authentication failed: invalid credentials",
 				zap.String("username", creds.Username),
 			)
@@ -225,7 +224,7 @@ func (s *Service) Authenticate(ctx context.Context, creds models.Credentials) (m
 			zap.String("username", creds.Username),
 			zap.Error(err),
 		)
-		return models.User{}, err
+		return models.User{}, fmt.Errorf("auth: compare password: %w", err)
 	}
 	s.logger.Info("authenticated",
 		zap.Int64("user_id", rec.ID),
@@ -243,29 +242,29 @@ func (s *Service) Authenticate(ctx context.Context, creds models.Credentials) (m
 // last_used_at or expires_at — sessions are fixed-duration and the
 // middleware never extends them. Hashing happens here so callers do
 // not need to remember to hash themselves.
-func (s *Service) Resolve(ctx context.Context, rawToken string, now time.Time) (resolved, error) {
-	tokHash := HashToken(rawToken)
+func (s *Service) Resolve(ctx context.Context, rawToken string, now time.Time) (Resolved, error) {
+	tokHash := hashToken(rawToken)
 	row, err := s.repo.getTokenByHash(ctx, tokHash)
 	if err != nil {
-		return resolved{}, err
+		return Resolved{}, err
 	}
 	if row.Token.ExpiresAt != nil && !row.Token.ExpiresAt.After(now) {
-		return resolved{}, ErrTokenNotFound
+		return Resolved{}, ErrTokenNotFound
 	}
 	// Defence-in-depth: prefix on the wire must match the stored kind.
 	switch row.Token.Kind {
 	case constants.TokenKindSession:
 		if !strings.HasPrefix(rawToken, constants.TokenPrefixSession) {
-			return resolved{}, ErrTokenNotFound
+			return Resolved{}, ErrTokenNotFound
 		}
 	case constants.TokenKindAPI:
 		if !strings.HasPrefix(rawToken, constants.TokenPrefixAPI) {
-			return resolved{}, ErrTokenNotFound
+			return Resolved{}, ErrTokenNotFound
 		}
 	default:
-		return resolved{}, fmt.Errorf("auth: unknown stored kind %q", row.Token.Kind)
+		return Resolved{}, fmt.Errorf("auth: unknown stored kind %q", row.Token.Kind)
 	}
-	return resolved{
+	return Resolved{
 		User: models.User{
 			ID:        row.UserID,
 			Username:  row.Username,

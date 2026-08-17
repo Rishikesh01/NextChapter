@@ -17,11 +17,11 @@ type sqliteRepo struct {
 	q *gen.Queries
 }
 
-func newSQLiteRepository(db *sql.DB) *sqliteRepo {
+func NewSQLiteRepository(db *sql.DB) *sqliteRepo {
 	return &sqliteRepo{q: gen.New(db)}
 }
 
-func (r *sqliteRepo) InsertUser(ctx context.Context, p insertUserParams) (models.User, error) {
+func (r *sqliteRepo) InsertUser(ctx context.Context, p InsertUserParams) (models.User, error) {
 	u, err := r.q.CreateUser(ctx, gen.CreateUserParams{
 		Username:     p.Username,
 		PasswordHash: p.PasswordHash,

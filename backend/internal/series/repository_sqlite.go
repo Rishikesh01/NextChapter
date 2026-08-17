@@ -17,7 +17,7 @@ type sqliteRepo struct {
 	q  *gen.Queries
 }
 
-func newSQLiteRepository(db *sql.DB) *sqliteRepo {
+func NewSQLiteRepository(db *sql.DB) *sqliteRepo {
 	return &sqliteRepo{db: db, q: gen.New(db)}
 }
 
@@ -41,7 +41,7 @@ func (r *sqliteRepo) getSeriesByID(ctx context.Context, userID, seriesID int64) 
 	row, err := r.q.GetSeriesByID(ctx, gen.GetSeriesByIDParams{ID: seriesID, UserID: userID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Series{}, errNotFound
+			return models.Series{}, models.ErrSeriesNotFound
 		}
 		return models.Series{}, fmt.Errorf("series: get by id: %w", err)
 	}
@@ -60,7 +60,7 @@ func (r *sqliteRepo) updateSeries(ctx context.Context, p updateSeriesParams) (mo
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Series{}, errNotFound
+			return models.Series{}, models.ErrSeriesNotFound
 		}
 		return models.Series{}, fmt.Errorf("series: update: %w", err)
 	}
@@ -129,7 +129,7 @@ func (r *sqliteRepo) getSummary(ctx context.Context, userID, seriesID int64) (mo
 	row, err := r.q.GetSeriesSummary(ctx, gen.GetSeriesSummaryParams{ID: seriesID, UserID: userID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.SeriesSummary{}, errNotFound
+			return models.SeriesSummary{}, models.ErrSeriesNotFound
 		}
 		return models.SeriesSummary{}, fmt.Errorf("series: get summary: %w", err)
 	}

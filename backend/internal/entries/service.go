@@ -37,7 +37,7 @@ type EntriesService interface {
 
 // Service exposes the entries domain to handlers.
 type Service struct {
-	repo   repository
+	repo   Repository
 	logger *zap.Logger
 }
 
@@ -46,7 +46,7 @@ type Service struct {
 var _ EntriesService = (*Service)(nil)
 
 // NewService builds a Service.
-func NewService(repo repository, logger *zap.Logger) *Service {
+func NewService(repo Repository, logger *zap.Logger) *Service {
 	return &Service{repo: repo, logger: logger}
 }
 
@@ -71,7 +71,7 @@ func (s *Service) CaptureChapter(ctx context.Context, userID int64, capture mode
 		// at Info so an operator can correlate a 422 to a service
 		// decision without it polluting the error stream.
 		switch {
-		case errors.Is(err, errSeriesRequired), errors.Is(err, errSeriesNotFound):
+		case errors.Is(err, models.ErrEntryCaptureSeriesRequired), errors.Is(err, models.ErrSeriesNotFound):
 			s.logger.Info("capture rejected",
 				zap.Int64("user_id", userID),
 				zap.String("site_host", capture.SiteHost),
@@ -140,7 +140,7 @@ func (s *Service) capture(ctx context.Context, userID int64, capture models.Entr
 		}
 		return captureResult{Entry: row, Created: false}, nil
 	}
-	if !errors.Is(err, errNotFound) {
+	if !errors.Is(err, models.ErrEntryNotFound) {
 		return captureResult{}, err
 	}
 
@@ -153,7 +153,7 @@ func (s *Service) capture(ctx context.Context, userID int64, capture models.Entr
 			return captureResult{}, err
 		}
 		if !ok {
-			return captureResult{}, errSeriesNotFound
+			return captureResult{}, models.ErrSeriesNotFound
 		}
 		seriesID = *capture.SeriesID
 	case capture.NewSeriesTitle != nil && *capture.NewSeriesTitle != "":
@@ -163,7 +163,7 @@ func (s *Service) capture(ctx context.Context, userID int64, capture models.Entr
 		}
 		seriesID = id
 	default:
-		return captureResult{}, errSeriesRequired
+		return captureResult{}, models.ErrEntryCaptureSeriesRequired
 	}
 
 	now := time.Now().UTC()
@@ -263,7 +263,7 @@ func (s *Service) AdjustReadingPosition(ctx context.Context, userID, entryID int
 				zap.Int64("entry_id", entryID),
 				zap.Int64("series_id", *patch.SeriesID),
 			)
-			return models.Entry{}, errSeriesNotFound
+			return models.Entry{}, models.ErrSeriesNotFound
 		}
 		seriesID = *patch.SeriesID
 	}
@@ -343,7 +343,7 @@ func (s *Service) ForgetReadingPosition(ctx context.Context, userID, entryID int
 			zap.Int64("user_id", userID),
 			zap.Int64("entry_id", entryID),
 		)
-		return errNotFound
+		return models.ErrEntryNotFound
 	}
 	s.logger.Info("reading position forgotten",
 		zap.Int64("user_id", userID),

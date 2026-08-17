@@ -68,7 +68,7 @@ func (s *Service) Register(ctx context.Context, registration models.Registration
 		return models.User{}, fmt.Errorf("users: hash password: %w", err)
 	}
 	now := time.Now().UTC()
-	u, err := s.repo.InsertUser(ctx, insertUserParams{
+	u, err := s.repo.InsertUser(ctx, InsertUserParams{
 		Username:     registration.Username,
 		PasswordHash: string(h),
 		CreatedAt:    now,

@@ -15,14 +15,14 @@ type captureResult struct {
 	Created bool
 }
 
-// getEntryByKeyParams is the input for [repository.getEntryByKey].
+// getEntryByKeyParams is the input for [Repository.getEntryByKey].
 type getEntryByKeyParams struct {
 	UserID     int64
 	SiteHost   string
 	SeriesSlug string
 }
 
-// insertEntryParams is the input for [repository.insertEntry].
+// insertEntryParams is the input for [Repository.insertEntry].
 type insertEntryParams struct {
 	UserID         int64
 	SeriesID       int64
@@ -36,7 +36,7 @@ type insertEntryParams struct {
 	UpdatedAt      time.Time
 }
 
-// advanceEntryParams is the input for [repository.advanceEntry].
+// advanceEntryParams is the input for [Repository.advanceEntry].
 type advanceEntryParams struct {
 	ID             int64
 	UserID         int64
@@ -47,7 +47,7 @@ type advanceEntryParams struct {
 	UpdatedAt      time.Time
 }
 
-// updateEntryParams is the input for [repository.updateEntry].
+// updateEntryParams is the input for [Repository.updateEntry].
 type updateEntryParams struct {
 	ID          int64
 	UserID      int64
@@ -73,11 +73,11 @@ type listEntriesBySeriesParams struct {
 	Offset   int64
 }
 
-// repository is the persistence surface for the entries domain. The
+// Repository is the persistence surface for the entries domain. The
 // service in this package depends on this interface; the concrete
-// implementations in repository_sqlite.go and repository_postgres.go
+// implementations in Repository_sqlite.go and Repository_postgres.go
 // are the only things in the package that import sqlc-generated code.
-type repository interface {
+type Repository interface {
 	getEntryByID(ctx context.Context, userID, entryID int64) (models.Entry, error)
 	getEntryByKey(ctx context.Context, p getEntryByKeyParams) (models.Entry, error)
 	insertEntry(ctx context.Context, p insertEntryParams) (models.Entry, error)

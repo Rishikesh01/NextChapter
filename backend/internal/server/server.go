@@ -64,42 +64,19 @@ func Run(ctx context.Context, cfg config.Config) error {
 		return fmt.Errorf("server: dialect: %w", err)
 	}
 
-	// Each domain package follows the same pattern: build the
-	// repository (the only thing that touches sqlc-generated code)
-	// for the active dialect, then build the service on top of it.
-	// The auth service also consumes the users repository so
-	// [auth.Service.Authenticate] can read the stored password hash
-	// — that's why userRepo is built first and threaded into
-	// auth.NewService.
-	userRepo, err := users.NewRepository(dialect, db)
+	// Build every domain repository in one switch (store.OpenRepos)
+	// and then stack the services on top. The auth service also
+	// consumes the users repository so [auth.Service.Authenticate]
+	// can read the stored password hash.
+	repos, err := store.OpenRepos(dialect, db)
 	if err != nil {
-		return fmt.Errorf("server: users repo: %w", err)
+		return fmt.Errorf("server: open repos: %w", err)
 	}
-	userSvc := users.NewService(userRepo, logger)
-
-	authRepo, err := auth.NewRepository(dialect, db)
-	if err != nil {
-		return fmt.Errorf("server: auth repo: %w", err)
-	}
-	authSvc := auth.NewService(authRepo, userRepo, logger)
-
-	entryRepo, err := entries.NewRepository(dialect, db)
-	if err != nil {
-		return fmt.Errorf("server: entries repo: %w", err)
-	}
-	entrySvc := entries.NewService(entryRepo, logger)
-
-	seriesRepo, err := series.NewRepository(dialect, db)
-	if err != nil {
-		return fmt.Errorf("server: series repo: %w", err)
-	}
-	seriesSvc := series.NewService(seriesRepo, entrySvc, logger)
-
-	sitesRepo, err := sites.NewRepository(dialect, db)
-	if err != nil {
-		return fmt.Errorf("server: sites repo: %w", err)
-	}
-	sitesSvc := sites.NewService(sitesRepo, logger)
+	userSvc := users.NewService(repos.Users, logger)
+	authSvc := auth.NewService(repos.Auth, repos.Users, logger)
+	entrySvc := entries.NewService(repos.Entries, logger)
+	seriesSvc := series.NewService(repos.Series, entrySvc, logger)
+	sitesSvc := sites.NewService(repos.Sites, logger)
 
 	if cfg.HasBootstrap() {
 		if err := bootstrapFirstUser(ctx, logger, userSvc, sitesSvc, cfg.BootstrapUsername, cfg.BootstrapPassword); err != nil {

@@ -218,21 +218,13 @@ func startServer(t *testing.T, cfg config.Config) *harness {
 	if dialect == "sqlite3" {
 		q = gen.New(db)
 	}
-	userRepo, err := users.NewRepository(dialect, db)
+	repos, err := store.OpenRepos(dialect, db)
 	r.NoError(err)
-	usrSvc := users.NewService(userRepo, zap.NewNop())
-	authRepo, err := auth.NewRepository(dialect, db)
-	r.NoError(err)
-	authSvc := auth.NewService(authRepo, userRepo, zap.NewNop())
-	entRepo, err := entries.NewRepository(dialect, db)
-	r.NoError(err)
-	entSvc := entries.NewService(entRepo, zap.NewNop())
-	srsRepo, err := series.NewRepository(dialect, db)
-	r.NoError(err)
-	srsSvc := series.NewService(srsRepo, entSvc, zap.NewNop())
-	stsRepo, err := sites.NewRepository(dialect, db)
-	r.NoError(err)
-	stsSvc := sites.NewService(stsRepo, zap.NewNop())
+	usrSvc := users.NewService(repos.Users, zap.NewNop())
+	authSvc := auth.NewService(repos.Auth, repos.Users, zap.NewNop())
+	entSvc := entries.NewService(repos.Entries, zap.NewNop())
+	srsSvc := series.NewService(repos.Series, entSvc, zap.NewNop())
+	stsSvc := sites.NewService(repos.Sites, zap.NewNop())
 
 	if cfg.HasBootstrap() {
 		// Env-var bootstrap pre-seeds the operator's account. The

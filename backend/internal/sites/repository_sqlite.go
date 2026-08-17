@@ -14,7 +14,7 @@ type sqliteRepo struct {
 	q *gen.Queries
 }
 
-func newSQLiteRepository(db *sql.DB) *sqliteRepo {
+func NewSQLiteRepository(db *sql.DB) *sqliteRepo {
 	return &sqliteRepo{q: gen.New(db)}
 }
 

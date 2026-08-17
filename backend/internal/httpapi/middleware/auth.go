@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"errors"
-	"net/http"
 	"strings"
 	"time"
 
@@ -35,10 +34,7 @@ func Auth(cfg AuthMiddlewareConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		raw, source, ok := extractAuthToken(c)
 		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, handlers.ErrorBody{Error: handlers.ErrorDetail{
-				Code:    handlers.CodeUnauthorized,
-				Message: "missing or invalid credentials",
-			}})
+			handlers.WriteUnauthorized(c, "missing or invalid credentials")
 			return
 		}
 		resolved, err := cfg.Service.Resolve(c.Request.Context(), raw, time.Now())
@@ -46,10 +42,7 @@ func Auth(cfg AuthMiddlewareConfig) gin.HandlerFunc {
 			if !errors.Is(err, auth.ErrTokenNotFound) {
 				cfg.Logger.Warn("auth lookup failed", zap.Error(err))
 			}
-			c.AbortWithStatusJSON(http.StatusUnauthorized, handlers.ErrorBody{Error: handlers.ErrorDetail{
-				Code:    handlers.CodeUnauthorized,
-				Message: "missing or invalid credentials",
-			}})
+			handlers.WriteUnauthorized(c, "missing or invalid credentials")
 			return
 		}
 		// Source must match kind: session tokens only authenticate
@@ -57,10 +50,7 @@ func Auth(cfg AuthMiddlewareConfig) gin.HandlerFunc {
 		// Prevents a leaked session cookie from being replayed as a
 		// long-lived Bearer credential.
 		if !authSourceMatchesKind(source, resolved.Kind) {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, handlers.ErrorBody{Error: handlers.ErrorDetail{
-				Code:    handlers.CodeUnauthorized,
-				Message: "missing or invalid credentials",
-			}})
+			handlers.WriteUnauthorized(c, "missing or invalid credentials")
 			return
 		}
 		ctx := models.WithUser(c.Request.Context(), resolved.User)

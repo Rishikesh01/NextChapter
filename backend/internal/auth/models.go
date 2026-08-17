@@ -7,10 +7,12 @@ import (
 	"github.com/enable-it/nextchapter/backend/internal/models"
 )
 
-// resolved is the result of a successful token lookup, ready for the
-// middleware to attach to the request context. Package-internal: the
-// middleware in this package is the only caller.
-type resolved struct {
+// Resolved is the result of a successful token lookup, ready for the
+// auth middleware in [internal/httpapi/middleware] to attach to the
+// request context — that middleware is the only caller. Exported because
+// it is the return type of [Service.Resolve], which crosses the package
+// boundary into httpapi/middleware.
+type Resolved struct {
 	User       models.User
 	TokenID    int64
 	Kind       string
@@ -19,7 +21,7 @@ type resolved struct {
 }
 
 // tokenWithUser is the joined user+token shape returned by
-// [repository.getTokenByHash], used by the middleware to resolve a raw
+// [Repository.getTokenByHash], used by the middleware to resolve a raw
 // token to its owner without a second round trip.
 type tokenWithUser struct {
 	Token       models.Token
@@ -29,7 +31,7 @@ type tokenWithUser struct {
 }
 
 // insertTokenParams is the persistence-layer input for inserting a
-// new auth_tokens row. Service builds this; repository writes it.
+// new auth_tokens row. Service builds this; Repository writes it.
 type insertTokenParams struct {
 	UserID     int64
 	Kind       string
@@ -41,12 +43,12 @@ type insertTokenParams struct {
 	ExpiresAt  *time.Time
 }
 
-// repository is the persistence surface for auth tokens. The service
+// Repository is the persistence surface for auth tokens. The service
 // and middleware in this package depend on this interface; the
-// concrete implementations in repository_sqlite.go and
-// repository_postgres.go are the only things in the auth package that
+// concrete implementations in Repository_sqlite.go and
+// Repository_postgres.go are the only things in the auth package that
 // import sqlc-generated code.
-type repository interface {
+type Repository interface {
 	createToken(ctx context.Context, p insertTokenParams) (models.Token, error)
 	getTokenByHash(ctx context.Context, tokenHash string) (tokenWithUser, error)
 	deleteTokenByID(ctx context.Context, userID, tokenID int64) (int64, error)

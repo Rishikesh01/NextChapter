@@ -1,28 +1,11 @@
-// Package users owns the user-account domain. The repository in this
-// file is the dispatcher: it inspects the dialect string ("sqlite3" or
-// "postgres") and returns the engine-specific implementation. The
-// concrete impls live in repository_sqlite.go and repository_postgres.go.
+// Package users owns the user-account domain. The per-engine repository
+// implementations live in repository_sqlite.go / repository_postgres.go;
+// the dialect-dispatch lives in [internal/store].OpenRepos, not here.
 package users
 
 import (
-	"database/sql"
-	"fmt"
 	"strings"
 )
-
-// NewRepository returns the engine-appropriate [Repository] for the
-// given dialect. The dialect string mirrors what [store.DialectFor]
-// returns ("sqlite3" or "postgres").
-func NewRepository(dialect string, db *sql.DB) (Repository, error) {
-	switch dialect {
-	case "sqlite3":
-		return newSQLiteRepository(db), nil
-	case "postgres":
-		return newPostgresRepository(db), nil
-	default:
-		return nil, fmt.Errorf("users: unknown dialect %q", dialect)
-	}
-}
 
 // isUniqueViolation detects the engine-agnostic "unique constraint
 // failed" signal. Both modernc.org/sqlite and pgx surface a textual

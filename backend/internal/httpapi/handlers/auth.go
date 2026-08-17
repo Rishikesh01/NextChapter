@@ -167,7 +167,7 @@ func (d AuthDeps) Login(c *gin.Context) {
 		// and 500'd.
 		if errors.Is(err, models.ErrUserNotFound) || errors.Is(err, models.ErrInvalidCredentials) {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorBody{Error: ErrorDetail{
-				Code:    CodeUnauthorized,
+				Code:    codeUnauthorized,
 				Message: "invalid credentials",
 			}})
 			return
@@ -226,7 +226,7 @@ func (d AuthDeps) Me(c *gin.Context) {
 	u, ok := models.UserFromContext(c.Request.Context())
 	if !ok {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorBody{Error: ErrorDetail{
-			Code:    CodeUnauthorized,
+			Code:    codeUnauthorized,
 			Message: "missing or invalid credentials",
 		}})
 		return
@@ -313,7 +313,7 @@ func (d AuthDeps) DeleteToken(c *gin.Context) {
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
-			Code:    CodeNotFound,
+			Code:    codeNotFound,
 			Message: "not found",
 		}})
 		return
@@ -329,7 +329,7 @@ func (d AuthDeps) DeleteToken(c *gin.Context) {
 	}
 	if !matched {
 		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
-			Code:    CodeNotFound,
+			Code:    codeNotFound,
 			Message: "not found",
 		}})
 		return

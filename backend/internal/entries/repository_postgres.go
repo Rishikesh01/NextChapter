@@ -14,7 +14,7 @@ type postgresRepo struct {
 	q *pg.Queries
 }
 
-func newPostgresRepository(db *sql.DB) *postgresRepo {
+func NewPostgresRepository(db *sql.DB) *postgresRepo {
 	return &postgresRepo{q: pg.New(db)}
 }
 
@@ -22,7 +22,7 @@ func (r *postgresRepo) getEntryByID(ctx context.Context, userID, entryID int64) 
 	row, err := r.q.GetEntryByID(ctx, pg.GetEntryByIDParams{ID: entryID, UserID: userID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Entry{}, errNotFound
+			return models.Entry{}, models.ErrEntryNotFound
 		}
 		return models.Entry{}, fmt.Errorf("entries: get by id: %w", err)
 	}
@@ -37,7 +37,7 @@ func (r *postgresRepo) getEntryByKey(ctx context.Context, p getEntryByKeyParams)
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Entry{}, errNotFound
+			return models.Entry{}, models.ErrEntryNotFound
 		}
 		return models.Entry{}, fmt.Errorf("entries: get by key: %w", err)
 	}
@@ -91,7 +91,7 @@ func (r *postgresRepo) updateEntry(ctx context.Context, p updateEntryParams) (mo
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Entry{}, errNotFound
+			return models.Entry{}, models.ErrEntryNotFound
 		}
 		return models.Entry{}, fmt.Errorf("entries: update: %w", err)
 	}

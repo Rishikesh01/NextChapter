@@ -4,8 +4,6 @@
 package httpapi
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -134,9 +132,6 @@ func (d Deps) registerRoutes(r *gin.Engine) {
 
 	// Method-mismatch / unknown-route fallback.
 	r.NoRoute(func(c *gin.Context) {
-		c.AbortWithStatusJSON(http.StatusNotFound, handlers.ErrorBody{Error: handlers.ErrorDetail{
-			Code:    handlers.CodeNotFound,
-			Message: "not found",
-		}})
+		handlers.WriteNotFound(c, "not found")
 	})
 }

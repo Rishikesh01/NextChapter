@@ -18,7 +18,7 @@ type postgresRepo struct {
 	q  *pg.Queries
 }
 
-func newPostgresRepository(db *sql.DB) *postgresRepo {
+func NewPostgresRepository(db *sql.DB) *postgresRepo {
 	return &postgresRepo{db: db, q: pg.New(db)}
 }
 
@@ -42,7 +42,7 @@ func (r *postgresRepo) getSeriesByID(ctx context.Context, userID, seriesID int64
 	row, err := r.q.GetSeriesByID(ctx, pg.GetSeriesByIDParams{ID: seriesID, UserID: userID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Series{}, errNotFound
+			return models.Series{}, models.ErrSeriesNotFound
 		}
 		return models.Series{}, fmt.Errorf("series: get by id: %w", err)
 	}
@@ -61,7 +61,7 @@ func (r *postgresRepo) updateSeries(ctx context.Context, p updateSeriesParams) (
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.Series{}, errNotFound
+			return models.Series{}, models.ErrSeriesNotFound
 		}
 		return models.Series{}, fmt.Errorf("series: update: %w", err)
 	}
@@ -130,7 +130,7 @@ func (r *postgresRepo) getSummary(ctx context.Context, userID, seriesID int64) (
 	row, err := r.q.GetSeriesSummary(ctx, pg.GetSeriesSummaryParams{ID: seriesID, UserID: userID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.SeriesSummary{}, errNotFound
+			return models.SeriesSummary{}, models.ErrSeriesNotFound
 		}
 		return models.SeriesSummary{}, fmt.Errorf("series: get summary: %w", err)
 	}

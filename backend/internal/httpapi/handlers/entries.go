@@ -186,7 +186,7 @@ func (d EntriesDeps) Patch(c *gin.Context) {
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
-			Code:    CodeNotFound,
+			Code:    codeNotFound,
 			Message: "not found",
 		}})
 		return
@@ -213,7 +213,7 @@ func (d EntriesDeps) Patch(c *gin.Context) {
 		switch {
 		case errors.Is(err, models.ErrEntryNotFound):
 			c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
-				Code:    CodeNotFound,
+				Code:    codeNotFound,
 				Message: "not found",
 			}})
 			return
@@ -259,7 +259,7 @@ func (d EntriesDeps) Delete(c *gin.Context) {
 	var uri resourceIDUri
 	if err := c.ShouldBindUri(&uri); err != nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
-			Code:    CodeNotFound,
+			Code:    codeNotFound,
 			Message: "not found",
 		}})
 		return
@@ -267,7 +267,7 @@ func (d EntriesDeps) Delete(c *gin.Context) {
 	if err := d.Entries.ForgetReadingPosition(c.Request.Context(), u.ID, uri.ID); err != nil {
 		if errors.Is(err, models.ErrEntryNotFound) {
 			c.AbortWithStatusJSON(http.StatusNotFound, ErrorBody{Error: ErrorDetail{
-				Code:    CodeNotFound,
+				Code:    codeNotFound,
 				Message: "not found",
 			}})
 			return

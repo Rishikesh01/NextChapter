@@ -25,8 +25,11 @@ type AuthRecord struct {
 	UpdatedAt    time.Time
 }
 
-// insertUserParams is the persistence input for [Repository.InsertUser].
-type insertUserParams struct {
+// InsertUserParams is the persistence input for [Repository.InsertUser].
+// Exported because it is a parameter type on the exported [Repository]
+// interface; anything implementing the interface (e.g. a mock) must be
+// able to name the type.
+type InsertUserParams struct {
 	Username     string
 	PasswordHash string
 	CreatedAt    time.Time
@@ -42,6 +45,6 @@ type insertUserParams struct {
 // GetAuthRecordByUsername returns [AuthRecord] because the auth
 // package's Authenticate needs the hash to bcrypt-compare.
 type Repository interface {
-	InsertUser(ctx context.Context, p insertUserParams) (models.User, error)
+	InsertUser(ctx context.Context, p InsertUserParams) (models.User, error)
 	GetAuthRecordByUsername(ctx context.Context, username string) (AuthRecord, error)
 }

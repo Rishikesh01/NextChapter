@@ -63,7 +63,7 @@ func (e *MissingCaptureGroupError) Is(target error) bool {
 
 // Service exposes the sites domain to handlers.
 type Service struct {
-	repo   repository
+	repo   Repository
 	logger *zap.Logger
 }
 
@@ -72,7 +72,7 @@ type Service struct {
 var _ SitesService = (*Service)(nil)
 
 // NewService builds a Service.
-func NewService(repo repository, logger *zap.Logger) *Service {
+func NewService(repo Repository, logger *zap.Logger) *Service {
 	return &Service{repo: repo, logger: logger}
 }
 

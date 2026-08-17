@@ -84,9 +84,7 @@ func TestUserRegisterAndLogin(t *testing.T) {
 		}
 	}
 	r.NotEmpty(preLogout, "expected a session cookie before /auth/logout")
-	preHash := auth.HashToken(preLogout)
-	_, err = h.queries.GetAuthTokenByHash(context.Background(), preHash)
-	r.NoError(err, "session row should exist before logout")
+	auth.AssertSessionExists(t, h.queries, preLogout)
 
 	(testRequest{
 		Name:           "logout clears the session",
@@ -95,10 +93,8 @@ func TestUserRegisterAndLogin(t *testing.T) {
 		ExpectedStatus: http.StatusNoContent,
 	}).do(t, h)
 
-	// Store-state: the auth_tokens row for this hash must be gone.
-	_, err = h.queries.GetAuthTokenByHash(context.Background(), preHash)
-	r.True(errors.Is(err, sql.ErrNoRows),
-		"session row should be deleted by /auth/logout (got err=%v)", err)
+	// Store-state: the auth_tokens row for this session must be gone.
+	auth.AssertSessionGone(t, h.queries, preLogout)
 
 	(testRequest{
 		Name:           "/auth/me after logout is 401",

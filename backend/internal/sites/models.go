@@ -7,7 +7,7 @@ import (
 	"github.com/enable-it/nextchapter/backend/internal/models"
 )
 
-// insertSiteRuleParams is the input for [repository.insertSiteRule].
+// insertSiteRuleParams is the input for [Repository.insertSiteRule].
 type insertSiteRuleParams struct {
 	UserID              int64
 	Host                string
@@ -18,7 +18,7 @@ type insertSiteRuleParams struct {
 	UpdatedAt           time.Time
 }
 
-// updateSiteRuleParams is the input for [repository.updateSiteRule].
+// updateSiteRuleParams is the input for [Repository.updateSiteRule].
 type updateSiteRuleParams struct {
 	ID                  int64
 	UserID              int64
@@ -29,11 +29,11 @@ type updateSiteRuleParams struct {
 	UpdatedAt           time.Time
 }
 
-// repository is the persistence surface for the sites domain. The
+// Repository is the persistence surface for the sites domain. The
 // service in this package depends on this interface; the concrete
-// implementations in repository_sqlite.go and repository_postgres.go
+// implementations in Repository_sqlite.go and Repository_postgres.go
 // are the only things in the package that import sqlc-generated code.
-type repository interface {
+type Repository interface {
 	insertSiteRule(ctx context.Context, p insertSiteRuleParams) (models.SiteRule, error)
 	getSiteRuleByID(ctx context.Context, userID, ruleID int64) (models.SiteRule, error)
 	getSiteRuleByHost(ctx context.Context, userID int64, host string) (models.SiteRule, error)

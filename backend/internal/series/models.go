@@ -18,7 +18,7 @@ var validStatuses = map[string]struct{}{
 	constants.StatusPlanToRead: {},
 }
 
-// insertSeriesParams is the input for [repository.insertSeries].
+// insertSeriesParams is the input for [Repository.insertSeries].
 type insertSeriesParams struct {
 	UserID    int64
 	Title     string
@@ -29,7 +29,7 @@ type insertSeriesParams struct {
 	UpdatedAt time.Time
 }
 
-// updateSeriesParams is the input for [repository.updateSeries].
+// updateSeriesParams is the input for [Repository.updateSeries].
 type updateSeriesParams struct {
 	ID        int64
 	UserID    int64
@@ -42,7 +42,7 @@ type updateSeriesParams struct {
 
 // listSummariesAllParams paginates the user-wide series rollup list.
 // Tags is the optional AND-semantic tag filter; empty means "no tag
-// filter". The repository dispatches to a different generated query
+// filter". The Repository dispatches to a different generated query
 // when len(Tags) > 0 — sqlc doesn't do conditional WHERE clauses well,
 // so the no-tag and with-tag forms live in separate sqlc queries.
 type listSummariesAllParams struct {
@@ -62,14 +62,14 @@ type listSummariesByStatusParams struct {
 	Tags   []string
 }
 
-// countAllParams scopes [repository.countAll] with the optional tag
+// countAllParams scopes [Repository.countAll] with the optional tag
 // filter so the listing's `total` matches the filtered set.
 type countAllParams struct {
 	UserID int64
 	Tags   []string
 }
 
-// countByStatusParams scopes [repository.countByStatus] with the
+// countByStatusParams scopes [Repository.countByStatus] with the
 // optional tag filter.
 type countByStatusParams struct {
 	UserID int64
@@ -77,16 +77,16 @@ type countByStatusParams struct {
 	Tags   []string
 }
 
-// repository is the persistence surface for the series domain. The
+// Repository is the persistence surface for the series domain. The
 // service in this package depends on this interface; the concrete
-// implementations in repository_sqlite.go and repository_postgres.go
+// implementations in Repository_sqlite.go and Repository_postgres.go
 // are the only things in the package that import sqlc-generated code.
 //
 // Note: the rollup queries (listSummariesAll / listSummariesByStatus /
 // getSummary) return [models.SeriesSummary] values — the conversion
 // from sqlc's interface{} columns to the *float64 / *time.Time domain
-// shape happens inside the repository, not at the boundary.
-type repository interface {
+// shape happens inside the Repository, not at the boundary.
+type Repository interface {
 	insertSeries(ctx context.Context, p insertSeriesParams) (models.Series, error)
 	getSeriesByID(ctx context.Context, userID, seriesID int64) (models.Series, error)
 	updateSeries(ctx context.Context, p updateSeriesParams) (models.Series, error)
