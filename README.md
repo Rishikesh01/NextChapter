@@ -35,7 +35,9 @@ Serialised reading is messy. A single series shows up under different titles, on
 
 ## Status
 
-Scaffolding only. The agent definitions under `.claude/agents/` describe the intended architecture; the code under `backend/` and `frontend/` is not implemented yet. (The repo is named `browser-sync` for historical reasons — it will be renamed.)
+**Backend — implemented.** `backend/` is a complete Go JSON API: open registration, session-cookie and API-token auth, and CRUD for series (with tags and ratings), per-site reading entries, and site URL-rules. It runs on SQLite (pure-Go, the default) or Postgres, with goose migrations and sqlc-generated queries maintained for both engines. Tests run against real databases (testcontainers for Postgres) across a dual-engine CI matrix.
+
+**Frontend — not started.** The browser extension (`frontend/`) and the companion web library SPA are still to be built; the agent definitions under `.claude/agents/` describe the intended architecture for that work.
 
 ## License
 

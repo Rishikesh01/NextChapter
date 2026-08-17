@@ -18,7 +18,7 @@ type Config struct {
 	// ListenAddr is the address the HTTP server binds to (host:port).
 	ListenAddr string
 	// DatabaseURL points at the persistence layer. Supported schemes:
-	// "sqlite://" (modernc.org/sqlite) and "postgres://" (stub).
+	// "sqlite://" (modernc.org/sqlite) and "postgres://" (pgx/v5).
 	DatabaseURL string
 	// BootstrapUsername / BootstrapPassword create the first user on a
 	// fresh DB. Both must be set or both must be empty.
