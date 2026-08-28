@@ -98,6 +98,9 @@ describe('DetectedCapture', () => {
         busy={false}
         onChapterChange={vi.fn()}
         onCapture={onCapture}
+        host="reader.example.com"
+        autoTrack={null}
+        onToggleAutoTrack={vi.fn()}
       />,
     );
 
@@ -118,6 +121,9 @@ describe('DetectedCapture', () => {
         busy
         onChapterChange={vi.fn()}
         onCapture={vi.fn()}
+        host="reader.example.com"
+        autoTrack={null}
+        onToggleAutoTrack={vi.fn()}
       />,
     );
     expect(screen.getByRole('button', { name: 'Capturing…' })).toBeDisabled();
@@ -195,5 +201,69 @@ describe('StatusBanner', () => {
       screen.getByRole('button', { name: 'open settings' }),
     );
     expect(onAction).toHaveBeenCalledOnce();
+  });
+
+  it('hides the auto-track toggle until the permission state is known', () => {
+    render(
+      <DetectedCapture
+        seriesTitle="Solo Leveling"
+        chapter="101"
+        busy={false}
+        onChapterChange={vi.fn()}
+        onCapture={vi.fn()}
+        host="reader.example.com"
+        autoTrack={null}
+        onToggleAutoTrack={vi.fn()}
+      />,
+    );
+    // Rendering it unchecked while the real answer is still loading would
+    // read as "off" and invite a pointless second permission prompt.
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
+  it('names the host and warns about the access ask when off', async () => {
+    const onToggle = vi.fn();
+    render(
+      <DetectedCapture
+        seriesTitle="Solo Leveling"
+        chapter="101"
+        busy={false}
+        onChapterChange={vi.fn()}
+        onCapture={vi.fn()}
+        host="reader.example.com"
+        autoTrack={false}
+        onToggleAutoTrack={onToggle}
+      />,
+    );
+
+    const toggle = screen.getByRole('checkbox', { name: /reader\.example\.com/ });
+    expect(toggle).not.toBeChecked();
+    expect(
+      screen.getByText(/Asks for access to this site/),
+    ).toBeInTheDocument();
+
+    await userEvent.click(toggle);
+    expect(onToggle).toHaveBeenCalledWith(true);
+  });
+
+  it('reports the live state and turns back off', async () => {
+    const onToggle = vi.fn();
+    render(
+      <DetectedCapture
+        seriesTitle="Solo Leveling"
+        chapter="101"
+        busy={false}
+        onChapterChange={vi.fn()}
+        onCapture={vi.fn()}
+        host="reader.example.com"
+        autoTrack
+        onToggleAutoTrack={onToggle}
+      />,
+    );
+
+    const toggle = screen.getByRole('checkbox', { name: /reader\.example\.com/ });
+    expect(toggle).toBeChecked();
+    await userEvent.click(toggle);
+    expect(onToggle).toHaveBeenCalledWith(false);
   });
 });

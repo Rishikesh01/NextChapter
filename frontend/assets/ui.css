@@ -336,3 +336,36 @@ a {
   justify-content: flex-end;
   padding: var(--nc-space-3) var(--nc-space-4);
 }
+
+/* ---------- auto-track toggle (ADR-0012) ---------- */
+.nc-autotrack {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--nc-space-2);
+  margin-top: var(--nc-space-3);
+  padding-top: var(--nc-space-3);
+  border-top: 1px solid var(--nc-border);
+  cursor: pointer;
+}
+.nc-autotrack input {
+  margin: 2px 0 0;
+  flex: none;
+}
+.nc-autotrack-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--nc-text);
+}
+.nc-autotrack-text label {
+  display: block;
+  cursor: pointer;
+  color: var(--nc-text);
+}
+/* The consequence line is the important half — it says what switching
+   this on actually does, including the permission ask. */
+.nc-autotrack-hint {
+  display: block;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin-top: 2px;
+}

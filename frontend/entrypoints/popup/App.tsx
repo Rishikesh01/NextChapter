@@ -36,6 +36,11 @@ import {
   findCoverCandidates,
   type CoverCandidate,
 } from '../../lib/covers';
+import {
+  disableAutoTrack,
+  enableAutoTrack,
+  isAutoTrackActive,
+} from '../../lib/autotrack';
 import { parseChapterInput } from '../../components/popup/ChapterInput';
 
 type View =
@@ -79,6 +84,8 @@ export function App() {
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   /** URL of the candidate currently being fetched + uploaded. */
   const [pendingCover, setPendingCover] = useState<string | null>(null);
+  /** null until the host permission has been read (ADR-0012). */
+  const [autoTrack, setAutoTrack] = useState<boolean | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -116,6 +123,13 @@ export function App() {
         setChapter(String(detected.chapter));
       }
       setView({ kind: 'capture', tab, detected: detected !== null });
+      // Only meaningful where a rule matched: auto-tracking advances an
+      // existing entry, which needs a detected slug (ADR-0012 §3).
+      if (detected !== null) {
+        setAutoTrack(
+          await isAutoTrackActive(normalizeHost(new URL(tab.url).hostname)),
+        );
+      }
     })();
   }, []);
 
@@ -411,6 +425,22 @@ export function App() {
     [],
   );
 
+  /**
+   * Flips auto-tracking for this host. Enabling opens the browser's own
+   * permission prompt — declining leaves the toggle off, which is the
+   * honest reflection of "we do not have access".
+   */
+  const toggleAutoTrack = useCallback((pageHost: string, next: boolean) => {
+    void (async () => {
+      if (next) {
+        setAutoTrack(await enableAutoTrack(pageHost));
+        return;
+      }
+      await disableAutoTrack(pageHost);
+      setAutoTrack(false);
+    })();
+  }, []);
+
   const host = (() => {
     switch (view.kind) {
       case 'capture':
@@ -470,6 +500,11 @@ export function App() {
             busy={busy}
             onChapterChange={setChapter}
             onCapture={capture}
+            host={host}
+            autoTrack={autoTrack}
+            onToggleAutoTrack={(next) => {
+              toggleAutoTrack(host, next);
+            }}
           />
         ) : ruleDraft !== null ? (
           <RuleBuilder
