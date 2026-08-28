@@ -12,6 +12,7 @@ export default tseslint.config(
       '**/blob-report/**',
       // Deterministic generator output; linting it means fighting the generator.
       'packages/api-client/src/generated/**',
+      'web/dist/**',
       'backend/**',
       'design/**',
       'eslint.config.js',

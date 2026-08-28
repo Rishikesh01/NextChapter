@@ -15,6 +15,7 @@ PNPM ?= pnpm
 PLAYWRIGHT_VERSION ?= 1.62.1
 
 DOCKER_IMAGE ?= nextchapter-fe-test
+WEB_DOCKER_IMAGE ?= nextchapter-web-test
 
 # ---------------------------------------------------------------------------
 # Dev workflow
@@ -48,6 +49,7 @@ typecheck: ## tsc --noEmit in every package (runs wxt prepare first)
 depcheck: ## Unused/missing dependency check per package
 	$(PNPM) -w exec depcheck frontend
 	$(PNPM) -w exec depcheck packages/api-client
+	$(PNPM) -w exec depcheck web
 
 .PHONY: fmt
 fmt: ## Apply prettier formatting
@@ -77,9 +79,24 @@ build: ## Production build for Chromium (.output/chrome-mv3)
 build-firefox: ## Production build for Firefox (.output/firefox-mv3)
 	$(PNPM) --filter @nextchapter/extension run build:firefox
 
+.PHONY: web-build
+web-build: ## Production build of the web library SPA (web/dist)
+	$(PNPM) --filter @nextchapter/web run build
+
+.PHONY: web-embed
+web-embed: web-build ## Copy web/dist into the backend's embed dir (release builds; ADR-0010)
+	rm -rf ../backend/internal/webui/dist
+	mkdir -p ../backend/internal/webui/dist
+	cp -r ../web/dist/. ../backend/internal/webui/dist/
+
+.PHONY: web-unembed
+web-unembed: ## Restore the committed placeholder in the backend's embed dir
+	rm -rf ../backend/internal/webui/dist
+	cd .. && git checkout -- backend/internal/webui/dist
+
 .PHONY: clean
 clean: ## Remove build and test output
-	rm -rf .output .wxt playwright-report test-results blob-report
+	rm -rf .output .wxt playwright-report test-results blob-report ../web/dist ../web/playwright-report ../web/test-results
 
 # ---------------------------------------------------------------------------
 # e2e
@@ -100,15 +117,29 @@ test-e2e-docker: check-playwright-pin ## e2e in the pinned Playwright image (the
 	docker build --build-arg PLAYWRIGHT_VERSION=$(PLAYWRIGHT_VERSION) -f Dockerfile.test -t $(DOCKER_IMAGE) ..
 	docker run --rm $(DOCKER_IMAGE)
 
+.PHONY: web-test-e2e
+web-test-e2e: web-embed ## Web e2e against the embedded binary (native, dev loop)
+	$(MAKE) -C ../backend build
+	$(PNPM) --filter @nextchapter/web exec playwright test
+
+.PHONY: web-test-e2e-docker
+web-test-e2e-docker: check-playwright-pin ## Web e2e in the pinned Playwright image (the qa gate)
+	docker build --build-arg PLAYWRIGHT_VERSION=$(PLAYWRIGHT_VERSION) -f ../web/Dockerfile.test -t $(WEB_DOCKER_IMAGE) ..
+	docker run --rm $(WEB_DOCKER_IMAGE)
+
 .PHONY: check-playwright-pin
-check-playwright-pin: ## Assert @playwright/test == PLAYWRIGHT_VERSION == Dockerfile.test default
-	@dep=$$(node -p "require('./package.json').devDependencies['@playwright/test']"); \
-	if [ "$$dep" != "$(PLAYWRIGHT_VERSION)" ]; then \
-		echo "playwright pin mismatch: package.json has $$dep, Makefile PLAYWRIGHT_VERSION is $(PLAYWRIGHT_VERSION)"; \
-		exit 1; \
-	fi; \
-	dockerfile_default=$$(sed -n 's/^ARG PLAYWRIGHT_VERSION=//p' Dockerfile.test); \
-	if [ "$$dockerfile_default" != "$(PLAYWRIGHT_VERSION)" ]; then \
-		echo "playwright pin mismatch: Dockerfile.test ARG default is $$dockerfile_default, Makefile PLAYWRIGHT_VERSION is $(PLAYWRIGHT_VERSION)"; \
-		exit 1; \
-	fi
+check-playwright-pin: ## Assert every @playwright/test dep and Dockerfile ARG == PLAYWRIGHT_VERSION
+	@for pkg in ./package.json ../web/package.json; do \
+		dep=$$(node -p "require('$$pkg').devDependencies['@playwright/test']"); \
+		if [ "$$dep" != "$(PLAYWRIGHT_VERSION)" ]; then \
+			echo "playwright pin mismatch: $$pkg has $$dep, Makefile PLAYWRIGHT_VERSION is $(PLAYWRIGHT_VERSION)"; \
+			exit 1; \
+		fi; \
+	done; \
+	for df in Dockerfile.test ../web/Dockerfile.test; do \
+		dockerfile_default=$$(sed -n 's/^ARG PLAYWRIGHT_VERSION=//p' $$df); \
+		if [ "$$dockerfile_default" != "$(PLAYWRIGHT_VERSION)" ]; then \
+			echo "playwright pin mismatch: $$df ARG default is $$dockerfile_default, Makefile PLAYWRIGHT_VERSION is $(PLAYWRIGHT_VERSION)"; \
+			exit 1; \
+		fi; \
+	done

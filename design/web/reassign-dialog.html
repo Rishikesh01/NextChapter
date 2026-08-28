@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NextChapter web — move entry dialog</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+/* ================================================================
+   DEMO HARNESS — do not lift. Each variant renders the overlay
+   inside a fixed-height framed area so both states are visible at
+   once; in the real app the overlay covers the viewport
+   (position: fixed; inset: 0). A slice of the series-detail page
+   is faked underneath to show the scrim doing its job.
+   ================================================================ */
+body {
+  margin: 0;
+  padding: var(--nc-space-5) var(--nc-space-4);
+  background: var(--nc-bg);
+  font-family: var(--nc-font-family);
+  color: var(--nc-text);
+}
+.demo-label {
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin: var(--nc-space-5) 0 var(--nc-space-1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.demo-viewport {
+  position: relative;
+  height: 560px;
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-card);
+  overflow: hidden;
+}
+.demo-page-behind {
+  padding: var(--nc-space-5);
+  color: var(--nc-text-secondary);
+  font-size: var(--nc-text-body);
+}
+.demo-page-behind h1 {
+  font-size: var(--nc-text-heading);
+  font-weight: var(--nc-weight-semibold);
+  color: var(--nc-text);
+  margin: 0 0 var(--nc-space-3);
+}
+/* In the demo the overlay is absolute within the frame;
+   change to position: fixed when lifting. */
+.demo-viewport .nc-overlay { position: absolute; }
+
+/* ================================================================
+   COMPONENT STYLES — lift from here.
+
+   The one modal in the product. A modal is right here (and only
+   here) because reassignment is a cross-entity operation launched
+   from a table row — inline expansion would tear the table apart,
+   and the user needs the full series list, which doesn't fit in a
+   row. Everything else in the web app stays inline on principle.
+
+   The list reuses the extension's series-picker row idiom
+   verbatim (nc-series-row / -create / -meta) — same component,
+   new container.
+
+   Behavior:
+   - Opens from an entry row's "Move" action (series-detail.html).
+   - Focus moves to the search input; Tab is trapped inside;
+     Esc, the Cancel button, and a scrim click all close with no
+     changes made.
+   - Picking a row IS the action — one click moves the entry, the
+     dialog closes, the table and the "read till ch" rollup
+     refresh. No second confirm: a move is non-destructive and
+     reversible by moving back.
+   - Existing series → PATCH /entries/{id} {series_id}.
+     Create row → POST /series {title}, then the same PATCH (see
+     flows/web-library.md for the two-call failure handling).
+   ================================================================ */
+* { box-sizing: border-box; }
+
+:focus-visible {
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 1px;
+}
+
+.nc-small {
+  font-size: var(--nc-text-small);
+  line-height: var(--nc-leading);
+  color: var(--nc-text-secondary);
+}
+
+/* Scrim: the page background at 65% — a token-pure veil that is
+   light in light mode and dark in dark mode (no hardcoded rgba).
+   Implemented as its own layer so the dialog isn't affected. */
+.nc-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--nc-space-5) var(--nc-space-4);
+  z-index: 10;
+}
+.nc-overlay-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--nc-bg);
+  opacity: 0.65;
+}
+
+.nc-dialog {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  margin-top: 6vh;
+  background: var(--nc-bg);
+  border: 1px solid var(--nc-border-strong);
+  border-radius: var(--nc-radius-card);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 2 * var(--nc-space-5) - 6vh);
+}
+
+.nc-dialog-header {
+  padding: var(--nc-space-4) var(--nc-space-4) 0;
+}
+.nc-dialog-title {
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0;
+}
+.nc-dialog-context {
+  margin: var(--nc-space-1) 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nc-dialog-context code {
+  font-family: var(--nc-font-mono);
+  font-size: var(--nc-text-small);
+}
+
+.nc-dialog-search {
+  padding: var(--nc-space-3) var(--nc-space-4);
+  border-bottom: 1px solid var(--nc-border);
+}
+.nc-input {
+  height: var(--nc-control-height);
+  width: 100%;
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  padding: 0 var(--nc-space-2);
+  transition: border-color 120ms ease;
+}
+.nc-input:hover { border-color: var(--nc-border-strong); }
+.nc-input:focus-visible {
+  border-color: var(--nc-accent);
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 0;
+}
+.nc-input::placeholder { color: var(--nc-text-disabled); }
+
+/* ---------- series list (series-picker idiom) ---------- */
+.nc-series-list {
+  list-style: none;
+  margin: 0;
+  padding: var(--nc-space-1) 0;
+  overflow-y: auto;   /* native scrollbar */
+  flex: 1;
+  min-height: 0;
+  max-height: 320px;
+}
+.nc-series-row {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  padding: var(--nc-space-2) var(--nc-space-4);
+  cursor: pointer;
+  transition: background-color 100ms ease;
+  color: var(--nc-text);
+}
+.nc-series-row:hover,
+.nc-series-row[aria-selected="true"] { background: var(--nc-bg-subtle); }
+.nc-series-row-title {
+  display: block;
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nc-series-row-meta {
+  display: block;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pinned create row — accent-tinted action row, first in the
+   list, prefilled from the entry's site title (adopts the typed
+   filter text once the user types). */
+.nc-series-row-create {
+  background: var(--nc-accent-subtle-bg);
+  border-bottom: 1px solid var(--nc-accent-subtle-border);
+}
+.nc-series-row-create:hover,
+.nc-series-row-create[aria-selected="true"] { background: var(--nc-accent-subtle-bg); }
+.nc-series-row-create:hover .nc-series-row-title { text-decoration: underline; }
+.nc-series-row-create .nc-series-row-title { color: var(--nc-accent-text); }
+.nc-series-row-create .nc-series-row-title::before {
+  content: "+";
+  display: inline-block;
+  width: 14px;
+  font-weight: var(--nc-weight-semibold);
+}
+
+/* The series the entry already belongs to: listed (so the user
+   isn't left hunting for it) but inert. */
+.nc-series-row-current {
+  cursor: default;
+}
+.nc-series-row-current:hover { background: transparent; }
+.nc-series-row-current .nc-series-row-title { color: var(--nc-text-disabled); }
+
+.nc-list-empty {
+  padding: var(--nc-space-4);
+  text-align: center;
+  margin: 0;
+}
+
+/* ---------- footer: rollup note + Cancel ---------- */
+.nc-dialog-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-3);
+  padding: var(--nc-space-3) var(--nc-space-4);
+  border-top: 1px solid var(--nc-border);
+}
+.nc-dialog-note { flex: 1; margin: 0; }
+.nc-btn-secondary {
+  height: var(--nc-control-height);
+  padding: 0 var(--nc-space-4);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.nc-btn-secondary:hover {
+  background: var(--nc-bg-subtle);
+  border-color: var(--nc-border-strong);
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     VARIANT 1 — open, results. Launched from the reader.example.com
+     row of "Solo Leveling". The create row is prefilled from the
+     entry's site title; the current series appears but is inert.
+     Keyboard: type to filter, ↑/↓ move aria-selected (skipping
+     the current-series row), Enter picks, Esc cancels.
+     ============================================================ -->
+<div class="demo-label">Move entry — open, with results</div>
+<div class="demo-viewport">
+  <div class="demo-page-behind" aria-hidden="true">
+    <h1>Solo Leveling</h1>
+    <p>Sites &middot; read till ch 101 &mdash; the detail page continues beneath the scrim&hellip;</p>
+  </div>
+
+  <div class="nc-overlay">
+    <div class="nc-overlay-scrim"></div>
+    <div class="nc-dialog" role="dialog" aria-modal="true" aria-labelledby="mv-title">
+      <div class="nc-dialog-header">
+        <h1 class="nc-dialog-title" id="mv-title">Move this entry to&hellip;</h1>
+        <p class="nc-dialog-context nc-small">
+          <code>solo-leveling</code> on reader.example.com &middot; at ch 101
+        </p>
+      </div>
+      <div class="nc-dialog-search">
+        <input class="nc-input" type="search" placeholder="Filter your series"
+               aria-label="Filter your series" autocomplete="off" spellcheck="false">
+      </div>
+      <ul class="nc-series-list" role="listbox" aria-label="Choose a destination series">
+        <li>
+          <button class="nc-series-row nc-series-row-create" role="option" aria-selected="true" type="button">
+            <span class="nc-series-row-title">Create new series: &ldquo;Solo Leveling&rdquo;</span>
+            <span class="nc-series-row-meta">Starts at this entry&rsquo;s ch 101</span>
+          </button>
+        </li>
+        <li>
+          <button class="nc-series-row nc-series-row-current" role="option"
+                  aria-selected="false" aria-disabled="true" type="button" tabindex="-1">
+            <span class="nc-series-row-title">Solo Leveling</span>
+            <span class="nc-series-row-meta">Current series</span>
+          </button>
+        </li>
+        <li>
+          <button class="nc-series-row" role="option" aria-selected="false" type="button">
+            <span class="nc-series-row-title">Solo Leveling: Ragnarok</span>
+            <span class="nc-series-row-meta">Read till ch 38 &middot; 1 site</span>
+          </button>
+        </li>
+        <li>
+          <button class="nc-series-row" role="option" aria-selected="false" type="button">
+            <span class="nc-series-row-title">Omniscient Reader&rsquo;s Viewpoint</span>
+            <span class="nc-series-row-meta">Read till ch 112 &middot; 2 sites</span>
+          </button>
+        </li>
+        <li>
+          <button class="nc-series-row" role="option" aria-selected="false" type="button">
+            <span class="nc-series-row-title">The Beginning After The End</span>
+            <span class="nc-series-row-meta">Read till ch 178.5 &middot; 3 sites</span>
+          </button>
+        </li>
+        <li>
+          <button class="nc-series-row" role="option" aria-selected="false" type="button">
+            <span class="nc-series-row-title">Lord of the Mysteries</span>
+            <span class="nc-series-row-meta">Read till ch 1394 &middot; 1 site</span>
+          </button>
+        </li>
+      </ul>
+      <div class="nc-dialog-foot">
+        <p class="nc-dialog-note nc-small">
+          The chapter rollups of both series update.
+        </p>
+        <button class="nc-btn-secondary" type="button">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     VARIANT 2 — filtered to empty. The create row stays and
+     adopts the typed text as the new title (series-picker rule),
+     so a dead-end filter still offers a one-click way forward.
+     ============================================================ -->
+<div class="demo-label">Move entry — filtered to empty, create row adopts the query</div>
+<div class="demo-viewport">
+  <div class="demo-page-behind" aria-hidden="true">
+    <h1>Solo Leveling</h1>
+    <p>Sites &middot; read till ch 101 &mdash; the detail page continues beneath the scrim&hellip;</p>
+  </div>
+
+  <div class="nc-overlay">
+    <div class="nc-overlay-scrim"></div>
+    <div class="nc-dialog" role="dialog" aria-modal="true" aria-labelledby="mv-title-2">
+      <div class="nc-dialog-header">
+        <h1 class="nc-dialog-title" id="mv-title-2">Move this entry to&hellip;</h1>
+        <p class="nc-dialog-context nc-small">
+          <code>solo-leveling</code> on reader.example.com &middot; at ch 101
+        </p>
+      </div>
+      <div class="nc-dialog-search">
+        <input class="nc-input" type="search" value="Solo Leveling Side Stories"
+               aria-label="Filter your series" autocomplete="off" spellcheck="false">
+      </div>
+      <ul class="nc-series-list" role="listbox" aria-label="Choose a destination series">
+        <li>
+          <button class="nc-series-row nc-series-row-create" role="option" aria-selected="true" type="button">
+            <span class="nc-series-row-title">Create new series: &ldquo;Solo Leveling Side Stories&rdquo;</span>
+            <span class="nc-series-row-meta">Starts at this entry&rsquo;s ch 101</span>
+          </button>
+        </li>
+        <li>
+          <p class="nc-list-empty nc-small">No series match &ldquo;Solo Leveling Side Stories&rdquo;.</p>
+        </li>
+      </ul>
+      <div class="nc-dialog-foot">
+        <p class="nc-dialog-note nc-small">
+          The chapter rollups of both series update.
+        </p>
+        <button class="nc-btn-secondary" type="button">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -288,3 +288,105 @@ describe('site rules and token revocation', () => {
     expect((err as ApiError).fields?.host).toBe('already has a rule');
   });
 });
+
+describe('cookie auth mode (the web SPA — ADR-0010)', () => {
+  function cookieClient(): ApiClient {
+    return createApiClient(() =>
+      Promise.resolve({ baseUrl, authMode: 'cookie' as const }),
+    );
+  }
+
+  it('sends no Authorization header and does not require a token', async () => {
+    nextResponse = { status: 200, body: { id: 1, username: 'rishi' } };
+    const user = await cookieClient().me();
+
+    expect(user.username).toBe('rishi');
+    expect(seen[0]?.headers.authorization).toBeUndefined();
+  });
+
+  it('covers data mutations without a token', async () => {
+    nextResponse = { status: 200, body: { id: 4, title: 'ORV' } };
+    const series = await cookieClient().patchSeries(4, { status: 'completed' });
+
+    expect(series.id).toBe(4);
+    expect(seen[0]?.method).toBe('PATCH');
+    expect(seen[0]?.url).toBe('/series/4');
+    expect(seen[0]?.headers.authorization).toBeUndefined();
+  });
+
+  it('bearer mode still requires the token (extension behavior pinned)', async () => {
+    await expect(makeClient(undefined).me()).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(seen).toHaveLength(0);
+  });
+});
+
+describe('web data methods', () => {
+  it('gets series detail', async () => {
+    nextResponse = { status: 200, body: { id: 7, title: 'ORV', entries: [] } };
+    const detail = await makeClient('nca_test').getSeries(7);
+
+    expect(detail.title).toBe('ORV');
+    expect(seen[0]?.method).toBe('GET');
+    expect(seen[0]?.url).toBe('/series/7');
+  });
+
+  it('patches a series', async () => {
+    nextResponse = { status: 200, body: { id: 7, rating: 9 } };
+    await makeClient('nca_test').patchSeries(7, {
+      rating: 9,
+      tags: ['action'],
+    });
+
+    expect(seen[0]?.method).toBe('PATCH');
+    expect(JSON.parse(seen[0]?.body ?? '')).toEqual({
+      rating: 9,
+      tags: ['action'],
+    });
+  });
+
+  it('deletes a series', async () => {
+    nextResponse = { status: 204 };
+    await makeClient('nca_test').deleteSeries(7);
+    expect(seen[0]?.method).toBe('DELETE');
+    expect(seen[0]?.url).toBe('/series/7');
+  });
+
+  it('lists entries with the series filter', async () => {
+    nextResponse = { status: 200, body: { items: [], total: 0 } };
+    await makeClient('nca_test').listEntries({
+      seriesId: 7,
+      limit: 50,
+      offset: 10,
+    });
+    expect(seen[0]?.url).toBe('/entries?series_id=7&limit=50&offset=10');
+  });
+
+  it('patches an entry (reassignment shape)', async () => {
+    nextResponse = { status: 200, body: { id: 3, series_id: 9 } };
+    const entry = await makeClient('nca_test').patchEntry(3, { series_id: 9 });
+
+    expect(entry.series_id).toBe(9);
+    expect(seen[0]?.method).toBe('PATCH');
+    expect(seen[0]?.url).toBe('/entries/3');
+    expect(JSON.parse(seen[0]?.body ?? '')).toEqual({ series_id: 9 });
+  });
+
+  it('deletes an entry', async () => {
+    nextResponse = { status: 204 };
+    await makeClient('nca_test').deleteEntry(3);
+    expect(seen[0]?.method).toBe('DELETE');
+    expect(seen[0]?.url).toBe('/entries/3');
+  });
+
+  it('patches a site rule', async () => {
+    nextResponse = { status: 200, body: { id: 5, host: 'manhua.example.net' } };
+    await makeClient('nca_test').patchSiteRule(5, {
+      chapter_url_regex: '^/x/(?P<slug>[^/]+)/(?P<chapter>[0-9]+)$',
+    });
+
+    expect(seen[0]?.method).toBe('PATCH');
+    expect(seen[0]?.url).toBe('/sites/rules/5');
+  });
+});

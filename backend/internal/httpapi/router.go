@@ -4,6 +4,11 @@
 package httpapi
 
 import (
+	"io/fs"
+	"net/http"
+	"path"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -34,6 +39,9 @@ type Deps struct {
 	AllowedOrigins []string
 	CookieSecure   bool
 	CookieDomain   string
+	// WebUI is the embedded SPA build served from / (ADR-0010). Nil
+	// (the test harness default) keeps the JSON-only NoRoute behavior.
+	WebUI fs.FS
 }
 
 // New builds the gin.Engine: sets the run mode, installs the
@@ -68,7 +76,6 @@ func New(d Deps) *gin.Engine {
 // without the surrounding engine plumbing.
 func (d Deps) registerRoutes(r *gin.Engine) {
 	meta := handlers.MetaDeps{Version: d.Version}
-	r.GET("/", meta.Root)
 	r.GET("/healthz", meta.Health)
 
 	// Swagger UI / spec. Path is hard-coded by gin-swagger; the spec
@@ -130,8 +137,60 @@ func (d Deps) registerRoutes(r *gin.Engine) {
 	authed.PATCH("/sites/rules/:id", sitesDeps.EditRule)
 	authed.DELETE("/sites/rules/:id", sitesDeps.RemoveRule)
 
-	// Method-mismatch / unknown-route fallback.
+	// Unknown-route fallback: the embedded web UI for browser-shaped GET
+	// requests, the JSON not_found envelope for everything else. gin's
+	// StaticFS cannot mount at "/" (catch-all conflicts with registered
+	// routes) and its sub-path variant writes a 404 header before NoRoute
+	// runs, so ALL static serving lives here (ADR-0010 §4). NoRoute runs
+	// with engine middleware only — unauthenticated, as assets must be.
 	r.NoRoute(func(c *gin.Context) {
-		handlers.WriteNotFound(c, "not found")
+		method := c.Request.Method
+		if d.WebUI == nil ||
+			(method != http.MethodGet && method != http.MethodHead) ||
+			isAPIPath(c.Request.URL.Path) {
+			handlers.WriteNotFound(c, "not found")
+			return
+		}
+		serveWebUI(c, d.WebUI)
 	})
+}
+
+// apiPrefixes are the first path segments owned by the JSON API. Unknown
+// paths under them keep the not_found envelope even with the SPA embedded,
+// so API clients never receive HTML for a typo'd endpoint.
+var apiPrefixes = map[string]bool{
+	"auth":    true,
+	"series":  true,
+	"entries": true,
+	"sites":   true,
+	"healthz": true,
+	"swagger": true,
+}
+
+func isAPIPath(p string) bool {
+	seg := strings.TrimPrefix(path.Clean(p), "/")
+	if i := strings.IndexByte(seg, '/'); i >= 0 {
+		seg = seg[:i]
+	}
+	return apiPrefixes[seg]
+}
+
+// serveWebUI serves the exact embedded file when it exists, else
+// index.html with 200 — the client-side-routing fallback. Content-hashed
+// Vite assets are immutable; index.html must always revalidate so a new
+// deploy takes effect.
+func serveWebUI(c *gin.Context, ui fs.FS) {
+	name := strings.TrimPrefix(path.Clean(c.Request.URL.Path), "/")
+	if name == "" || name == "." {
+		name = "index.html"
+	}
+	if info, err := fs.Stat(ui, name); err != nil || info.IsDir() {
+		name = "index.html"
+	}
+	if strings.HasPrefix(name, "assets/") {
+		c.Header("Cache-Control", "public, max-age=31536000, immutable")
+	} else {
+		c.Header("Cache-Control", "no-cache")
+	}
+	http.ServeFileFS(c.Writer, c.Request, ui, name)
 }

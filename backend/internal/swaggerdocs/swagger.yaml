@@ -395,19 +395,6 @@ info:
   title: NextChapter API
   version: "1.0"
 paths:
-  /:
-    get:
-      description: Placeholder text until the SPA ships (ADR-0004). Unauthenticated.
-      produces:
-      - text/plain
-      responses:
-        "200":
-          description: NextChapter API. See /healthz.
-          schema:
-            type: string
-      summary: API root placeholder
-      tags:
-      - meta
   /auth/login:
     post:
       consumes:

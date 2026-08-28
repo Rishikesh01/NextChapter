@@ -1,9 +1,10 @@
 # NextChapter — design system
 
 Design source of truth for the browser extension (popup + options
-page). Everything here is static HTML/CSS meant to be lifted directly
-into React components — open any file in `components/` in a browser
-(light and dark both work; flip your OS theme to check).
+page) and the web library SPA. Everything here is static HTML/CSS
+meant to be lifted directly into React components — open any file in
+`components/` or `web/` in a browser (light and dark both work; flip
+your OS theme to check).
 
 ## Index
 
@@ -20,6 +21,58 @@ into React components — open any file in `components/` in a browser
 | [`flows/capture.md`](flows/capture.md) | The popup state machine: loading → (not-configured \| uncapturable \| detected \| manual) → capture → 200/201/422/401/network, including the rule-builder and series-picker branches and every empty state. |
 | [`flows/onboarding.md`](flows/onboarding.md) | Options-page flow: URL → host permission → health check → sign-in/create → auto-minted token → verified → connected; paste-token fallback; failure handling. |
 | [`flows/rules.md`](flows/rules.md) | Site-rule lifecycle: regex generation from picked segments, create-from-popup, view/delete from options, write-through cache refresh, hosts-not-IPs constraint. |
+
+## Web library (the `web/` SPA)
+
+The companion web app (ADR-0004 track) shares `tokens.css` wholesale —
+same indigo, same light/dark palettes, same 4px scale, same two
+weights. What changes is scale: a 1040px content cap instead of 380px,
+multi-column grids and tables instead of a single stack, and the 17px
+heading size allowed everywhere (one per screen).
+
+| File | What it is |
+|------|------------|
+| [`web/auth.html`](web/auth.html) | Login + register: centered 360px card, cross-linked pages, 401 in-card banner, 422 field-level (username taken). |
+| [`web/library.html`](web/library.html) | Main screen: top nav, status + tag-chip filters (URL-synced), responsive series-card grid (auto-fill, 3→1 col), Load more. Populated / fresh-account / filtered-to-empty variants. |
+| [`web/series-detail.html`](web/series-detail.html) | Breadcrumb, heading + self-saving inline editors (status, rating, tag chips, notes), entries table with per-row Continue reading / Move / Edit / Remove, danger zone. Five variants incl. inline edit, remove confirm, unrated, entries-empty. |
+| [`web/reassign-dialog.html`](web/reassign-dialog.html) | The product's one modal: "Move this entry to…" with search, series-picker rows, pinned create row, inert current-series row, rollup note. Results + filtered-empty variants. |
+| [`web/rules.html`](web/rules.html) | Site rules with full CRUD incl. the raw regex: rules table + "no rule yet" hint rows for tracked hosts, create/edit form with Go named-group help, 422 variants (duplicate host, compile failure), empty state. Supersedes the extension's view-only list. |
+| [`web/settings.html`](web/settings.html) | Extension-token minting (label → mint → show-once mono token + Copy + amber warning) and the Account card (signed in as / Sign out). |
+| [`flows/web-library.md`](flows/web-library.md) | Routing + auth guard (401 → `/login?next=`), filter/pagination state, the PATCH-per-editor save lifecycle (on-success commit + savehint), reassignment incl. the two-call create path, rule CRUD, token mint-once, and the three global error treatments. |
+
+### How the web app scales the system up
+
+- **Nav, not chrome.** One hairline-bordered bar: brand, three links
+  (active = semibold + the options page's 2px accent underline — the
+  `.nc-tabs` idiom promoted), username + sign out. No hamburger, no
+  icons; three links don't need either.
+- **Card grid without breakpoints.** `auto-fill, minmax(290px, 1fr)`
+  gives 3 columns at the 1040px cap down to 1 at 360px with no media
+  query to maintain. Cards are whole-card anchors; footers align via
+  fixed-height title/tag zones; chapter numbers stay tabular.
+- **Tables for entries and rules, restacking under 680px.** Per-site
+  entries and rules are genuinely columnar; a `<table>` keeps 5+ rows
+  scannable, and one media query restacks rows into blocks on
+  phones — same markup, no parallel card component.
+- **Solid accent = the screen's primary action, generalized.** The
+  popup's rule ("only Capture is filled") becomes "one filled control
+  class per view region": *Continue reading* on entry rows — the web
+  counterpart of Capture, it's the product promise — plus the single
+  page-level action (Add rule / Create token / auth submit).
+- **Status pills are neutral.** All five reading statuses render as
+  gray pills: they're library metadata, not success/error feedback,
+  and the green/red/amber tokens stay reserved for state.
+- **One modal, everything else inline.** Only entry reassignment
+  (cross-entity, needs the full series list) gets a dialog — it
+  reuses the series-picker rows verbatim, with a token-pure scrim
+  (`--nc-bg` at 65% opacity, correct in both themes). Destructive
+  actions keep the extension's two-step inline confirm with Cancel
+  in the destructive position and focused.
+- **Edits save themselves.** Each detail-page editor PATCHes its own
+  field and reports through a quiet inline "Saving… / Saved" hint —
+  committed on success, not optimistically (LAN-local servers make
+  optimism pointless and rollback code expensive). Notes alone gets
+  an explicit Save (multi-line edits deserve a deliberate commit).
 
 ## Rationale for the major choices
 

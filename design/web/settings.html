@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NextChapter web — settings</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+/* ================================================================
+   DEMO HARNESS — do not lift. Variant 1 = default page, variant
+   2 = the token card right after minting. One page in the real
+   app; the token card has the two states.
+   ================================================================ */
+body {
+  margin: 0;
+  background: var(--nc-bg);
+  font-family: var(--nc-font-family);
+  color: var(--nc-text);
+}
+.demo-label {
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin: var(--nc-space-5) auto var(--nc-space-1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  max-width: 1040px;
+  padding: 0 var(--nc-space-4);
+}
+.demo-page { border-bottom: 1px solid var(--nc-border); padding-bottom: var(--nc-space-5); }
+
+/* ================================================================
+   COMPONENT STYLES — lift from here.
+
+   Settings is deliberately thin in v1: mint extension tokens and
+   sign out. No password change, no profile. The cards keep the
+   options page's 480px column width even though the page allows
+   1040 — settings content should not stretch.
+
+   Token model: POST /auth/tokens {label} returns the plaintext
+   token exactly once; the server stores only a hash. There is no
+   list endpoint — the UI must say so up front, not after the
+   user goes hunting for their old token.
+   ================================================================ */
+* { box-sizing: border-box; }
+
+:focus-visible {
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 1px;
+}
+
+.nc-small {
+  font-size: var(--nc-text-small);
+  line-height: var(--nc-leading);
+  color: var(--nc-text-secondary);
+}
+a { color: var(--nc-accent-text); }
+
+/* ---------- nav (shared scaffolding) ---------- */
+.nc-nav { border-bottom: 1px solid var(--nc-border); background: var(--nc-bg); }
+.nc-nav-inner {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 var(--nc-space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-5);
+  height: 52px;
+}
+.nc-nav-brand {
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  color: var(--nc-text);
+  text-decoration: none;
+}
+.nc-nav-links { display: flex; gap: var(--nc-space-4); align-self: stretch; }
+.nc-nav-link {
+  display: flex;
+  align-items: center;
+  font-size: var(--nc-text-body);
+  color: var(--nc-text-secondary);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  border-top: 2px solid transparent;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.nc-nav-link:hover { color: var(--nc-text); }
+.nc-nav-link[aria-current="page"] {
+  color: var(--nc-text);
+  font-weight: var(--nc-weight-semibold);
+  border-bottom-color: var(--nc-accent);
+}
+.nc-nav-user { margin-left: auto; display: flex; align-items: center; gap: var(--nc-space-3); }
+.nc-nav-username { font-size: var(--nc-text-small); color: var(--nc-text-secondary); }
+.nc-btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--nc-text-small);
+  color: var(--nc-accent-text);
+  text-decoration: underline;
+  cursor: pointer;
+}
+@media (max-width: 520px) { .nc-nav-username { display: none; } }
+
+.nc-content {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: var(--nc-space-5) var(--nc-space-4);
+}
+.nc-page-title {
+  font-size: var(--nc-text-heading);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0 0 var(--nc-space-4);
+}
+
+/* Settings column: options-page width, not page width. */
+.nc-settings-col { max-width: 480px; }
+
+/* ---------- section card ---------- */
+.nc-section {
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-card);
+  padding: var(--nc-space-4);
+  margin-bottom: var(--nc-space-4);
+  background: var(--nc-bg);
+}
+.nc-section-title {
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0 0 var(--nc-space-3);
+}
+.nc-section-caption { margin: calc(-1 * var(--nc-space-2)) 0 var(--nc-space-3); }
+
+/* ---------- fields & buttons ---------- */
+.nc-field { margin-bottom: var(--nc-space-3); }
+.nc-field label {
+  display: block;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin-bottom: var(--nc-space-1);
+}
+.nc-input {
+  height: var(--nc-control-height);
+  width: 100%;
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  padding: 0 var(--nc-space-2);
+  transition: border-color 120ms ease;
+}
+.nc-input:hover { border-color: var(--nc-border-strong); }
+.nc-input:focus-visible {
+  border-color: var(--nc-accent);
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 0;
+}
+.nc-input::placeholder { color: var(--nc-text-disabled); }
+.nc-input[readonly] { background: var(--nc-bg-subtle); }
+.nc-input-token {
+  font-family: var(--nc-font-mono);
+  font-size: var(--nc-text-small);
+}
+
+.nc-row { display: flex; gap: var(--nc-space-2); }
+.nc-row .nc-input { flex: 1; }
+
+.nc-btn-primary {
+  height: var(--nc-control-height);
+  padding: 0 var(--nc-space-4);
+  border: none;
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-accent);
+  color: var(--nc-on-accent);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+  white-space: nowrap;
+}
+.nc-btn-primary:hover { background: var(--nc-accent-hover); }
+.nc-btn-primary:active { background: var(--nc-accent-active); }
+.nc-btn-secondary {
+  height: var(--nc-control-height);
+  padding: 0 var(--nc-space-4);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+  white-space: nowrap;
+}
+.nc-btn-secondary:hover {
+  background: var(--nc-bg-subtle);
+  border-color: var(--nc-border-strong);
+}
+.nc-btn-danger-quiet { color: var(--nc-error-fg); }
+
+/* ---------- minted token treatment ----------
+   Amber, not green: the news is "act now", not "all done". The
+   warning line carries the show-once fact; the caption beneath
+   carries the can't-list-later consequence. Copy uses the
+   clipboard API; on success its label flips to "Copied" for ~2s
+   (no green, no toast). */
+.nc-token-warn {
+  margin: var(--nc-space-2) 0 0;
+  font-size: var(--nc-text-small);
+  color: var(--nc-warn-fg);
+}
+.nc-token-note { margin: var(--nc-space-1) 0 0; }
+
+/* ---------- account row ---------- */
+.nc-account-row {
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-3);
+}
+.nc-account-row p { flex: 1; margin: 0; font-size: var(--nc-text-body); }
+.nc-account-row strong { font-weight: var(--nc-weight-semibold); }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     VARIANT 1 — default. Label input + Create token. The label
+     is what identifies the token to a human ("laptop-firefox"),
+     since the token itself can never be shown again. Button is
+     enabled with an empty label (label is optional) but the
+     placeholder nudges toward naming.
+     ============================================================ -->
+<div class="demo-label">Settings — default</div>
+<div class="demo-page">
+<nav class="nc-nav">
+  <div class="nc-nav-inner">
+    <a class="nc-nav-brand" href="#">NextChapter</a>
+    <div class="nc-nav-links">
+      <a class="nc-nav-link" href="#">Library</a>
+      <a class="nc-nav-link" href="#">Site rules</a>
+      <a class="nc-nav-link" href="#" aria-current="page">Settings</a>
+    </div>
+    <div class="nc-nav-user">
+      <span class="nc-nav-username">rishikesh</span>
+      <button class="nc-btn-link" type="button">Sign out</button>
+    </div>
+  </div>
+</nav>
+<main class="nc-content">
+  <h1 class="nc-page-title">Settings</h1>
+  <div class="nc-settings-col">
+
+    <section class="nc-section">
+      <h2 class="nc-section-title">Extension token</h2>
+      <p class="nc-section-caption nc-small">
+        The browser extension signs in with an API token. Usually the
+        extension mints one for you when you sign in there &mdash; create one
+        here only if you need to paste it manually.
+      </p>
+      <form>
+        <div class="nc-field">
+          <label for="token-label">Label</label>
+          <div class="nc-row">
+            <input class="nc-input" id="token-label" type="text"
+                   placeholder="e.g. laptop-firefox" autocomplete="off" spellcheck="false">
+            <button class="nc-btn-primary" type="submit">Create token</button>
+          </div>
+        </div>
+      </form>
+      <p class="nc-small" style="margin: 0;">
+        Tokens are shown once, at creation &mdash; they can&rsquo;t be viewed
+        later. Lost one? Create a new one and update the extension.
+      </p>
+    </section>
+
+    <section class="nc-section">
+      <h2 class="nc-section-title">Account</h2>
+      <div class="nc-account-row">
+        <p>Signed in as <strong>rishikesh</strong></p>
+        <button class="nc-btn-secondary nc-btn-danger-quiet" type="button">Sign out</button>
+      </div>
+    </section>
+
+  </div>
+</main>
+</div>
+
+<!-- ============================================================
+     VARIANT 2 — token just minted (POST /auth/tokens → 201).
+     The form is replaced by the read-only token + Copy. The
+     token stays on screen until the user leaves the page or
+     clicks Done — no auto-hide timer racing the user's paste.
+     "Done" returns the card to variant 1 and drops the plaintext
+     from memory.
+     ============================================================ -->
+<div class="demo-label">Settings — token minted (shown once)</div>
+<div class="demo-page">
+<main class="nc-content">
+  <h1 class="nc-page-title">Settings</h1>
+  <div class="nc-settings-col">
+
+    <section class="nc-section">
+      <h2 class="nc-section-title">Extension token</h2>
+      <p class="nc-section-caption nc-small">
+        Token <strong>laptop-firefox</strong> created.
+      </p>
+      <div class="nc-field" style="margin-bottom: 0;">
+        <label for="minted-token">Your new token</label>
+        <div class="nc-row">
+          <input class="nc-input nc-input-token" id="minted-token" type="text" readonly
+                 value="nca_9f2ba61c7de84d0f8a3b52c1e6790a4d" spellcheck="false"
+                 onclick="this.select()">
+          <button class="nc-btn-secondary" type="button">Copy</button>
+        </div>
+        <p class="nc-token-warn" role="alert">
+          Save it now &mdash; it won&rsquo;t be shown again.
+        </p>
+        <p class="nc-token-note nc-small">
+          Paste it into the extension&rsquo;s settings (&ldquo;Paste token&rdquo; tab).
+        </p>
+      </div>
+      <div style="display: flex; justify-content: flex-end; margin-top: var(--nc-space-3);">
+        <button class="nc-btn-secondary" type="button">Done</button>
+      </div>
+    </section>
+
+    <section class="nc-section">
+      <h2 class="nc-section-title">Account</h2>
+      <div class="nc-account-row">
+        <p>Signed in as <strong>rishikesh</strong></p>
+        <button class="nc-btn-secondary nc-btn-danger-quiet" type="button">Sign out</button>
+      </div>
+    </section>
+
+  </div>
+</main>
+</div>
+
+</body>
+</html>

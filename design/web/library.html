@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NextChapter web — library</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+/* ================================================================
+   DEMO HARNESS — do not lift. Three page variants stacked; in the
+   real app exactly one renders. Resize the window to check the
+   grid: 3 columns ≥ ~980px, 2 in between, 1 below ~640px — the
+   auto-fill minmax does it without media queries.
+   ================================================================ */
+body {
+  margin: 0;
+  background: var(--nc-bg);
+  font-family: var(--nc-font-family);
+  color: var(--nc-text);
+}
+.demo-label {
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin: var(--nc-space-5) auto var(--nc-space-1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  max-width: 1040px;
+  padding: 0 var(--nc-space-4);
+}
+.demo-page { border-bottom: 1px solid var(--nc-border); padding-bottom: var(--nc-space-5); }
+
+/* ================================================================
+   COMPONENT STYLES — lift from here.
+
+   Page scaffolding shared by every web screen (library, series
+   detail, rules, settings): a full-width top nav with the content
+   width mirrored inside it, then a centered content column capped
+   at 1040px. Duplicated across the web/ prototypes so each opens
+   standalone — dedupe into a shared layout when porting.
+   ================================================================ */
+* { box-sizing: border-box; }
+
+:focus-visible {
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 1px;
+}
+
+.nc-small {
+  font-size: var(--nc-text-small);
+  line-height: var(--nc-leading);
+  color: var(--nc-text-secondary);
+}
+a { color: var(--nc-accent-text); }
+
+/* ---------- top nav ----------
+   One bar, border-bottom, no fill, no shadow — the web version of
+   the popup's hairline separators. Brand and links share the body
+   size; weight and the 2px accent underline mark the active page
+   (same idiom as the options page's .nc-tabs). */
+.nc-nav {
+  border-bottom: 1px solid var(--nc-border);
+  background: var(--nc-bg);
+}
+.nc-nav-inner {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 var(--nc-space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-5);
+  height: 52px;
+}
+.nc-nav-brand {
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  color: var(--nc-text);
+  text-decoration: none;
+}
+.nc-nav-links {
+  display: flex;
+  gap: var(--nc-space-4);
+  align-self: stretch;
+}
+.nc-nav-link {
+  display: flex;
+  align-items: center;
+  font-size: var(--nc-text-body);
+  color: var(--nc-text-secondary);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  border-top: 2px solid transparent; /* keeps text vertically centered */
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.nc-nav-link:hover { color: var(--nc-text); }
+.nc-nav-link[aria-current="page"] {
+  color: var(--nc-text);
+  font-weight: var(--nc-weight-semibold);
+  border-bottom-color: var(--nc-accent);
+}
+.nc-nav-user {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-3);
+}
+.nc-nav-username {
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+}
+.nc-btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--nc-text-small);
+  color: var(--nc-accent-text);
+  text-decoration: underline;
+  cursor: pointer;
+}
+@media (max-width: 520px) {
+  .nc-nav-inner { gap: var(--nc-space-4); }
+  .nc-nav-username { display: none; } /* Sign out stays */
+}
+
+/* ---------- content column ---------- */
+.nc-content {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: var(--nc-space-5) var(--nc-space-4);
+}
+.nc-page-title {
+  font-size: var(--nc-text-heading);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0 0 var(--nc-space-4);
+}
+
+/* ---------- filter row ----------
+   Status select + tag filter + result count. Wraps to multiple
+   lines on narrow screens instead of collapsing into a drawer —
+   two controls don't need one. Filter state is mirrored into the
+   query string (?status=…&tag=…) so it survives reload/back.  */
+.nc-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--nc-space-2);
+  margin-bottom: var(--nc-space-4);
+}
+.nc-input {
+  height: var(--nc-control-height);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  padding: 0 var(--nc-space-2);
+  transition: border-color 120ms ease;
+}
+.nc-input:hover { border-color: var(--nc-border-strong); }
+.nc-input:focus-visible {
+  border-color: var(--nc-accent);
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 0;
+}
+.nc-input::placeholder { color: var(--nc-text-disabled); }
+select.nc-input { width: auto; padding-right: var(--nc-space-4); }
+.nc-filter-tag-input { width: 140px; }
+
+/* Active tag filters render as removable chips next to the input.
+   Tag filters AND together (the API's ?tag=a&tag=b semantics). */
+.nc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nc-space-1);
+  height: 22px;
+  padding: 0 var(--nc-space-2);
+  border-radius: var(--nc-radius-full);
+  background: var(--nc-bg-subtle);
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.nc-chip-remove {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  cursor: pointer;
+  line-height: 1;
+}
+.nc-chip-remove:hover { color: var(--nc-text); }
+
+.nc-filter-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- series card grid ----------
+   auto-fill minmax gives 3 columns at the 1040px cap, 2 on a
+   half-screen window, 1 under ~640px — no breakpoints to keep in
+   sync. Cards are anchors: the whole card is the click target
+   (the product promise is "click straight back into reading"). */
+.nc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: var(--nc-space-4);
+}
+
+.nc-card {
+  display: block;
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-card);
+  padding: var(--nc-space-4);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  text-decoration: none;
+  transition: border-color 120ms ease;
+}
+.nc-card:hover { border-color: var(--nc-border-strong); }
+.nc-card:hover .nc-card-title { text-decoration: underline; }
+
+.nc-card-title {
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0 0 var(--nc-space-2);
+  line-height: var(--nc-leading);
+  /* two-line clamp; overflow gets an ellipsis, full title in
+     the title attribute */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: calc(2 * var(--nc-text-body) * var(--nc-leading)); /* rows align even for 1-line titles */
+}
+
+/* Status pill + rating on one line. Status pills are NEUTRAL —
+   gray, all five of them. reading/completed/dropped are library
+   metadata, not success/error feedback, and five colored pills
+   in a grid would out-shout everything. */
+.nc-card-badges {
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-2);
+  margin: 0 0 var(--nc-space-2);
+}
+.nc-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 var(--nc-space-2);
+  border-radius: var(--nc-radius-full);
+  background: var(--nc-bg-subtle);
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+}
+.nc-card-rating {
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.nc-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nc-space-1);
+  margin: 0 0 var(--nc-space-3);
+  min-height: 22px; /* keeps card footers aligned when a series has no tags */
+}
+
+/* Footer: progress left, recency right. Tabular numerals so
+   "ch 101" and "ch 45.5" line up across the grid. */
+.nc-card-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--nc-space-2);
+  margin: 0;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.nc-card-progress strong {
+  color: var(--nc-text);
+  font-weight: var(--nc-weight-semibold);
+}
+.nc-card-when { white-space: nowrap; }
+
+/* ---------- load more ----------
+   Explicit button, not infinite scroll: native feel, keeps the
+   scrollbar honest, and GET /series already pages (limit/offset +
+   total). Caption shows position in the filtered set. */
+.nc-loadmore {
+  margin-top: var(--nc-space-5);
+  text-align: center;
+}
+.nc-btn-secondary {
+  height: var(--nc-control-height);
+  padding: 0 var(--nc-space-4);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.nc-btn-secondary:hover {
+  background: var(--nc-bg-subtle);
+  border-color: var(--nc-border-strong);
+}
+.nc-loadmore-caption { margin: var(--nc-space-2) 0 0; }
+
+/* ---------- empty states ---------- */
+.nc-empty {
+  text-align: center;
+  padding: var(--nc-space-5) var(--nc-space-4);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-card);
+}
+.nc-empty-title {
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0 0 var(--nc-space-1);
+}
+.nc-empty-line { margin: 0; }
+.nc-empty-line + .nc-empty-line { margin-top: var(--nc-space-1); }
+.nc-empty .nc-btn-link { font-size: var(--nc-text-small); }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     VARIANT 1 — populated library. Data from GET /series
+     (SeriesSummary rows: title, status, rating, tags,
+     highest_chapter, entry_count, last_captured_at). Cards sort
+     by last_captured_at desc — the thing you read most recently
+     is the thing you most likely want back into.
+     ============================================================ -->
+<div class="demo-label">Library — populated, one tag filter active</div>
+<div class="demo-page">
+<nav class="nc-nav">
+  <div class="nc-nav-inner">
+    <a class="nc-nav-brand" href="#">NextChapter</a>
+    <div class="nc-nav-links">
+      <a class="nc-nav-link" href="#" aria-current="page">Library</a>
+      <a class="nc-nav-link" href="#">Site rules</a>
+      <a class="nc-nav-link" href="#">Settings</a>
+    </div>
+    <div class="nc-nav-user">
+      <span class="nc-nav-username">rishikesh</span>
+      <button class="nc-btn-link" type="button">Sign out</button>
+    </div>
+  </div>
+</nav>
+<main class="nc-content">
+  <h1 class="nc-page-title">Library</h1>
+
+  <div class="nc-filters">
+    <select class="nc-input" aria-label="Filter by status">
+      <option selected>All statuses</option>
+      <option>Reading</option>
+      <option>Completed</option>
+      <option>On hold</option>
+      <option>Dropped</option>
+      <option>Plan to read</option>
+    </select>
+    <input class="nc-input nc-filter-tag-input" type="text" placeholder="Filter by tag"
+           aria-label="Filter by tag" autocomplete="off" spellcheck="false">
+    <span class="nc-chip">action
+      <button class="nc-chip-remove" type="button" aria-label="Remove tag filter action">&times;</button>
+    </span>
+    <span class="nc-filter-count nc-small">6 of 57 series</span>
+  </div>
+
+  <div class="nc-grid">
+    <a class="nc-card" href="#" title="Solo Leveling">
+      <h2 class="nc-card-title">Solo Leveling</h2>
+      <p class="nc-card-badges">
+        <span class="nc-pill">Reading</span>
+        <span class="nc-card-rating">&#9733; 9</span>
+      </p>
+      <p class="nc-card-tags">
+        <span class="nc-chip">action</span>
+        <span class="nc-chip">dungeon</span>
+      </p>
+      <p class="nc-card-foot">
+        <span class="nc-card-progress">Read till ch <strong>101</strong> &middot; 3 sites</span>
+        <span class="nc-card-when">2 h ago</span>
+      </p>
+    </a>
+
+    <a class="nc-card" href="#" title="Omniscient Reader’s Viewpoint">
+      <h2 class="nc-card-title">Omniscient Reader&rsquo;s Viewpoint</h2>
+      <p class="nc-card-badges">
+        <span class="nc-pill">Reading</span>
+        <span class="nc-card-rating">&#9733; 10</span>
+      </p>
+      <p class="nc-card-tags">
+        <span class="nc-chip">action</span>
+        <span class="nc-chip">apocalypse</span>
+        <span class="nc-chip">novel-adaptation</span>
+      </p>
+      <p class="nc-card-foot">
+        <span class="nc-card-progress">Read till ch <strong>112</strong> &middot; 2 sites</span>
+        <span class="nc-card-when">yesterday</span>
+      </p>
+    </a>
+
+    <a class="nc-card" href="#" title="The Beginning After The End — and a deliberately long subtitle to show the two-line clamp with an ellipsis">
+      <h2 class="nc-card-title">The Beginning After The End &mdash; and a deliberately long subtitle to show the two-line clamp with an ellipsis</h2>
+      <p class="nc-card-badges">
+        <span class="nc-pill">On hold</span>
+        <span class="nc-card-rating">&#9733; 8</span>
+      </p>
+      <p class="nc-card-tags">
+        <span class="nc-chip">action</span>
+        <span class="nc-chip">reincarnation</span>
+      </p>
+      <p class="nc-card-foot">
+        <span class="nc-card-progress">Read till ch <strong>178.5</strong> &middot; 3 sites</span>
+        <span class="nc-card-when">3 wk ago</span>
+      </p>
+    </a>
+
+    <a class="nc-card" href="#" title="Lord of the Mysteries">
+      <h2 class="nc-card-title">Lord of the Mysteries</h2>
+      <p class="nc-card-badges">
+        <span class="nc-pill">Completed</span>
+        <span class="nc-card-rating">&#9733; 10</span>
+      </p>
+      <p class="nc-card-tags">
+        <span class="nc-chip">action</span>
+        <span class="nc-chip">steampunk</span>
+        <span class="nc-chip">web-novel</span>
+      </p>
+      <p class="nc-card-foot">
+        <span class="nc-card-progress">Read till ch <strong>1394</strong> &middot; 1 site</span>
+        <span class="nc-card-when">4 mo ago</span>
+      </p>
+    </a>
+
+    <!-- no rating, no tags: badges keep the pill, rating simply
+         absent; tags row keeps its min-height so footers align -->
+    <a class="nc-card" href="#" title="Wind Breaker">
+      <h2 class="nc-card-title">Wind Breaker</h2>
+      <p class="nc-card-badges">
+        <span class="nc-pill">Reading</span>
+      </p>
+      <p class="nc-card-tags"></p>
+      <p class="nc-card-foot">
+        <span class="nc-card-progress">Read till ch <strong>45.5</strong> &middot; 1 site</span>
+        <span class="nc-card-when">5 d ago</span>
+      </p>
+    </a>
+
+    <!-- zero entries (all sites removed / plan_to_read): the
+         rollup is null — say so plainly, never "ch 0" -->
+    <a class="nc-card" href="#" title="Berserk">
+      <h2 class="nc-card-title">Berserk</h2>
+      <p class="nc-card-badges">
+        <span class="nc-pill">Plan to read</span>
+      </p>
+      <p class="nc-card-tags">
+        <span class="nc-chip">action</span>
+        <span class="nc-chip">dark-fantasy</span>
+      </p>
+      <p class="nc-card-foot">
+        <span class="nc-card-progress">No chapters yet</span>
+        <span class="nc-card-when"></span>
+      </p>
+    </a>
+  </div>
+
+  <div class="nc-loadmore">
+    <button class="nc-btn-secondary" type="button">Load more</button>
+    <p class="nc-loadmore-caption nc-small">Showing 6 of 57</p>
+  </div>
+</main>
+</div>
+
+<!-- ============================================================
+     VARIANT 2 — fresh account. Zero series, no filters shown
+     (nothing to filter). The empty state points at the actual
+     entry point of data — the extension — and links to Settings
+     for the token. This is the only screen a brand-new web-first
+     user sees, so it explains the loop in two lines.
+     ============================================================ -->
+<div class="demo-label">Library — fresh account (empty)</div>
+<div class="demo-page">
+<nav class="nc-nav">
+  <div class="nc-nav-inner">
+    <a class="nc-nav-brand" href="#">NextChapter</a>
+    <div class="nc-nav-links">
+      <a class="nc-nav-link" href="#" aria-current="page">Library</a>
+      <a class="nc-nav-link" href="#">Site rules</a>
+      <a class="nc-nav-link" href="#">Settings</a>
+    </div>
+    <div class="nc-nav-user">
+      <span class="nc-nav-username">rishikesh</span>
+      <button class="nc-btn-link" type="button">Sign out</button>
+    </div>
+  </div>
+</nav>
+<main class="nc-content">
+  <h1 class="nc-page-title">Library</h1>
+
+  <div class="nc-empty">
+    <p class="nc-empty-title">Nothing here yet</p>
+    <p class="nc-empty-line nc-small">
+      Capture your first chapter from the browser extension &mdash;
+      it shows up here automatically.
+    </p>
+    <p class="nc-empty-line nc-small">
+      Extension not set up? Mint a token in <a href="#">Settings</a>.
+    </p>
+  </div>
+</main>
+</div>
+
+<!-- ============================================================
+     VARIANT 3 — filters match nothing. Filters stay visible and
+     populated (the user made this state; let them unmake it).
+     One-click reset. Count reads 0 of 57 so it's obviously a
+     filter problem, not a data problem.
+     ============================================================ -->
+<div class="demo-label">Library — filtered to empty</div>
+<div class="demo-page">
+<nav class="nc-nav">
+  <div class="nc-nav-inner">
+    <a class="nc-nav-brand" href="#">NextChapter</a>
+    <div class="nc-nav-links">
+      <a class="nc-nav-link" href="#" aria-current="page">Library</a>
+      <a class="nc-nav-link" href="#">Site rules</a>
+      <a class="nc-nav-link" href="#">Settings</a>
+    </div>
+    <div class="nc-nav-user">
+      <span class="nc-nav-username">rishikesh</span>
+      <button class="nc-btn-link" type="button">Sign out</button>
+    </div>
+  </div>
+</nav>
+<main class="nc-content">
+  <h1 class="nc-page-title">Library</h1>
+
+  <div class="nc-filters">
+    <select class="nc-input" aria-label="Filter by status">
+      <option>All statuses</option>
+      <option>Reading</option>
+      <option>Completed</option>
+      <option>On hold</option>
+      <option selected>Dropped</option>
+      <option>Plan to read</option>
+    </select>
+    <input class="nc-input nc-filter-tag-input" type="text" placeholder="Filter by tag"
+           aria-label="Filter by tag" autocomplete="off" spellcheck="false">
+    <span class="nc-chip">romance
+      <button class="nc-chip-remove" type="button" aria-label="Remove tag filter romance">&times;</button>
+    </span>
+    <span class="nc-filter-count nc-small">0 of 57 series</span>
+  </div>
+
+  <div class="nc-empty">
+    <p class="nc-empty-title">No series match these filters</p>
+    <p class="nc-empty-line nc-small">
+      Nothing is both <strong>Dropped</strong> and tagged <strong>romance</strong>.
+    </p>
+    <p class="nc-empty-line">
+      <button class="nc-btn-link" type="button">Clear filters</button>
+    </p>
+  </div>
+</main>
+</div>
+
+</body>
+</html>

@@ -30,16 +30,18 @@ Serialised reading is messy. A single series shows up under different titles, on
 - TypeScript 5.x, strict mode; React 19 on WXT.
 - Manifest V3 for Chrome and Firefox (v128+, for optional host permissions).
 - Browser APIs via `wxt/browser` (cross-browser).
-- pnpm workspace rooted at the repo root; `packages/api-client/` is the shared, generated-types API client (the future `web/` SPA reuses it).
+- pnpm workspace rooted at the repo root; `packages/api-client/` is the shared, generated-types API client (shared by the extension and the `web/` SPA).
 - Playwright for e2e tests (real browser, real backend binary — see ADR-0008), Vitest for unit tests.
 
 ## Status
 
 **Backend — implemented.** `backend/` is a complete Go JSON API: open registration, session-cookie and API-token auth, and CRUD for series (with tags and ratings), per-site reading entries, and site URL-rules. It runs on SQLite (pure-Go, the default) or Postgres, with goose migrations and sqlc-generated queries maintained for both engines. Tests run against real databases (testcontainers for Postgres) across a dual-engine CI matrix.
 
-**Extension — implemented.** `frontend/` is the MV3 extension: options-page onboarding (connect to your server, sign in, a token is minted automatically), and one-click capture from the popup — site rules parse the chapter from the URL, unknown sites get a manual form, and first-time captures go through a series picker. Design tokens and component specs live in `design/`.
+**Extension — implemented.** `frontend/` is the MV3 extension: options-page onboarding (connect to your server, sign in, a token is minted automatically), one-click capture from the popup — site rules parse the chapter from the URL, unknown sites get a manual form with a no-regex rule builder, and first-time captures go through a series picker. Design tokens and component specs live in `design/`.
 
-**Web library — not started.** The companion SPA (`web/`, per ADR-0004) is the next track: series browsing, statuses/tags/ratings, per-site breakdowns, entry reassignment, and site-rule management.
+**Web library — implemented.** `web/` is the companion SPA (ADR-0010): sign in with the same account, browse the library with status/tag filters, open a series for its per-site breakdown and click straight back into the last chapter, edit statuses/ratings/tags/notes, move entries between series (or onto a new one), manage site rules down to the regex, and mint extension tokens. In production it is **embedded into the Go binary** and served from `/` — run `make -C frontend web-embed` before `make -C backend build` (or before `docker build backend/`) and the single binary serves both the API and the UI. Dev loop: `make -C backend run` plus `pnpm --filter @nextchapter/web run dev` (the Vite dev server proxies API paths to `:8080`, so cookies just work).
+
+Operator note: the session cookie's `Secure` flag is inferred from `NEXTCHAPTER_ALLOWED_ORIGINS`, which same-origin deployments leave unset — behind TLS, set `NEXTCHAPTER_COOKIE_SECURE=true` explicitly (ADR-0010).
 
 ## License
 

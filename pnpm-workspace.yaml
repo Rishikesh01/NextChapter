@@ -1,6 +1,7 @@
 packages:
   - frontend
   - packages/*
+  - web
 
 # pnpm 10 blocks dependency lifecycle scripts unless approved here.
 onlyBuiltDependencies:

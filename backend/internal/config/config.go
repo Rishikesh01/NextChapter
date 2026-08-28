@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"go.uber.org/zap/zapcore"
@@ -28,6 +29,11 @@ type Config struct {
 	LogLevel zapcore.Level
 	// AllowedOrigins is the CORS allow-list. Empty = same-origin only.
 	AllowedOrigins []string
+	// CookieSecure overrides the session cookie's Secure flag. Nil (env
+	// unset) keeps the historical inference from AllowedOrigins' schemes;
+	// same-origin production deployments behind TLS should set
+	// NEXTCHAPTER_COOKIE_SECURE=true (ADR-0010 §5).
+	CookieSecure *bool
 	// Version is the build version; surfaced from /healthz.
 	Version string
 }
@@ -64,6 +70,14 @@ func FromEnv() (Config, error) {
 			return Config{}, fmt.Errorf("config: %w", err)
 		}
 		cfg.LogLevel = lvl
+	}
+
+	if v := os.Getenv("NEXTCHAPTER_COOKIE_SECURE"); v != "" {
+		secure, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("config: invalid NEXTCHAPTER_COOKIE_SECURE %q: %w", v, err)
+		}
+		cfg.CookieSecure = &secure
 	}
 
 	if v := os.Getenv("NEXTCHAPTER_ALLOWED_ORIGINS"); v != "" {

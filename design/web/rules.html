@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NextChapter web — site rules</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+/* ================================================================
+   DEMO HARNESS — do not lift. Variant 1 is the full page; the
+   form variants (create / edit / 422) show only the form card.
+   In the real page the form renders in place of the "Add rule"
+   button row (create) or expands under the section title (edit),
+   one form open at a time.
+   ================================================================ */
+body {
+  margin: 0;
+  background: var(--nc-bg);
+  font-family: var(--nc-font-family);
+  color: var(--nc-text);
+}
+.demo-label {
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin: var(--nc-space-5) auto var(--nc-space-1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  max-width: 1040px;
+  padding: 0 var(--nc-space-4);
+}
+.demo-page { border-bottom: 1px solid var(--nc-border); padding-bottom: var(--nc-space-5); }
+
+/* ================================================================
+   COMPONENT STYLES — lift from here.
+
+   This page supersedes the extension's rules-list (options page)
+   in richness: the regex is EDITABLE here. The web app is where
+   power tools live; the popup keeps its no-regex builder. Same
+   data (GET /sites → rules + tracked_hosts), full CRUD:
+   POST /sites/rules, PATCH /sites/rules/{id},
+   DELETE /sites/rules/{id}.
+   ================================================================ */
+* { box-sizing: border-box; }
+
+:focus-visible {
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 1px;
+}
+
+.nc-small {
+  font-size: var(--nc-text-small);
+  line-height: var(--nc-leading);
+  color: var(--nc-text-secondary);
+}
+a { color: var(--nc-accent-text); }
+code {
+  font-family: var(--nc-font-mono);
+  font-size: var(--nc-text-small);
+}
+
+/* ---------- nav (shared scaffolding) ---------- */
+.nc-nav { border-bottom: 1px solid var(--nc-border); background: var(--nc-bg); }
+.nc-nav-inner {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 var(--nc-space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-5);
+  height: 52px;
+}
+.nc-nav-brand {
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  color: var(--nc-text);
+  text-decoration: none;
+}
+.nc-nav-links { display: flex; gap: var(--nc-space-4); align-self: stretch; }
+.nc-nav-link {
+  display: flex;
+  align-items: center;
+  font-size: var(--nc-text-body);
+  color: var(--nc-text-secondary);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  border-top: 2px solid transparent;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.nc-nav-link:hover { color: var(--nc-text); }
+.nc-nav-link[aria-current="page"] {
+  color: var(--nc-text);
+  font-weight: var(--nc-weight-semibold);
+  border-bottom-color: var(--nc-accent);
+}
+.nc-nav-user { margin-left: auto; display: flex; align-items: center; gap: var(--nc-space-3); }
+.nc-nav-username { font-size: var(--nc-text-small); color: var(--nc-text-secondary); }
+.nc-btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--nc-text-small);
+  color: var(--nc-accent-text);
+  text-decoration: underline;
+  cursor: pointer;
+}
+@media (max-width: 520px) { .nc-nav-username { display: none; } }
+
+.nc-content {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: var(--nc-space-5) var(--nc-space-4);
+}
+.nc-page-title {
+  font-size: var(--nc-text-heading);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0 0 var(--nc-space-1);
+}
+.nc-page-caption { margin: 0 0 var(--nc-space-4); max-width: 620px; }
+
+/* ---------- section card + header row ---------- */
+.nc-section {
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-card);
+  padding: var(--nc-space-4);
+  margin-bottom: var(--nc-space-4);
+  background: var(--nc-bg);
+}
+.nc-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-3);
+  margin-bottom: var(--nc-space-3);
+}
+.nc-section-title {
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0;
+  flex: 1;
+}
+.nc-btn-primary {
+  height: var(--nc-control-height);
+  padding: 0 var(--nc-space-4);
+  border: none;
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-accent);
+  color: var(--nc-on-accent);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.nc-btn-primary:hover { background: var(--nc-accent-hover); }
+.nc-btn-primary:active { background: var(--nc-accent-active); }
+.nc-btn-secondary {
+  height: var(--nc-control-height);
+  padding: 0 var(--nc-space-4);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.nc-btn-secondary:hover {
+  background: var(--nc-bg-subtle);
+  border-color: var(--nc-border-strong);
+}
+
+/* ---------- rules table ----------
+   Host semibold; the pattern cell carries the regex (mono,
+   truncated, full value in title) with the capture-group mapping
+   as a secondary line — transparency AND interaction here, unlike
+   the extension's view-only list. Restacks under 680px. */
+.nc-table { width: 100%; border-collapse: collapse; }
+.nc-table th {
+  text-align: left;
+  font-size: var(--nc-text-small);
+  font-weight: var(--nc-weight-regular);
+  color: var(--nc-text-secondary);
+  padding: 0 var(--nc-space-3) var(--nc-space-2) 0;
+  border-bottom: 1px solid var(--nc-border);
+}
+.nc-table td {
+  padding: var(--nc-space-3) var(--nc-space-3) var(--nc-space-3) 0;
+  border-bottom: 1px solid var(--nc-border);
+  font-size: var(--nc-text-body);
+  vertical-align: top;
+}
+.nc-table tr:last-child td { border-bottom: none; }
+
+.nc-td-rule-host { font-weight: var(--nc-weight-semibold); white-space: nowrap; }
+.nc-rule-pattern {
+  margin: 0;
+  font-family: var(--nc-font-mono);
+  font-size: var(--nc-text-small);
+  color: var(--nc-text);
+  max-width: 480px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nc-rule-groups {
+  margin: 2px 0 0;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+}
+.nc-rule-groups code { color: inherit; }
+.nc-td-rule-actions { text-align: right; white-space: nowrap; padding-right: 0 !important; }
+
+.nc-row-action {
+  background: none;
+  border: none;
+  padding: var(--nc-space-1);
+  margin-left: var(--nc-space-1);
+  font: inherit;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+.nc-row-action:hover { color: var(--nc-text); text-decoration: underline; }
+.nc-row-action-danger:hover { color: var(--nc-error-fg); }
+
+/* Two-step inline delete confirm — extension idiom: Cancel
+   rightmost (where Delete was) + focused; Esc cancels. */
+.nc-confirm { display: inline-flex; align-items: center; gap: var(--nc-space-3); }
+.nc-confirm-q { font-size: var(--nc-text-small); color: var(--nc-text); }
+.nc-confirm-yes,
+.nc-confirm-no {
+  background: none;
+  border: none;
+  padding: var(--nc-space-1);
+  font: inherit;
+  font-size: var(--nc-text-small);
+  cursor: pointer;
+}
+.nc-confirm-yes { color: var(--nc-error-fg); font-weight: var(--nc-weight-semibold); }
+.nc-confirm-yes:hover { text-decoration: underline; }
+.nc-confirm-no { color: var(--nc-text-secondary); }
+.nc-confirm-no:hover { color: var(--nc-text); text-decoration: underline; }
+
+/* "No rule yet" hint rows: tracked_hosts entries with no rule.
+   Quiet — regular-weight host, dashed nothing else — the row is a
+   suggestion, not data. "Add one" opens the create form with the
+   host prefilled. */
+.nc-td-norule-host { color: var(--nc-text-secondary); white-space: nowrap; }
+.nc-norule-hint { margin: 0; font-style: normal; }
+
+/* ---------- rule form (create + edit) ---------- */
+.nc-field { margin-bottom: var(--nc-space-3); }
+.nc-field label {
+  display: block;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin-bottom: var(--nc-space-1);
+}
+.nc-input {
+  height: var(--nc-control-height);
+  width: 100%;
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  padding: 0 var(--nc-space-2);
+  transition: border-color 120ms ease;
+}
+.nc-input:hover { border-color: var(--nc-border-strong); }
+.nc-input:focus-visible {
+  border-color: var(--nc-accent);
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 0;
+}
+.nc-input::placeholder { color: var(--nc-text-disabled); }
+.nc-input.is-invalid { border-color: var(--nc-error-dot); }
+.nc-input.is-invalid:focus-visible {
+  border-color: var(--nc-error-dot);
+  outline: 2px solid var(--nc-error-border);
+  outline-offset: 0;
+}
+.nc-input-mono {
+  font-family: var(--nc-font-mono);
+  font-size: var(--nc-text-small);
+}
+.nc-field-help { margin: var(--nc-space-1) 0 0; }
+.nc-field-error {
+  margin: var(--nc-space-1) 0 0;
+  font-size: var(--nc-text-small);
+  color: var(--nc-error-fg);
+}
+
+/* slug + chapter group inputs side by side; stacks under 560px. */
+.nc-field-pair {
+  display: flex;
+  gap: var(--nc-space-3);
+}
+.nc-field-pair .nc-field { flex: 1; margin-bottom: 0; }
+@media (max-width: 560px) {
+  .nc-field-pair { flex-direction: column; gap: var(--nc-space-3); }
+}
+.nc-fieldset-help { margin: var(--nc-space-2) 0 var(--nc-space-3); }
+
+.nc-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--nc-space-2);
+  margin-top: var(--nc-space-4);
+}
+
+/* ---------- empty state ---------- */
+.nc-empty {
+  text-align: center;
+  padding: var(--nc-space-5) var(--nc-space-4);
+}
+.nc-empty-title {
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0 0 var(--nc-space-1);
+}
+.nc-empty-line { margin: 0 0 var(--nc-space-3); }
+
+/* ---------- narrow restack (<680px) ---------- */
+@media (max-width: 680px) {
+  .nc-table, .nc-table tbody, .nc-table tr, .nc-table td { display: block; }
+  .nc-table thead { display: none; }
+  .nc-table tr { padding: var(--nc-space-3) 0; border-bottom: 1px solid var(--nc-border); }
+  .nc-table tr:last-child { border-bottom: none; }
+  .nc-table td { padding: 0; border-bottom: none; }
+  .nc-rule-pattern { max-width: none; margin-top: 2px; }
+  .nc-td-rule-actions { text-align: left; margin-top: var(--nc-space-2); }
+  .nc-row-action { margin-left: 0; margin-right: var(--nc-space-2); }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     VARIANT 1 — full page: three rules (one mid delete-confirm)
+     plus two tracked hosts without rules as quiet hint rows.
+     tracked_hosts come from the same GET /sites response — a host
+     you've captured on manually is exactly the host that most
+     needs a rule, so the page surfaces the gap where it will be
+     fixed.
+     ============================================================ -->
+<div class="demo-label">Site rules — list + no-rule hints + one delete confirm</div>
+<div class="demo-page">
+<nav class="nc-nav">
+  <div class="nc-nav-inner">
+    <a class="nc-nav-brand" href="#">NextChapter</a>
+    <div class="nc-nav-links">
+      <a class="nc-nav-link" href="#">Library</a>
+      <a class="nc-nav-link" href="#" aria-current="page">Site rules</a>
+      <a class="nc-nav-link" href="#">Settings</a>
+    </div>
+    <div class="nc-nav-user">
+      <span class="nc-nav-username">rishikesh</span>
+      <button class="nc-btn-link" type="button">Sign out</button>
+    </div>
+  </div>
+</nav>
+<main class="nc-content">
+  <h1 class="nc-page-title">Site rules</h1>
+  <p class="nc-page-caption nc-small">
+    Rules teach NextChapter how to read a site&rsquo;s chapter URLs, so the
+    extension can detect the series and chapter automatically. The
+    extension can build simple rules for you; here you can edit the
+    pattern directly.
+  </p>
+
+  <section class="nc-section">
+    <div class="nc-section-head">
+      <h2 class="nc-section-title">Rules</h2>
+      <button class="nc-btn-primary" type="button">Add rule</button>
+    </div>
+
+    <table class="nc-table">
+      <thead>
+        <tr>
+          <th scope="col">Host</th>
+          <th scope="col">Pattern</th>
+          <th scope="col"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="nc-td-rule-host">reader.example.com</td>
+          <td>
+            <p class="nc-rule-pattern"
+               title="^/series/(?P&lt;slug&gt;[^/]+)/chapter-(?P&lt;chapter&gt;[0-9]+(?:\.[0-9]+)?)$">^/series/(?P&lt;slug&gt;[^/]+)/chapter-(?P&lt;chapter&gt;[0-9]+(?:\.[0-9]+)?)$</p>
+            <p class="nc-rule-groups">slug: <code>slug</code> &middot; chapter: <code>chapter</code></p>
+          </td>
+          <td class="nc-td-rule-actions">
+            <button class="nc-row-action" type="button">Edit</button>
+            <button class="nc-row-action nc-row-action-danger" type="button"
+                    aria-label="Delete rule for reader.example.com">Delete</button>
+          </td>
+        </tr>
+        <tr>
+          <td class="nc-td-rule-host">comics.example.org</td>
+          <td>
+            <p class="nc-rule-pattern"
+               title="^/comic/(?P&lt;slug&gt;[^/]+)/(?P&lt;chapter&gt;[^/]+-chapter-[0-9]+(?:\.[0-9]+)?)$">^/comic/(?P&lt;slug&gt;[^/]+)/(?P&lt;chapter&gt;[^/]+-chapter-[0-9]+(?:\.[0-9]+)?)$</p>
+            <p class="nc-rule-groups">slug: <code>slug</code> &middot; chapter: <code>chapter</code></p>
+          </td>
+          <td class="nc-td-rule-actions">
+            <span class="nc-confirm" role="group" aria-label="Confirm deleting the rule for comics.example.org">
+              <span class="nc-confirm-q">Delete rule?</span>
+              <button class="nc-confirm-yes" type="button">Confirm</button>
+              <button class="nc-confirm-no" type="button">Cancel</button>
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <td class="nc-td-rule-host">readnovel.example</td>
+          <td>
+            <p class="nc-rule-pattern"
+               title="^/manga/(?P&lt;slug&gt;[^/]+)/chapter-(?P&lt;chapter&gt;[0-9]+(?:\.[0-9]+)?)/?$">^/manga/(?P&lt;slug&gt;[^/]+)/chapter-(?P&lt;chapter&gt;[0-9]+(?:\.[0-9]+)?)/?$</p>
+            <p class="nc-rule-groups">slug: <code>slug</code> &middot; chapter: <code>chapter</code></p>
+          </td>
+          <td class="nc-td-rule-actions">
+            <button class="nc-row-action" type="button">Edit</button>
+            <button class="nc-row-action nc-row-action-danger" type="button"
+                    aria-label="Delete rule for readnovel.example">Delete</button>
+          </td>
+        </tr>
+        <!-- tracked hosts with NO rule: quiet hint rows.
+             "Add one" opens the create form, host prefilled. -->
+        <tr>
+          <td class="nc-td-norule-host">scans.example.org</td>
+          <td>
+            <p class="nc-norule-hint nc-small">
+              No rule yet &mdash; captures here are manual.
+              <button class="nc-btn-link" type="button">Add one</button>
+            </p>
+          </td>
+          <td class="nc-td-rule-actions"></td>
+        </tr>
+        <tr>
+          <td class="nc-td-norule-host">webnovelpub.example</td>
+          <td>
+            <p class="nc-norule-hint nc-small">
+              No rule yet &mdash; captures here are manual.
+              <button class="nc-btn-link" type="button">Add one</button>
+            </p>
+          </td>
+          <td class="nc-td-rule-actions"></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</div>
+
+<!-- ============================================================
+     VARIANT 2 — create form. Opens in place of the "Add rule"
+     button row. Group-name inputs default to slug/chapter (the
+     seeded-rule convention); most users never touch them. Save →
+     POST /sites/rules → 201 closes the form and adds the row.
+     ============================================================ -->
+<div class="demo-label">Form — create</div>
+<div class="demo-page">
+<main class="nc-content">
+  <section class="nc-section">
+    <h2 class="nc-section-title" style="margin-bottom: var(--nc-space-3);">New rule</h2>
+    <form>
+      <div class="nc-field">
+        <label for="rule-host">Host</label>
+        <input class="nc-input" id="rule-host" type="text"
+               placeholder="e.g. scans.example.org" autocomplete="off" spellcheck="false">
+        <p class="nc-field-help nc-small">Domain name only &mdash; no https://, no path, no IP addresses.</p>
+      </div>
+      <div class="nc-field">
+        <label for="rule-regex">Chapter URL pattern</label>
+        <input class="nc-input nc-input-mono" id="rule-regex" type="text"
+               placeholder="^/series/(?P&lt;slug&gt;[^/]+)/chapter-(?P&lt;chapter&gt;[0-9.]+)$"
+               autocomplete="off" spellcheck="false">
+        <p class="nc-field-help nc-small">
+          A Go regular expression matched against the URL path. Mark the parts you
+          need with named groups, <code>(?P&lt;name&gt;&hellip;)</code> &mdash; e.g.
+          <code>^/series/(?P&lt;slug&gt;[^/]+)/chapter-(?P&lt;chapter&gt;[0-9.]+)$</code>
+          matches <code>/series/solo-leveling/chapter-45.5</code>.
+        </p>
+      </div>
+      <div class="nc-field-pair">
+        <div class="nc-field">
+          <label for="rule-slug-group">Slug group</label>
+          <input class="nc-input nc-input-mono" id="rule-slug-group" type="text"
+                 value="slug" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="nc-field">
+          <label for="rule-ch-group">Chapter group</label>
+          <input class="nc-input nc-input-mono" id="rule-ch-group" type="text"
+                 value="chapter" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+      <p class="nc-fieldset-help nc-small">
+        Which named groups in the pattern hold the series slug and the chapter
+        number. Leave as <code>slug</code> / <code>chapter</code> unless your
+        pattern names them differently.
+      </p>
+      <div class="nc-form-actions">
+        <button class="nc-btn-secondary" type="button">Cancel</button>
+        <button class="nc-btn-primary" type="submit">Save rule</button>
+      </div>
+    </form>
+  </section>
+</main>
+</div>
+
+<!-- ============================================================
+     VARIANT 3 — edit form. Same form, prefilled; the title names
+     the host being edited. Save → PATCH /sites/rules/{id} (only
+     changed fields on the wire). The extension's cached rules
+     refresh on its next popup open (it refetches GET /sites).
+     ============================================================ -->
+<div class="demo-label">Form — edit (prefilled)</div>
+<div class="demo-page">
+<main class="nc-content">
+  <section class="nc-section">
+    <h2 class="nc-section-title" style="margin-bottom: var(--nc-space-3);">Edit rule &mdash; reader.example.com</h2>
+    <form>
+      <div class="nc-field">
+        <label for="erule-host">Host</label>
+        <input class="nc-input" id="erule-host" type="text"
+               value="reader.example.com" autocomplete="off" spellcheck="false">
+        <p class="nc-field-help nc-small">Domain name only &mdash; no https://, no path, no IP addresses.</p>
+      </div>
+      <div class="nc-field">
+        <label for="erule-regex">Chapter URL pattern</label>
+        <input class="nc-input nc-input-mono" id="erule-regex" type="text"
+               value="^/series/(?P&lt;slug&gt;[^/]+)/chapter-(?P&lt;chapter&gt;[0-9]+(?:\.[0-9]+)?)$"
+               autocomplete="off" spellcheck="false">
+        <p class="nc-field-help nc-small">
+          A Go regular expression matched against the URL path. Mark the parts you
+          need with named groups, <code>(?P&lt;name&gt;&hellip;)</code> &mdash; e.g.
+          <code>^/series/(?P&lt;slug&gt;[^/]+)/chapter-(?P&lt;chapter&gt;[0-9.]+)$</code>
+          matches <code>/series/solo-leveling/chapter-45.5</code>.
+        </p>
+      </div>
+      <div class="nc-field-pair">
+        <div class="nc-field">
+          <label for="erule-slug-group">Slug group</label>
+          <input class="nc-input nc-input-mono" id="erule-slug-group" type="text"
+                 value="slug" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="nc-field">
+          <label for="erule-ch-group">Chapter group</label>
+          <input class="nc-input nc-input-mono" id="erule-ch-group" type="text"
+                 value="chapter" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+      <p class="nc-fieldset-help nc-small">
+        Which named groups in the pattern hold the series slug and the chapter
+        number.
+      </p>
+      <div class="nc-form-actions">
+        <button class="nc-btn-secondary" type="button">Cancel</button>
+        <button class="nc-btn-primary" type="submit">Save changes</button>
+      </div>
+    </form>
+  </section>
+</main>
+</div>
+
+<!-- ============================================================
+     VARIANT 4 — 422 field errors. Validation is field-level,
+     never a banner. Shown together for the demo (a single 422
+     can carry a field map); each maps to its input:
+     - host        → "already has a rule" (duplicate)
+     - chapter_url_regex → "failed to compile"
+     - slug_capture_group / chapter_capture_group → "isn't a
+       named group in the pattern" (same treatment, in comments).
+     Focus moves to the first invalid field; values are kept.
+     ============================================================ -->
+<div class="demo-label">Form — 422: duplicate host + regex failed to compile</div>
+<div class="demo-page">
+<main class="nc-content">
+  <section class="nc-section">
+    <h2 class="nc-section-title" style="margin-bottom: var(--nc-space-3);">New rule</h2>
+    <form>
+      <div class="nc-field">
+        <label for="brule-host">Host</label>
+        <input class="nc-input is-invalid" id="brule-host" type="text"
+               value="comics.example.org" aria-invalid="true" aria-describedby="brule-host-error"
+               autocomplete="off" spellcheck="false">
+        <p class="nc-field-error" id="brule-host-error">
+          comics.example.org already has a rule &mdash; edit that one instead.
+        </p>
+      </div>
+      <div class="nc-field">
+        <label for="brule-regex">Chapter URL pattern</label>
+        <input class="nc-input nc-input-mono is-invalid" id="brule-regex" type="text"
+               value="^/comic/(?P&lt;slug&gt;[^/]+/(?P&lt;chapter&gt;[0-9.]+)$"
+               aria-invalid="true" aria-describedby="brule-regex-error"
+               autocomplete="off" spellcheck="false">
+        <p class="nc-field-error" id="brule-regex-error">
+          This pattern failed to compile &mdash; check for an unclosed group.
+        </p>
+      </div>
+      <div class="nc-field-pair">
+        <div class="nc-field">
+          <label for="brule-slug-group">Slug group</label>
+          <input class="nc-input nc-input-mono" id="brule-slug-group" type="text"
+                 value="slug" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="nc-field">
+          <label for="brule-ch-group">Chapter group</label>
+          <input class="nc-input nc-input-mono" id="brule-ch-group" type="text"
+                 value="chapter" autocomplete="off" spellcheck="false">
+          <!-- missing-group variant, same idiom:
+          <p class="nc-field-error">chapter isn&rsquo;t a named group in the pattern.</p>
+          -->
+        </div>
+      </div>
+      <div class="nc-form-actions">
+        <button class="nc-btn-secondary" type="button">Cancel</button>
+        <button class="nc-btn-primary" type="submit">Save rule</button>
+      </div>
+    </form>
+  </section>
+</main>
+</div>
+
+<!-- ============================================================
+     VARIANT 5 — empty state: no rules AND no tracked hosts (the
+     seeded defaults were all deleted, nothing captured yet).
+     Deliberate state, not first-run — fresh accounts arrive
+     seeded. Points at both creation paths.
+     ============================================================ -->
+<div class="demo-label">Empty — no rules, no tracked hosts</div>
+<div class="demo-page">
+<main class="nc-content">
+  <h1 class="nc-page-title">Site rules</h1>
+  <section class="nc-section">
+    <div class="nc-empty">
+      <p class="nc-empty-title">No site rules</p>
+      <p class="nc-empty-line nc-small">
+        Rules teach NextChapter how to read chapter URLs. Add one here,
+        or create one from the extension popup while on a chapter page.
+      </p>
+      <button class="nc-btn-primary" type="button">Add rule</button>
+    </div>
+  </section>
+</main>
+</div>
+
+</body>
+</html>

@@ -4,17 +4,22 @@ import type {
   Credentials,
   Entry,
   EntryCapture,
+  EntryList,
+  EntryPatch,
   ErrorBody,
   Health,
   NewToken,
   Registration,
   Series,
+  SeriesDetail,
   SeriesList,
   SeriesNew,
+  SeriesPatch,
   SeriesStatus,
   SiteList,
   SiteRule,
   SiteRuleNew,
+  SiteRulePatch,
   User,
 } from './types';
 
@@ -23,6 +28,13 @@ export interface ApiConfig {
   baseUrl: string;
   /** API token (nca_…). Absent until onboarding completes. */
   token?: string;
+  /**
+   * How authenticated (bearer-channel) calls carry credentials.
+   * 'bearer' (default; the extension): Authorization header,
+   * credentials:"omit". 'cookie' (the web SPA — ADR-0010 §2): no
+   * Authorization header, credentials:"include", and no token required.
+   */
+  authMode?: 'bearer' | 'cookie';
 }
 
 /**
@@ -46,6 +58,12 @@ export interface ListSeriesQuery {
   offset?: number;
 }
 
+export interface ListEntriesQuery {
+  seriesId?: number;
+  limit?: number;
+  offset?: number;
+}
+
 export interface ApiClient {
   /** Unauthenticated. */
   health(): Promise<Health>;
@@ -56,9 +74,17 @@ export interface ApiClient {
   me(): Promise<User>;
   listSeries(query?: ListSeriesQuery): Promise<SeriesList>;
   createSeries(body: SeriesNew): Promise<Series>;
+  getSeries(seriesID: number): Promise<SeriesDetail>;
+  patchSeries(seriesID: number, body: SeriesPatch): Promise<Series>;
+  deleteSeries(seriesID: number): Promise<void>;
   capture(body: EntryCapture): Promise<CaptureResult>;
+  listEntries(query?: ListEntriesQuery): Promise<EntryList>;
+  /** Reassignment between series is `patchEntry(id, { series_id })`. */
+  patchEntry(entryID: number, body: EntryPatch): Promise<Entry>;
+  deleteEntry(entryID: number): Promise<void>;
   getSites(): Promise<SiteList>;
   createSiteRule(body: SiteRuleNew): Promise<SiteRule>;
+  patchSiteRule(ruleID: number, body: SiteRulePatch): Promise<SiteRule>;
   deleteSiteRule(ruleID: number): Promise<void>;
   /** Revoke an API token by id — used by Disconnect on its own token (ADR-0009). */
   revokeToken(tokenID: number): Promise<void>;
@@ -94,16 +120,19 @@ export function createApiClient(getConfig: ConfigProvider): ApiClient {
       throw new ApiError(0, undefined, 'no server URL configured');
     }
 
+    const cookieMode = config.authMode === 'cookie';
     const headers = new Headers();
     if (opts.body !== undefined) {
       headers.set('Content-Type', 'application/json');
     }
-    if (opts.channel === 'bearer') {
+    if (opts.channel === 'bearer' && !cookieMode) {
       if (config.token === undefined || config.token === '') {
         throw new ApiError(401, undefined, 'no API token configured');
       }
       headers.set('Authorization', `Bearer ${config.token}`);
     }
+    const withCredentials =
+      opts.channel === 'cookie' || (opts.channel === 'bearer' && cookieMode);
 
     const search = opts.query?.size ? `?${opts.query.toString()}` : '';
     let response: Response;
@@ -111,7 +140,7 @@ export function createApiClient(getConfig: ConfigProvider): ApiClient {
       response = await fetch(`${base}${opts.path}${search}`, {
         method: opts.method,
         headers,
-        credentials: opts.channel === 'cookie' ? 'include' : 'omit',
+        credentials: withCredentials ? 'include' : 'omit',
         body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
       });
     } catch (cause) {
@@ -173,6 +202,62 @@ export function createApiClient(getConfig: ConfigProvider): ApiClient {
         body,
       }),
 
+    getSeries: (seriesID) =>
+      json<SeriesDetail>({
+        method: 'GET',
+        path: `/series/${String(seriesID)}`,
+        channel: 'bearer',
+      }),
+
+    patchSeries: (seriesID, body) =>
+      json<Series>({
+        method: 'PATCH',
+        path: `/series/${String(seriesID)}`,
+        channel: 'bearer',
+        body,
+      }),
+
+    deleteSeries: async (seriesID) => {
+      await request({
+        method: 'DELETE',
+        path: `/series/${String(seriesID)}`,
+        channel: 'bearer',
+      });
+    },
+
+    listEntries: (query) => {
+      const params = new URLSearchParams();
+      if (query?.seriesId !== undefined) {
+        params.set('series_id', String(query.seriesId));
+      }
+      if (query?.limit !== undefined) params.set('limit', String(query.limit));
+      if (query?.offset !== undefined) {
+        params.set('offset', String(query.offset));
+      }
+      return json<EntryList>({
+        method: 'GET',
+        path: '/entries',
+        channel: 'bearer',
+        query: params,
+      });
+    },
+
+    patchEntry: (entryID, body) =>
+      json<Entry>({
+        method: 'PATCH',
+        path: `/entries/${String(entryID)}`,
+        channel: 'bearer',
+        body,
+      }),
+
+    deleteEntry: async (entryID) => {
+      await request({
+        method: 'DELETE',
+        path: `/entries/${String(entryID)}`,
+        channel: 'bearer',
+      });
+    },
+
     capture: async (body) => {
       const response = await request({
         method: 'POST',
@@ -191,6 +276,14 @@ export function createApiClient(getConfig: ConfigProvider): ApiClient {
       json<SiteRule>({
         method: 'POST',
         path: '/sites/rules',
+        channel: 'bearer',
+        body,
+      }),
+
+    patchSiteRule: (ruleID, body) =>
+      json<SiteRule>({
+        method: 'PATCH',
+        path: `/sites/rules/${String(ruleID)}`,
         channel: 'bearer',
         body,
       }),

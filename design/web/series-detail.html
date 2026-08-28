@@ -1,0 +1,839 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NextChapter web — series detail</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+/* ================================================================
+   DEMO HARNESS — do not lift. Variant A is the full page (nav +
+   everything). Variants B–E repeat only the section they change,
+   without the nav, to keep this file readable. In the real app
+   there is one page; the variants are states of its parts.
+   ================================================================ */
+body {
+  margin: 0;
+  background: var(--nc-bg);
+  font-family: var(--nc-font-family);
+  color: var(--nc-text);
+}
+.demo-label {
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin: var(--nc-space-5) auto var(--nc-space-1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  max-width: 1040px;
+  padding: 0 var(--nc-space-4);
+}
+.demo-page { border-bottom: 1px solid var(--nc-border); padding-bottom: var(--nc-space-5); }
+
+/* ================================================================
+   COMPONENT STYLES — lift from here.
+
+   Data: GET /series/{id} → SeriesDetail (title, status, rating,
+   tags, notes, rollups, entries[]). Every inline editor PATCHes
+   /series/{id} on commit and shows the .nc-savehint while the
+   request runs (see flows/web-library.md — commit on success,
+   not optimistically). Entry rows PATCH/DELETE /entries/{id}.
+   ================================================================ */
+* { box-sizing: border-box; }
+
+:focus-visible {
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 1px;
+}
+
+.nc-small {
+  font-size: var(--nc-text-small);
+  line-height: var(--nc-leading);
+  color: var(--nc-text-secondary);
+}
+a { color: var(--nc-accent-text); }
+
+/* ---------- nav (same scaffolding as library.html) ---------- */
+.nc-nav { border-bottom: 1px solid var(--nc-border); background: var(--nc-bg); }
+.nc-nav-inner {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 var(--nc-space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-5);
+  height: 52px;
+}
+.nc-nav-brand {
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  color: var(--nc-text);
+  text-decoration: none;
+}
+.nc-nav-links { display: flex; gap: var(--nc-space-4); align-self: stretch; }
+.nc-nav-link {
+  display: flex;
+  align-items: center;
+  font-size: var(--nc-text-body);
+  color: var(--nc-text-secondary);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  border-top: 2px solid transparent;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.nc-nav-link:hover { color: var(--nc-text); }
+.nc-nav-link[aria-current="page"] {
+  color: var(--nc-text);
+  font-weight: var(--nc-weight-semibold);
+  border-bottom-color: var(--nc-accent);
+}
+.nc-nav-user { margin-left: auto; display: flex; align-items: center; gap: var(--nc-space-3); }
+.nc-nav-username { font-size: var(--nc-text-small); color: var(--nc-text-secondary); }
+.nc-btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--nc-text-small);
+  color: var(--nc-accent-text);
+  text-decoration: underline;
+  cursor: pointer;
+}
+@media (max-width: 520px) { .nc-nav-username { display: none; } }
+
+.nc-content {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: var(--nc-space-5) var(--nc-space-4);
+}
+
+/* ---------- breadcrumb ---------- */
+.nc-breadcrumb {
+  display: inline-block;
+  margin: 0 0 var(--nc-space-3);
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  text-decoration: none;
+}
+.nc-breadcrumb:hover { color: var(--nc-text); text-decoration: underline; }
+
+/* ---------- header: title + inline editors ----------
+   The title is the page's only heading-size text. Editors sit in
+   one wrapping row beneath it: status select, rating, then the
+   tag editor. Each control saves itself — there is no page-level
+   "Save" (except notes, which is multi-line and needs an explicit
+   commit). */
+.nc-series-title {
+  font-size: var(--nc-text-heading);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0 0 var(--nc-space-3);
+  line-height: var(--nc-leading);
+}
+.nc-editors {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--nc-space-2);
+  margin-bottom: var(--nc-space-3);
+}
+.nc-input {
+  height: var(--nc-control-height);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  padding: 0 var(--nc-space-2);
+  transition: border-color 120ms ease;
+}
+.nc-input:hover { border-color: var(--nc-border-strong); }
+.nc-input:focus-visible {
+  border-color: var(--nc-accent);
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 0;
+}
+.nc-input::placeholder { color: var(--nc-text-disabled); }
+.nc-input.is-invalid { border-color: var(--nc-error-dot); }
+.nc-input.is-invalid:focus-visible {
+  border-color: var(--nc-error-dot);
+  outline: 2px solid var(--nc-error-border);
+  outline-offset: 0;
+}
+select.nc-input { width: auto; padding-right: var(--nc-space-4); }
+
+/* Rating: a select 1–10 once a rating exists. The API cannot
+   clear a rating (SeriesPatch treats rating:null as absent), so
+   there is deliberately no "no rating" option — an unrated series
+   shows the "Rate" affordance instead (variant C), which swaps to
+   this select on click. */
+.nc-rating-select { font-variant-numeric: tabular-nums; }
+
+/* Per-editor save feedback: quiet text after the control, never a
+   banner. "Saving…" while in flight; "Saved" for ~2s on success;
+   failures use the standard treatments (field-level or banner). */
+.nc-savehint {
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+}
+
+/* ---------- tag editor ----------
+   Chips with a remove ×, plus an inline add input. Enter or comma
+   commits; each commit/remove PATCHes the FULL tag list (the API
+   is replace-not-diff). Tag pattern: ^[a-z0-9][a-z0-9-]{0,31}$,
+   max 16 per series. */
+.nc-tag-editor {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--nc-space-1);
+  margin-bottom: var(--nc-space-1);
+}
+.nc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nc-space-1);
+  height: 22px;
+  padding: 0 var(--nc-space-2);
+  border-radius: var(--nc-radius-full);
+  background: var(--nc-bg-subtle);
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+}
+.nc-chip-remove {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  cursor: pointer;
+  line-height: 1;
+}
+.nc-chip-remove:hover { color: var(--nc-text); }
+.nc-tag-add {
+  height: 22px;
+  width: 110px;
+  border: 1px dashed var(--nc-border);
+  border-radius: var(--nc-radius-full);
+  background: transparent;
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-small);
+  padding: 0 var(--nc-space-2);
+}
+.nc-tag-add:focus-visible {
+  border-style: solid;
+  border-color: var(--nc-accent);
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 0;
+}
+.nc-tag-add::placeholder { color: var(--nc-text-disabled); }
+.nc-tag-add.is-invalid { border-color: var(--nc-error-dot); border-style: solid; }
+.nc-field-error {
+  margin: var(--nc-space-1) 0 0;
+  font-size: var(--nc-text-small);
+  color: var(--nc-error-fg);
+}
+
+/* ---------- notes ---------- */
+.nc-notes { margin: var(--nc-space-4) 0 0; }
+.nc-notes label {
+  display: block;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin-bottom: var(--nc-space-1);
+}
+.nc-textarea {
+  width: 100%;
+  min-height: 88px;
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  line-height: var(--nc-leading);
+  padding: var(--nc-space-2);
+  resize: vertical;
+  transition: border-color 120ms ease;
+}
+.nc-textarea:hover { border-color: var(--nc-border-strong); }
+.nc-textarea:focus-visible {
+  border-color: var(--nc-accent);
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 0;
+}
+.nc-notes-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--nc-space-2);
+  margin-top: var(--nc-space-2);
+}
+.nc-btn-primary {
+  height: var(--nc-control-height);
+  padding: 0 var(--nc-space-4);
+  border: none;
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-accent);
+  color: var(--nc-on-accent);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.nc-btn-primary:hover { background: var(--nc-accent-hover); }
+.nc-btn-primary:active { background: var(--nc-accent-active); }
+.nc-btn-primary:disabled {
+  background: var(--nc-bg-subtle);
+  color: var(--nc-text-disabled);
+  cursor: default;
+}
+.nc-btn-secondary {
+  height: var(--nc-control-height);
+  padding: 0 var(--nc-space-4);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.nc-btn-secondary:hover {
+  background: var(--nc-bg-subtle);
+  border-color: var(--nc-border-strong);
+}
+.nc-btn-danger-quiet { color: var(--nc-error-fg); }
+
+/* ---------- section card (entries, danger zone) ---------- */
+.nc-section {
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-card);
+  padding: var(--nc-space-4);
+  margin-top: var(--nc-space-5);
+  background: var(--nc-bg);
+}
+.nc-section-title {
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0 0 var(--nc-space-3);
+}
+
+/* ---------- entries table ----------
+   A real <table>: this is columnar data (host / title / chapter /
+   recency) and rows stay scannable at 5+ sites. Under 680px the
+   table restacks into per-entry blocks (media query at the end) —
+   same markup, no second component.
+
+   Row order: last_captured_at desc — the site you used last is
+   first, and its "Continue reading" is the top-left-most action. */
+.nc-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.nc-table th {
+  text-align: left;
+  font-size: var(--nc-text-small);
+  font-weight: var(--nc-weight-regular);
+  color: var(--nc-text-secondary);
+  padding: 0 var(--nc-space-3) var(--nc-space-2) 0;
+  border-bottom: 1px solid var(--nc-border);
+}
+.nc-table td {
+  padding: var(--nc-space-3) var(--nc-space-3) var(--nc-space-3) 0;
+  border-bottom: 1px solid var(--nc-border);
+  font-size: var(--nc-text-body);
+  vertical-align: middle;
+}
+.nc-table tr:last-child td { border-bottom: none; }
+
+.nc-td-host {
+  font-weight: var(--nc-weight-semibold);
+  white-space: nowrap;
+}
+.nc-td-title {
+  color: var(--nc-text-secondary);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nc-td-ch {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.nc-td-when {
+  color: var(--nc-text-secondary);
+  font-size: var(--nc-text-small);
+  white-space: nowrap;
+}
+.nc-td-actions {
+  text-align: right;
+  white-space: nowrap;
+  padding-right: 0 !important;
+}
+
+/* "Continue reading" — the row's primary action and the web
+   counterpart of the popup's Capture button: the only solid
+   accent on the page. Opens last_url in a new tab. Compact so a
+   table of five doesn't turn into a wall of indigo. */
+.nc-btn-continue {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nc-space-1);
+  height: 26px;
+  padding: 0 var(--nc-space-2);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-accent);
+  color: var(--nc-on-accent);
+  font-size: var(--nc-text-small);
+  font-weight: var(--nc-weight-semibold);
+  text-decoration: none;
+  transition: background-color 120ms ease;
+}
+.nc-btn-continue:hover { background: var(--nc-accent-hover); }
+.nc-btn-continue:active { background: var(--nc-accent-active); }
+
+/* Quiet row actions: Move / Edit / Remove. Text buttons in
+   secondary; Remove reddens on hover (rules-list idiom). */
+.nc-row-action {
+  background: none;
+  border: none;
+  padding: var(--nc-space-1);
+  margin-left: var(--nc-space-1);
+  font: inherit;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+.nc-row-action:hover { color: var(--nc-text); text-decoration: underline; }
+.nc-row-action-danger:hover { color: var(--nc-error-fg); }
+
+/* Two-step inline confirm (Remove) — same rules as the
+   extension's rules list: Cancel sits rightmost, exactly where
+   Remove was, and receives focus; Esc cancels; one confirm open
+   at a time. */
+.nc-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nc-space-3);
+}
+.nc-confirm-q { font-size: var(--nc-text-small); color: var(--nc-text); }
+.nc-confirm-yes,
+.nc-confirm-no {
+  background: none;
+  border: none;
+  padding: var(--nc-space-1);
+  font: inherit;
+  font-size: var(--nc-text-small);
+  cursor: pointer;
+}
+.nc-confirm-yes { color: var(--nc-error-fg); font-weight: var(--nc-weight-semibold); }
+.nc-confirm-yes:hover { text-decoration: underline; }
+.nc-confirm-no { color: var(--nc-text-secondary); }
+.nc-confirm-no:hover { color: var(--nc-text); text-decoration: underline; }
+
+/* Inline edit row: opens directly under its entry row as a
+   full-width cell. Chapter accepts decimals (45.5); URL is the
+   monospace exact-string treatment. Save = PATCH /entries/{id}
+   with last_chapter and/or last_url. */
+.nc-entry-editrow td {
+  background: var(--nc-bg-subtle);
+  border-radius: var(--nc-radius-control);
+}
+.nc-entry-editform {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--nc-space-3);
+}
+.nc-entry-editform .nc-fieldlet { display: flex; flex-direction: column; gap: var(--nc-space-1); }
+.nc-entry-editform label {
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+}
+.nc-input-chapter {
+  width: 90px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.nc-fieldlet-url { flex: 1; min-width: 220px; }
+.nc-input-url {
+  width: 100%;
+  font-family: var(--nc-font-mono);
+  font-size: var(--nc-text-small);
+}
+
+/* Entries empty state */
+.nc-entries-empty {
+  margin: 0;
+  padding: var(--nc-space-4) 0;
+  text-align: center;
+}
+
+/* ---------- danger zone ----------
+   Neutral card, quiet red button — red border-boxes shout at
+   every page load for an action used once a year. The confirm is
+   the same two-step swap: Cancel takes the destructive position
+   (rightmost, where the Delete button was) and gets focus. */
+.nc-danger-row {
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-3);
+}
+.nc-danger-row p { flex: 1; margin: 0; }
+
+/* ---------- narrow restack (<680px) ----------
+   The table becomes per-entry blocks: host bold, title beneath,
+   chapter + recency on a meta line, actions on their own line.
+   Same DOM, display overrides only. */
+@media (max-width: 680px) {
+  .nc-table, .nc-table tbody, .nc-table tr, .nc-table td { display: block; }
+  .nc-table thead { display: none; }
+  .nc-table tr {
+    padding: var(--nc-space-3) 0;
+    border-bottom: 1px solid var(--nc-border);
+  }
+  .nc-table tr:last-child { border-bottom: none; }
+  .nc-table td { padding: 0; border-bottom: none; }
+  .nc-td-title { max-width: none; margin-top: 2px; }
+  .nc-td-ch { margin-top: var(--nc-space-1); display: inline-block; }
+  .nc-td-when { display: inline-block; margin-left: var(--nc-space-2); }
+  .nc-td-actions { text-align: left; margin-top: var(--nc-space-2); white-space: normal; }
+  .nc-row-action:first-of-type { margin-left: var(--nc-space-2); }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     VARIANT A — full page. Rating set, tags, notes, three
+     entries, danger zone. GET /series/42 supplied everything.
+     ============================================================ -->
+<div class="demo-label">A — full detail page</div>
+<div class="demo-page">
+<nav class="nc-nav">
+  <div class="nc-nav-inner">
+    <a class="nc-nav-brand" href="#">NextChapter</a>
+    <div class="nc-nav-links">
+      <a class="nc-nav-link" href="#" aria-current="page">Library</a>
+      <a class="nc-nav-link" href="#">Site rules</a>
+      <a class="nc-nav-link" href="#">Settings</a>
+    </div>
+    <div class="nc-nav-user">
+      <span class="nc-nav-username">rishikesh</span>
+      <button class="nc-btn-link" type="button">Sign out</button>
+    </div>
+  </div>
+</nav>
+<main class="nc-content">
+  <a class="nc-breadcrumb" href="#">&larr; Library</a>
+  <h1 class="nc-series-title">Solo Leveling</h1>
+
+  <div class="nc-editors">
+    <select class="nc-input" aria-label="Status">
+      <option selected>Reading</option>
+      <option>Completed</option>
+      <option>On hold</option>
+      <option>Dropped</option>
+      <option>Plan to read</option>
+    </select>
+    <select class="nc-input nc-rating-select" aria-label="Rating">
+      <option>&#9733; 1</option><option>&#9733; 2</option><option>&#9733; 3</option>
+      <option>&#9733; 4</option><option>&#9733; 5</option><option>&#9733; 6</option>
+      <option>&#9733; 7</option><option>&#9733; 8</option><option selected>&#9733; 9</option>
+      <option>&#9733; 10</option>
+    </select>
+    <span class="nc-savehint" aria-live="polite"><!-- "Saving…" / "Saved" --></span>
+  </div>
+
+  <div class="nc-tag-editor" role="group" aria-label="Tags">
+    <span class="nc-chip">action
+      <button class="nc-chip-remove" type="button" aria-label="Remove tag action">&times;</button>
+    </span>
+    <span class="nc-chip">dungeon
+      <button class="nc-chip-remove" type="button" aria-label="Remove tag dungeon">&times;</button>
+    </span>
+    <input class="nc-tag-add" type="text" placeholder="add tag"
+           aria-label="Add a tag" autocomplete="off" spellcheck="false">
+  </div>
+
+  <div class="nc-notes">
+    <label for="notes">Notes</label>
+    <textarea class="nc-textarea" id="notes">Anime covers up to ch 45. Side stories start at 179 — the rollup counts them.</textarea>
+    <div class="nc-notes-actions">
+      <span class="nc-savehint" aria-live="polite"></span>
+      <button class="nc-btn-primary" type="button">Save notes</button>
+    </div>
+  </div>
+
+  <section class="nc-section">
+    <h2 class="nc-section-title">Sites &middot; read till ch 101</h2>
+    <table class="nc-table">
+      <thead>
+        <tr>
+          <th scope="col">Site</th>
+          <th scope="col">Page title</th>
+          <th scope="col">Chapter</th>
+          <th scope="col">Captured</th>
+          <th scope="col"><span class="nc-visually-hidden"></span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="nc-td-host">reader.example.com</td>
+          <td class="nc-td-title" title="Solo Leveling Chapter 101 – Example Reader">Solo Leveling Chapter 101 &ndash; Example Reader</td>
+          <td class="nc-td-ch">at ch 101</td>
+          <td class="nc-td-when">2 h ago</td>
+          <td class="nc-td-actions">
+            <a class="nc-btn-continue" href="#" target="_blank" rel="noopener">Continue reading &#8599;</a>
+            <button class="nc-row-action" type="button">Move</button>
+            <button class="nc-row-action" type="button">Edit</button>
+            <button class="nc-row-action nc-row-action-danger" type="button">Remove</button>
+          </td>
+        </tr>
+        <tr>
+          <td class="nc-td-host">comics.example.org</td>
+          <td class="nc-td-title" title="Solo Leveling - Chapter 98.5 | comics">Solo Leveling - Chapter 98.5 | comics</td>
+          <td class="nc-td-ch">at ch 98.5</td>
+          <td class="nc-td-when">3 d ago</td>
+          <td class="nc-td-actions">
+            <a class="nc-btn-continue" href="#" target="_blank" rel="noopener">Continue reading &#8599;</a>
+            <button class="nc-row-action" type="button">Move</button>
+            <button class="nc-row-action" type="button">Edit</button>
+            <button class="nc-row-action nc-row-action-danger" type="button">Remove</button>
+          </td>
+        </tr>
+        <tr>
+          <td class="nc-td-host">readnovel.example</td>
+          <td class="nc-td-title" title="Solo Leveling Novel — Chapter 92">Solo Leveling Novel &mdash; Chapter 92</td>
+          <td class="nc-td-ch">at ch 92</td>
+          <td class="nc-td-when">2 wk ago</td>
+          <td class="nc-td-actions">
+            <a class="nc-btn-continue" href="#" target="_blank" rel="noopener">Continue reading &#8599;</a>
+            <button class="nc-row-action" type="button">Move</button>
+            <button class="nc-row-action" type="button">Edit</button>
+            <button class="nc-row-action nc-row-action-danger" type="button">Remove</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="nc-section">
+    <h2 class="nc-section-title">Danger zone</h2>
+    <div class="nc-danger-row">
+      <p class="nc-small">
+        Delete this series and its 3 site entries. This can&rsquo;t be undone.
+      </p>
+      <button class="nc-btn-secondary nc-btn-danger-quiet" type="button">Delete series</button>
+    </div>
+  </section>
+</main>
+</div>
+
+<!-- ============================================================
+     VARIANT B — entry row states: the comics.example.org row has its
+     inline EDIT form open (chapter + URL correction; decimals
+     accepted); the readnovel row is mid REMOVE confirm (Cancel
+     rightmost + focused). Only one row may be in either state at
+     a time; opening a second reverts the first.
+     ============================================================ -->
+<div class="demo-label">B — entries: inline edit open + remove confirm</div>
+<div class="demo-page">
+<main class="nc-content">
+  <section class="nc-section">
+    <h2 class="nc-section-title">Sites &middot; read till ch 101</h2>
+    <table class="nc-table">
+      <thead>
+        <tr>
+          <th scope="col">Site</th>
+          <th scope="col">Page title</th>
+          <th scope="col">Chapter</th>
+          <th scope="col">Captured</th>
+          <th scope="col"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="nc-td-host">reader.example.com</td>
+          <td class="nc-td-title">Solo Leveling Chapter 101 &ndash; Example Reader</td>
+          <td class="nc-td-ch">at ch 101</td>
+          <td class="nc-td-when">2 h ago</td>
+          <td class="nc-td-actions">
+            <a class="nc-btn-continue" href="#" target="_blank" rel="noopener">Continue reading &#8599;</a>
+            <button class="nc-row-action" type="button">Move</button>
+            <button class="nc-row-action" type="button">Edit</button>
+            <button class="nc-row-action nc-row-action-danger" type="button">Remove</button>
+          </td>
+        </tr>
+        <tr>
+          <td class="nc-td-host">comics.example.org</td>
+          <td class="nc-td-title">Solo Leveling - Chapter 98.5 | comics</td>
+          <td class="nc-td-ch">at ch 98.5</td>
+          <td class="nc-td-when">3 d ago</td>
+          <td class="nc-td-actions">
+            <a class="nc-btn-continue" href="#" target="_blank" rel="noopener">Continue reading &#8599;</a>
+            <button class="nc-row-action" type="button">Move</button>
+            <button class="nc-row-action" type="button" aria-expanded="true">Edit</button>
+            <button class="nc-row-action nc-row-action-danger" type="button">Remove</button>
+          </td>
+        </tr>
+        <tr class="nc-entry-editrow">
+          <td colspan="5">
+            <form class="nc-entry-editform" style="padding: var(--nc-space-2) var(--nc-space-3);">
+              <div class="nc-fieldlet">
+                <label for="edit-ch">Chapter</label>
+                <input class="nc-input nc-input-chapter" id="edit-ch" type="text"
+                       inputmode="decimal" value="98.5">
+              </div>
+              <div class="nc-fieldlet nc-fieldlet-url">
+                <label for="edit-url">Last URL</label>
+                <input class="nc-input nc-input-url" id="edit-url" type="url"
+                       value="https://comics.example.org/comic/solo-leveling/xk92a-chapter-98.5-en"
+                       spellcheck="false">
+              </div>
+              <button class="nc-btn-primary" type="submit">Save</button>
+              <button class="nc-btn-link" type="button" style="align-self: center;">Cancel</button>
+            </form>
+          </td>
+        </tr>
+        <tr>
+          <td class="nc-td-host">readnovel.example</td>
+          <td class="nc-td-title">Solo Leveling Novel &mdash; Chapter 92</td>
+          <td class="nc-td-ch">at ch 92</td>
+          <td class="nc-td-when">2 wk ago</td>
+          <td class="nc-td-actions">
+            <span class="nc-confirm" role="group" aria-label="Confirm removing readnovel.example">
+              <span class="nc-confirm-q">Remove this site?</span>
+              <button class="nc-confirm-yes" type="button">Confirm</button>
+              <button class="nc-confirm-no" type="button">Cancel</button>
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</div>
+
+<!-- ============================================================
+     VARIANT C — single entry, series not yet rated. The rating
+     control is the quiet "Rate" affordance (link-button) that
+     swaps to the 1–10 select on click, defaulting the select to
+     no committed value until the user picks (picking PATCHes).
+     Also shown: the tag-add input rejecting an invalid tag with
+     the pattern hint (field-level, never a banner).
+     ============================================================ -->
+<div class="demo-label">C — single entry, unrated, invalid tag typed</div>
+<div class="demo-page">
+<main class="nc-content">
+  <a class="nc-breadcrumb" href="#">&larr; Library</a>
+  <h1 class="nc-series-title">Wind Breaker</h1>
+
+  <div class="nc-editors">
+    <select class="nc-input" aria-label="Status">
+      <option selected>Reading</option>
+      <option>Completed</option>
+      <option>On hold</option>
+      <option>Dropped</option>
+      <option>Plan to read</option>
+    </select>
+    <button class="nc-btn-link" type="button" style="font-size: var(--nc-text-body);">Rate</button>
+    <span class="nc-savehint" aria-live="polite"></span>
+  </div>
+
+  <div class="nc-tag-editor" role="group" aria-label="Tags">
+    <span class="nc-chip">sports
+      <button class="nc-chip-remove" type="button" aria-label="Remove tag sports">&times;</button>
+    </span>
+    <input class="nc-tag-add is-invalid" type="text" value="Slice of Life!"
+           aria-label="Add a tag" aria-invalid="true" aria-describedby="tag-error"
+           autocomplete="off" spellcheck="false">
+  </div>
+  <p class="nc-field-error" id="tag-error">
+    Tags are lowercase letters, digits and hyphens &mdash; try <strong>slice-of-life</strong>.
+  </p>
+
+  <section class="nc-section">
+    <h2 class="nc-section-title">Sites &middot; read till ch 45.5</h2>
+    <table class="nc-table">
+      <thead>
+        <tr>
+          <th scope="col">Site</th>
+          <th scope="col">Page title</th>
+          <th scope="col">Chapter</th>
+          <th scope="col">Captured</th>
+          <th scope="col"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="nc-td-host">comics.example.org</td>
+          <td class="nc-td-title">Wind Breaker - Chapter 45.5 | comics</td>
+          <td class="nc-td-ch">at ch 45.5</td>
+          <td class="nc-td-when">5 d ago</td>
+          <td class="nc-td-actions">
+            <a class="nc-btn-continue" href="#" target="_blank" rel="noopener">Continue reading &#8599;</a>
+            <button class="nc-row-action" type="button">Move</button>
+            <button class="nc-row-action" type="button">Edit</button>
+            <button class="nc-row-action nc-row-action-danger" type="button">Remove</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</div>
+
+<!-- ============================================================
+     VARIANT D — entries empty. All sites were removed (or moved
+     away). The series card in the library shows "No chapters
+     yet"; here we say where entries come from. Not an error.
+     ============================================================ -->
+<div class="demo-label">D — entries empty</div>
+<div class="demo-page">
+<main class="nc-content">
+  <section class="nc-section">
+    <h2 class="nc-section-title">Sites</h2>
+    <p class="nc-entries-empty nc-small">
+      No sites yet for this series &mdash; capture a chapter from the
+      extension, or move an entry here from another series.
+    </p>
+  </section>
+</main>
+</div>
+
+<!-- ============================================================
+     VARIANT E — danger zone, confirm step. The button swapped
+     for the question + Confirm/Cancel pair; Cancel occupies the
+     exact position the Delete button held and receives focus.
+     Esc or clicking anywhere else cancels. Confirm → DELETE
+     /series/{id} → back to the library with entries gone too.
+     ============================================================ -->
+<div class="demo-label">E — danger zone: confirm step</div>
+<div class="demo-page">
+<main class="nc-content">
+  <section class="nc-section">
+    <h2 class="nc-section-title">Danger zone</h2>
+    <div class="nc-danger-row">
+      <p class="nc-small">
+        Delete this series and its 3 site entries. This can&rsquo;t be undone.
+      </p>
+      <span class="nc-confirm" role="group" aria-label="Confirm deleting Solo Leveling">
+        <span class="nc-confirm-q">Delete &ldquo;Solo Leveling&rdquo; and 3 entries?</span>
+        <button class="nc-confirm-yes" type="button">Confirm delete</button>
+        <button class="nc-confirm-no" type="button">Cancel</button>
+      </span>
+    </div>
+  </section>
+</main>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,54 @@
+# syntax=docker/dockerfile:1.7
+# The web e2e QA gate: build the SPA, embed it into the real backend binary,
+# run Playwright against that binary — the production topology (ADR-0010).
+# Build from the REPO ROOT: docker build -f web/Dockerfile.test .
+# (make -C frontend web-test-e2e-docker does exactly that.)
+
+# Single source of truth is frontend/Makefile's PLAYWRIGHT_VERSION (always
+# passed via --build-arg); this default only serves manual builds and is
+# asserted by make check-playwright-pin.
+ARG PLAYWRIGHT_VERSION=1.62.1
+
+# Stage 1 — build the web SPA.
+FROM node:24-alpine AS web-build
+RUN corepack enable
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json ./
+COPY web/package.json web/package.json
+COPY packages/api-client/package.json packages/api-client/package.json
+COPY frontend/package.json frontend/package.json
+# The SPA imports design/tokens.css — easy to miss.
+COPY design/tokens.css design/tokens.css
+COPY web/ web/
+COPY packages/ packages/
+RUN pnpm install --frozen-lockfile --filter @nextchapter/web --filter @nextchapter/api-client \
+  && pnpm --filter @nextchapter/web run build
+
+# Stage 2 — backend binary with the freshly built dist embedded.
+FROM golang:1.26-alpine AS backend-build
+ENV CGO_ENABLED=0
+WORKDIR /src
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
+COPY backend/ ./
+COPY --from=web-build /app/web/dist/ internal/webui/dist/
+RUN go build -trimpath -ldflags="-s -w" -o /out/nextchapter ./cmd/nextchapter
+
+# Stage 3 — the pinned browser environment runs the specs.
+FROM mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION}-jammy
+RUN corepack enable
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json ./
+COPY web/package.json web/package.json
+COPY packages/api-client/package.json packages/api-client/package.json
+COPY frontend/package.json frontend/package.json
+COPY design/tokens.css design/tokens.css
+COPY web/ web/
+COPY packages/ packages/
+RUN pnpm install --frozen-lockfile --filter @nextchapter/web --filter @nextchapter/api-client
+
+COPY --from=backend-build /out/nextchapter backend/bin/nextchapter
+ENV NC_BACKEND_BIN=/app/backend/bin/nextchapter
+
+WORKDIR /app/web
+CMD ["pnpm", "exec", "playwright", "test"]

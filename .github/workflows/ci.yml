@@ -7,6 +7,8 @@ on:
       - 'backend/**'
       - 'frontend/**'
       - 'packages/**'
+      - 'web/**'
+      - 'design/tokens.css'
       - 'pnpm-workspace.yaml'
       - 'pnpm-lock.yaml'
       - 'package.json'
@@ -22,6 +24,8 @@ on:
       - 'backend/**'
       - 'frontend/**'
       - 'packages/**'
+      - 'web/**'
+      - 'design/tokens.css'
       - 'pnpm-workspace.yaml'
       - 'pnpm-lock.yaml'
       - 'package.json'
@@ -74,11 +78,11 @@ jobs:
             exit 1
           fi
 
-      # govulncheck is intentionally NOT run in CI yet. There are
-      # three reachable stdlib CVEs in go1.26.2 that close out with a
-      # toolchain bump to go1.26.3. Until the host runners have
-      # 1.26.3 (or we flip to GOTOOLCHAIN=auto), running govulncheck
-      # here would just be a documented red. Re-enable after the bump.
+      # govulncheck is intentionally NOT run in CI yet: the reachable
+      # findings are stdlib CVEs fixable only by a toolchain patch
+      # release. See ADR-0007 (docs/adr/0007-deferred-stdlib-cves.md)
+      # for the current deferred list and the re-enable condition;
+      # `make security-audit` is the manual backstop.
 
   backend-postgres:
     # Dual-engine coverage. The default `backend` job exercises the
@@ -144,6 +148,9 @@ jobs:
       - name: build (firefox mv3)
         run: make build-firefox
 
+      - name: build (web spa)
+        run: make web-build
+
   frontend-e2e:
     # The QA gate: Playwright e2e against the real backend binary inside the
     # pinned mcr.microsoft.com/playwright image (frontend/Dockerfile.test).
@@ -159,3 +166,18 @@ jobs:
 
       - name: e2e in pinned Playwright image
         run: make test-e2e-docker
+
+  web-e2e:
+    # The web QA gate: the SPA is built, embedded into the real backend
+    # binary, and driven by Playwright — the production topology
+    # (web/Dockerfile.test, ADR-0010).
+    name: web (e2e)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: web e2e in pinned Playwright image
+        run: make web-test-e2e-docker

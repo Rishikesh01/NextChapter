@@ -20,26 +20,6 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/": {
-            "get": {
-                "description": "Placeholder text until the SPA ships (ADR-0004). Unauthenticated.",
-                "produces": [
-                    "text/plain"
-                ],
-                "tags": [
-                    "meta"
-                ],
-                "summary": "API root placeholder",
-                "responses": {
-                    "200": {
-                        "description": "NextChapter API. See /healthz.",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
         "/auth/login": {
             "post": {
                 "description": "Authenticates the supplied credentials. On success the server sets the nc_session cookie and returns the authenticated user.",

@@ -20,3 +20,4 @@ pnpm-lock.yaml
 # Generator output is the deterministic form
 packages/api-client/src/generated/
 packages/api-client/.cache/
+web/dist/

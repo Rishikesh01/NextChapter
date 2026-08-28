@@ -1,0 +1,18 @@
+# Context is the repo root; keep it lean.
+**/node_modules
+**/.output
+**/.wxt
+**/playwright-report
+**/test-results
+**/blob-report
+**/dist
+!backend/internal/webui/dist
+.git
+backend/bin
+backend/tests
+# pnpm --frozen-lockfile needs every workspace project's manifest, even for
+# filtered installs — keep frontend's package.json, drop the rest.
+frontend/*
+!frontend/package.json
+docs
+*.db

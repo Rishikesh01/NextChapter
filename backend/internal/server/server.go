@@ -25,6 +25,7 @@ import (
 	"github.com/enable-it/nextchapter/backend/internal/sites"
 	"github.com/enable-it/nextchapter/backend/internal/store"
 	"github.com/enable-it/nextchapter/backend/internal/users"
+	"github.com/enable-it/nextchapter/backend/internal/webui"
 )
 
 // Run starts NextChapter. It blocks until ctx is canceled or the HTTP
@@ -93,8 +94,9 @@ func Run(ctx context.Context, cfg config.Config) error {
 		Logger:         logger,
 		Version:        cfg.Version,
 		AllowedOrigins: cfg.AllowedOrigins,
-		CookieSecure:   isHTTPS(cfg.AllowedOrigins),
+		CookieSecure:   resolveCookieSecure(cfg),
 		CookieDomain:   "",
+		WebUI:          webui.FS(),
 	})
 
 	srv := &http.Server{
@@ -164,10 +166,20 @@ func newLogger(level zapcore.Level) (*zap.Logger, error) {
 	return cfg.Build()
 }
 
+// resolveCookieSecure applies the explicit NEXTCHAPTER_COOKIE_SECURE
+// override when set, else falls back to the historical inference from
+// the CORS allow-list (ADR-0010 §5) — which is false for same-origin
+// deployments with no allow-list, hence the override.
+func resolveCookieSecure(cfg config.Config) bool {
+	if cfg.CookieSecure != nil {
+		return *cfg.CookieSecure
+	}
+	return isHTTPS(cfg.AllowedOrigins)
+}
+
 // isHTTPS reports whether every configured origin is https://; we use
-// that as a proxy for "Secure cookies are appropriate". An operator
-// behind a TLS-terminating proxy can override via env if needed in a
-// later milestone.
+// that as a proxy for "Secure cookies are appropriate" when
+// NEXTCHAPTER_COOKIE_SECURE is unset.
 func isHTTPS(origins []string) bool {
 	if len(origins) == 0 {
 		return false
