@@ -16,6 +16,7 @@ export type Health = Schemas['models.Health'];
 export type NewToken = Schemas['models.NewToken'];
 export type Registration = Schemas['models.Registration'];
 export type Series = Schemas['models.Series'];
+export type SeriesCoverMeta = Schemas['models.SeriesCoverMeta'];
 export type SeriesDetail = Schemas['models.SeriesDetail'];
 export type SeriesList = Schemas['models.SeriesList'];
 export type SeriesNew = Schemas['models.SeriesNew'];

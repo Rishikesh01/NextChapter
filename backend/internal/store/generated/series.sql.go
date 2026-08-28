@@ -134,7 +134,8 @@ SELECT
     s.updated_at,
     (SELECT MAX(e.last_chapter) FROM entries e WHERE e.series_id = s.id) AS highest_chapter,
     CAST((SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) AS INTEGER) AS entry_count,
-    (SELECT MAX(e.last_captured_at) FROM entries e WHERE e.series_id = s.id) AS rollup_last_captured_at
+    (SELECT MAX(e.last_captured_at) FROM entries e WHERE e.series_id = s.id) AS rollup_last_captured_at,
+    (SELECT MAX(c.updated_at) FROM series_cover c WHERE c.series_id = s.id) AS cover_updated_at
 FROM series s
 WHERE s.id = ? AND s.user_id = ?
 `
@@ -156,6 +157,7 @@ type GetSeriesSummaryRow struct {
 	HighestChapter       interface{}
 	EntryCount           int64
 	RollupLastCapturedAt interface{}
+	CoverUpdatedAt       interface{}
 }
 
 func (q *Queries) GetSeriesSummary(ctx context.Context, arg GetSeriesSummaryParams) (GetSeriesSummaryRow, error) {
@@ -173,6 +175,7 @@ func (q *Queries) GetSeriesSummary(ctx context.Context, arg GetSeriesSummaryPara
 		&i.HighestChapter,
 		&i.EntryCount,
 		&i.RollupLastCapturedAt,
+		&i.CoverUpdatedAt,
 	)
 	return i, err
 }
@@ -189,7 +192,8 @@ SELECT
     s.updated_at,
     (SELECT MAX(e.last_chapter) FROM entries e WHERE e.series_id = s.id) AS highest_chapter,
     CAST((SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) AS INTEGER) AS entry_count,
-    (SELECT MAX(e.last_captured_at) FROM entries e WHERE e.series_id = s.id) AS rollup_last_captured_at
+    (SELECT MAX(e.last_captured_at) FROM entries e WHERE e.series_id = s.id) AS rollup_last_captured_at,
+    (SELECT MAX(c.updated_at) FROM series_cover c WHERE c.series_id = s.id) AS cover_updated_at
 FROM series s
 WHERE s.user_id = ?
 ORDER BY s.updated_at DESC
@@ -214,6 +218,7 @@ type ListSeriesAllRow struct {
 	HighestChapter       interface{}
 	EntryCount           int64
 	RollupLastCapturedAt interface{}
+	CoverUpdatedAt       interface{}
 }
 
 func (q *Queries) ListSeriesAll(ctx context.Context, arg ListSeriesAllParams) ([]ListSeriesAllRow, error) {
@@ -237,6 +242,7 @@ func (q *Queries) ListSeriesAll(ctx context.Context, arg ListSeriesAllParams) ([
 			&i.HighestChapter,
 			&i.EntryCount,
 			&i.RollupLastCapturedAt,
+			&i.CoverUpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -263,7 +269,8 @@ SELECT
     s.updated_at,
     (SELECT MAX(e.last_chapter) FROM entries e WHERE e.series_id = s.id) AS highest_chapter,
     CAST((SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) AS INTEGER) AS entry_count,
-    (SELECT MAX(e.last_captured_at) FROM entries e WHERE e.series_id = s.id) AS rollup_last_captured_at
+    (SELECT MAX(e.last_captured_at) FROM entries e WHERE e.series_id = s.id) AS rollup_last_captured_at,
+    (SELECT MAX(c.updated_at) FROM series_cover c WHERE c.series_id = s.id) AS cover_updated_at
 FROM series s
 WHERE s.user_id = ? AND s.status = ?
 ORDER BY s.updated_at DESC
@@ -289,6 +296,7 @@ type ListSeriesByStatusRow struct {
 	HighestChapter       interface{}
 	EntryCount           int64
 	RollupLastCapturedAt interface{}
+	CoverUpdatedAt       interface{}
 }
 
 func (q *Queries) ListSeriesByStatus(ctx context.Context, arg ListSeriesByStatusParams) ([]ListSeriesByStatusRow, error) {
@@ -317,6 +325,7 @@ func (q *Queries) ListSeriesByStatus(ctx context.Context, arg ListSeriesByStatus
 			&i.HighestChapter,
 			&i.EntryCount,
 			&i.RollupLastCapturedAt,
+			&i.CoverUpdatedAt,
 		); err != nil {
 			return nil, err
 		}

@@ -275,3 +275,64 @@ a {
 .nc-status-bad {
   color: var(--nc-error-fg);
 }
+
+/* ---------- cover picker (ADR-0011) ---------- */
+/* Entry point sits under the capture form: a quiet text action, because
+   capturing your place is still the popup's primary job. */
+.nc-cover-entry {
+  padding: 0 var(--nc-space-4) var(--nc-space-3);
+  text-align: center;
+}
+/* Three columns at the popup's 380px width gives ~100px thumbnails —
+   enough to recognise cover art at a glance without scrolling far. */
+.nc-cover-grid {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--nc-space-2);
+  margin: 0;
+  padding: 0 var(--nc-space-4);
+  max-height: 320px;
+  overflow-y: auto;
+}
+.nc-cover-option {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg-subtle);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 120ms ease;
+}
+.nc-cover-option:hover:not(:disabled) {
+  border-color: var(--nc-accent);
+}
+.nc-cover-option:disabled {
+  cursor: default;
+}
+.nc-cover-option-img {
+  display: block;
+  width: 100%;
+  /* Fixed 2:3 box so a page full of mixed-shape images still lays out as
+     an even grid; object-fit crops rather than letterboxes. */
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  object-position: center top;
+}
+.nc-cover-option-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+}
+.nc-cover-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--nc-space-3) var(--nc-space-4);
+}

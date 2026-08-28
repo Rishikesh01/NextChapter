@@ -3,15 +3,21 @@ import { browser, type Browser } from 'wxt/browser';
 export interface CaptureTab {
   url: string;
   title: string;
+  /**
+   * The tab's own id. Needed to inject into the page for cover
+   * acquisition (ADR-0011); a tab with no id cannot be scripted, so it is
+   * not a valid capture target either.
+   */
+  id: number;
 }
 
 function toCaptureTab(tab: Browser.tabs.Tab | undefined): CaptureTab | null {
   // tab.url is only populated when activeTab (or a host permission) grants
   // access; an http(s) check also rules out chrome:// and extension pages.
-  if (tab?.url === undefined) return null;
+  if (tab?.url === undefined || tab.id === undefined) return null;
   if (!tab.url.startsWith('http://') && !tab.url.startsWith('https://'))
     return null;
-  return { url: tab.url, title: tab.title ?? '' };
+  return { url: tab.url, title: tab.title ?? '', id: tab.id };
 }
 
 /**

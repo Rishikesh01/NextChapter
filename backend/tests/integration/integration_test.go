@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -23,6 +24,12 @@ import (
 // intPtr is a tiny helper for expected-body DTO literals where a *int
 // field needs a concrete value (e.g. Rating: intPtr(8)).
 func intPtr(v int) *int { return &v }
+
+// sentinelTime is a non-nil placeholder for a *time.Time field that is
+// covered by SentinelPaths. applyPath only replaces present, non-null
+// values — a nil here would stay a literal null on the expected side
+// while the actual side got sentinelled, so the two would never match.
+var sentinelTime = &time.Time{}
 
 // errorBody is the canonical error envelope produced by the render
 // package. Used as ExpectedBody when the handler returns a structured
@@ -341,11 +348,13 @@ func TestUserCapturesChapterProgressAcrossSites(t *testing.T) {
 	r.NoError(err)
 	r.Equal(int64(2), total)
 
-	// last_captured_at on the rollup is currently null: the
-	// underlying correlated MAX() column comes back as []byte from
-	// modernc.org/sqlite which the conversion shim does not parse.
-	// That's the actual wire shape today, and the test pins it
-	// verbatim — if the shim is fixed we want this to fail loudly.
+	// last_captured_at now carries the real rollup timestamp. It used
+	// to be null because modernc.org/sqlite returns the correlated
+	// MAX() over a TIMESTAMP column as TEXT in Go's time.Time.String()
+	// layout, which the conversion shim had no pattern for; the shim
+	// gained that layout alongside the cover rollup (ADR-0011). The
+	// value is non-deterministic, so it is sentinelled rather than
+	// pinned.
 	highest := 110.5
 	(testRequest{
 		Name:           "/series list rolls up highest_chapter and entry_count",
@@ -361,7 +370,7 @@ func TestUserCapturesChapterProgressAcrossSites(t *testing.T) {
 				},
 				HighestChapter: &highest,
 				EntryCount:     2,
-				LastCapturedAt: nil,
+				LastCapturedAt: sentinelTime,
 			}},
 			Total: 1,
 		},
@@ -369,6 +378,7 @@ func TestUserCapturesChapterProgressAcrossSites(t *testing.T) {
 			"items.*.id",
 			"items.*.created_at",
 			"items.*.updated_at",
+			"items.*.last_captured_at",
 		},
 	}).do(t, h)
 }
@@ -472,8 +482,9 @@ func TestUserReassignsEntryBetweenSeries(t *testing.T) {
 	r.Equal(int64(1), newTotal, "new series rollup should gain the entry")
 
 	highest := 100.0
-	// Same rollup quirk as in TestUserCapturesChapterProgressAcrossSites:
-	// last_captured_at at the summary level is nil today.
+	// Same rollup as in TestUserCapturesChapterProgressAcrossSites:
+	// last_captured_at at the summary level is a real timestamp, so it
+	// is sentinelled rather than pinned.
 	(testRequest{
 		Name:           "GET /series/{new} includes the reassigned entry",
 		Method:         http.MethodGet,
@@ -489,7 +500,7 @@ func TestUserReassignsEntryBetweenSeries(t *testing.T) {
 				},
 				HighestChapter: &highest,
 				EntryCount:     1,
-				LastCapturedAt: nil,
+				LastCapturedAt: sentinelTime,
 			},
 			Entries: []models.Entry{{
 				ID:          entryID,
@@ -504,6 +515,7 @@ func TestUserReassignsEntryBetweenSeries(t *testing.T) {
 		SentinelPaths: []string{
 			"created_at",
 			"updated_at",
+			"last_captured_at",
 			"entries.*.last_captured_at",
 			"entries.*.created_at",
 			"entries.*.updated_at",

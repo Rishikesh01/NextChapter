@@ -30,6 +30,12 @@ import { ManualCaptureForm } from '../../components/popup/ManualCaptureForm';
 import { SeriesPicker } from '../../components/popup/SeriesPicker';
 import { StatusBanner } from '../../components/popup/StatusBanner';
 import { RuleBuilder } from '../../components/popup/RuleBuilder';
+import { CoverPicker } from '../../components/popup/CoverPicker';
+import {
+  fetchCoverBlob,
+  findCoverCandidates,
+  type CoverCandidate,
+} from '../../lib/covers';
 import { parseChapterInput } from '../../components/popup/ChapterInput';
 
 type View =
@@ -38,7 +44,12 @@ type View =
   | { kind: 'uncapturable' }
   | { kind: 'capture'; tab: CaptureTab; detected: boolean }
   | { kind: 'pick-series'; payload: EntryCapture; suggestedTitle: string }
-  | { kind: 'done'; created: boolean; title: string; chapter: number };
+  | { kind: 'done'; created: boolean; title: string; chapter: number }
+  // Cover flow (ADR-0011): choose the series, then pick one of the images
+  // actually present on the page the user is looking at.
+  | { kind: 'cover-series'; tab: CaptureTab }
+  | { kind: 'cover-image'; tab: CaptureTab; series: SeriesSummary }
+  | { kind: 'cover-done'; title: string };
 
 interface Banner {
   kind: 'error' | 'warn';
@@ -64,6 +75,10 @@ export function App() {
   const [seriesLoading, setSeriesLoading] = useState(false);
   /** Non-null while the inline rule builder replaces the manual form. */
   const [ruleDraft, setRuleDraft] = useState<RuleDraft | null>(null);
+  const [candidates, setCandidates] = useState<CoverCandidate[]>([]);
+  const [candidatesLoading, setCandidatesLoading] = useState(false);
+  /** URL of the candidate currently being fetched + uploaded. */
+  const [pendingCover, setPendingCover] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -327,12 +342,84 @@ export function App() {
     })();
   };
 
+  /**
+   * Entry point for the cover flow. Starts the page scan immediately and
+   * loads the series list in parallel — the user picks the series while
+   * the images are still being enumerated.
+   */
+  const startCoverFlow = useCallback(
+    (tab: CaptureTab) => {
+      setBanner(null);
+      setView({ kind: 'cover-series', tab });
+      void loadSeries();
+      setCandidatesLoading(true);
+      setCandidates([]);
+      void (async () => {
+        try {
+          setCandidates(await findCoverCandidates(tab.id));
+        } catch {
+          setCandidates([]);
+        } finally {
+          setCandidatesLoading(false);
+        }
+      })();
+    },
+    [loadSeries],
+  );
+
+  /**
+   * Fetches the chosen image's bytes and stores them against the series.
+   * The fetch happens on the page (or, failing that, behind a host
+   * permission the user grants) — never on the server, which has no
+   * outbound HTTP at all (ADR-0011 §1).
+   */
+  const pickCover = useCallback(
+    (tab: CaptureTab, target: SeriesSummary, candidate: CoverCandidate) => {
+      void (async () => {
+        if (target.id === undefined) return;
+        setPendingCover(candidate.url);
+        setBanner(null);
+        try {
+          const blob = await fetchCoverBlob(tab.id, candidate.url);
+          if (blob === null) {
+            setBanner({
+              kind: 'warn',
+              text: 'Could not read that image — try another.',
+            });
+            return;
+          }
+          await client.setSeriesCover(target.id, blob, tab.url);
+          setView({
+            kind: 'cover-done',
+            title: target.title ?? 'this series',
+          });
+        } catch (err) {
+          if (err instanceof ApiError && err.unauthorized) {
+            setBanner({
+              kind: 'error',
+              text: 'Token rejected —',
+              action: { label: 'open settings', run: openSettings },
+            });
+          } else {
+            setBanner({ kind: 'warn', text: 'Could not save that cover.' });
+          }
+        } finally {
+          setPendingCover(null);
+        }
+      })();
+    },
+    [],
+  );
+
   const host = (() => {
     switch (view.kind) {
       case 'capture':
         return normalizeHost(new URL(view.tab.url).hostname);
       case 'pick-series':
         return view.payload.site_host;
+      case 'cover-series':
+      case 'cover-image':
+        return normalizeHost(new URL(view.tab.url).hostname);
       default:
         return 'NextChapter';
     }
@@ -360,6 +447,19 @@ export function App() {
           title="Nothing to capture here"
           text="Open a chapter page, then click the NextChapter button to save your spot."
         />
+      )}
+      {view.kind === 'capture' && (
+        <div className="nc-cover-entry">
+          <button
+            className="nc-btn-link"
+            type="button"
+            onClick={() => {
+              startCoverFlow(view.tab);
+            }}
+          >
+            Set a series cover from this page
+          </button>
+        </div>
       )}
       {view.kind === 'capture' &&
         (view.detected ? (
@@ -419,6 +519,43 @@ export function App() {
             submitCapture({ ...view.payload, new_series_title: title }, title);
           }}
         />
+      )}
+      {view.kind === 'cover-series' && (
+        <SeriesPicker
+          seriesSlug="cover"
+          siteHost={new URL(view.tab.url).hostname}
+          suggestedTitle=""
+          hideCreate
+          heading="Set a cover for…"
+          series={series}
+          loading={seriesLoading}
+          busy={busy}
+          onPick={(picked) => {
+            setView({ kind: 'cover-image', tab: view.tab, series: picked });
+          }}
+          onCreate={() => undefined}
+        />
+      )}
+      {view.kind === 'cover-image' && (
+        <CoverPicker
+          seriesTitle={view.series.title ?? 'this series'}
+          candidates={candidates}
+          loading={candidatesLoading}
+          pendingUrl={pendingCover}
+          onPick={(candidate) => {
+            pickCover(view.tab, view.series, candidate);
+          }}
+          onCancel={() => {
+            setView({ kind: 'cover-series', tab: view.tab });
+          }}
+        />
+      )}
+      {view.kind === 'cover-done' && (
+        <div className="nc-popup-banner nc-popup-banner-only">
+          <StatusBanner kind="success">
+            Cover saved for <strong>{view.title}</strong>
+          </StatusBanner>
+        </div>
       )}
       {view.kind === 'done' && (
         <div className="nc-popup-banner nc-popup-banner-only">

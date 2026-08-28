@@ -38,3 +38,24 @@ export function relativeTime(
   if (months < 12) return `${String(months)} mo ago`;
   return `${String(Math.floor(days / 365))} y ago`;
 }
+
+/**
+ * Same-origin URL for a series cover, or null when the series has none.
+ *
+ * `cover_updated_at` doubles as the existence flag and the cache-buster
+ * (ADR-0011 §6): null means "no cover, render the placeholder without
+ * issuing a doomed request", and a non-null value pins the `?v=` param so
+ * replacing a cover invalidates the browser's cached image at once.
+ *
+ * Built relative rather than through the api client's async
+ * seriesCoverUrl(): the SPA is always same-origin with its API, and an
+ * <img src> cannot await a promise mid-render.
+ */
+export function coverUrl(
+  seriesID: number | undefined,
+  coverUpdatedAt: string | null | undefined,
+): string | null {
+  if (seriesID === undefined) return null;
+  if (coverUpdatedAt === undefined || coverUpdatedAt === null) return null;
+  return `/series/${String(seriesID)}/cover?v=${encodeURIComponent(coverUpdatedAt)}`;
+}

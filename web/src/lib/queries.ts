@@ -186,6 +186,20 @@ export function useDeleteSeries() {
   });
 }
 
+/**
+ * Removing a cover invalidates the whole series tree: cover_updated_at
+ * rides on every summary (it is the grid's existence flag), so the
+ * listing and the detail both go stale at once.
+ */
+export function useDeleteCover() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (seriesID: number) => api.deleteSeriesCover(seriesID),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.series }),
+  });
+}
+
 // ---- entry mutations (rollups live on series, so invalidate series) ----
 
 export function usePatchEntry() {

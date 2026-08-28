@@ -961,6 +961,180 @@ export interface paths {
         };
         trace?: never;
     };
+    "/series/{id}/cover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fetch a series' cover image
+         * @description Returns the raw image bytes (JPEG, PNG or WebP). Honours If-None-Match with a strong ETag.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description series id */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "image/jpeg": string;
+                        "image/png": string;
+                        "image/webp": string;
+                    };
+                };
+                /** @description cover unchanged */
+                304: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "image/jpeg": components["schemas"]["handlers.ErrorBody"];
+                        "image/png": components["schemas"]["handlers.ErrorBody"];
+                        "image/webp": components["schemas"]["handlers.ErrorBody"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "image/jpeg": components["schemas"]["handlers.ErrorBody"];
+                        "image/png": components["schemas"]["handlers.ErrorBody"];
+                        "image/webp": components["schemas"]["handlers.ErrorBody"];
+                    };
+                };
+            };
+        };
+        /**
+         * Set a series' cover image
+         * @description Body is the raw image bytes (JPEG, PNG or WebP, max 5MiB). The type is sniffed from the bytes; the request Content-Type is not trusted. Optional X-Cover-Source-Url header records provenance.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description series id */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["models.SeriesCoverMeta"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["handlers.ErrorBody"];
+                    };
+                };
+                /** @description Request Entity Too Large */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["handlers.ErrorBody"];
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["handlers.ErrorBody"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["handlers.ErrorBody"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /** Remove a series' cover image */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description series id */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description cover removed */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["handlers.ErrorBody"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["handlers.ErrorBody"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sites": {
         parameters: {
             query?: never;
@@ -1287,7 +1461,25 @@ export interface components {
             title?: string;
             updated_at?: string;
         };
+        "models.SeriesCoverMeta": {
+            byte_size?: number;
+            created_at?: string;
+            etag?: string;
+            height?: number;
+            mime?: string;
+            series_id?: number;
+            source_url?: string;
+            updated_at?: string;
+            width?: number;
+        };
         "models.SeriesDetail": {
+            /**
+             * @description CoverUpdatedAt is nil when the series has no cover image. It is
+             *     both the existence flag (so the grid renders a placeholder
+             *     without issuing a doomed request per coverless series) and the
+             *     cache-buster the client appends to the cover URL (ADR-0011 §6).
+             */
+            cover_updated_at?: string;
             created_at?: string;
             entries?: components["schemas"]["models.Entry"][];
             entry_count?: number;
@@ -1322,6 +1514,13 @@ export interface components {
             title?: string;
         };
         "models.SeriesSummary": {
+            /**
+             * @description CoverUpdatedAt is nil when the series has no cover image. It is
+             *     both the existence flag (so the grid renders a placeholder
+             *     without issuing a doomed request per coverless series) and the
+             *     cache-buster the client appends to the cover URL (ADR-0011 §6).
+             */
+            cover_updated_at?: string;
             created_at?: string;
             entry_count?: number;
             highest_chapter?: number;

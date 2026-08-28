@@ -349,6 +349,38 @@ select.nc-input {
   color: var(--nc-text);
 }
 
+/* ---------- cover art ---------- */
+/* 2:3 portrait — the shape cover art actually ships in, so a correctly
+   proportioned image fills the box and an odd one is cropped to fit
+   rather than letterboxed. object-fit does the cropping; the fixed
+   width keeps every card's text column starting at the same x. */
+.nc-cover {
+  flex: none;
+  width: 72px;
+  height: 108px;
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg-subtle);
+  object-fit: cover;
+  object-position: center top;
+}
+.nc-cover-lg {
+  width: 120px;
+  height: 180px;
+}
+.nc-cover-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--nc-border);
+  color: var(--nc-text-disabled);
+  font-size: var(--nc-text-heading);
+  font-weight: var(--nc-weight-semibold);
+  user-select: none;
+}
+.nc-cover-lg.nc-cover-empty {
+  font-size: 32px;
+}
+
 /* ---------- series card grid ---------- */
 .nc-grid {
   display: grid;
@@ -356,7 +388,8 @@ select.nc-input {
   gap: var(--nc-space-4);
 }
 .nc-card {
-  display: block;
+  display: flex;
+  gap: var(--nc-space-3);
   border: 1px solid var(--nc-border);
   border-radius: var(--nc-radius-card);
   padding: var(--nc-space-4);
@@ -364,6 +397,12 @@ select.nc-input {
   color: var(--nc-text);
   text-decoration: none;
   transition: border-color 120ms ease;
+}
+/* The meta column must be allowed to shrink, or a long unbroken title
+   pushes the card wider than its grid track. */
+.nc-card-body {
+  flex: 1;
+  min-width: 0;
 }
 .nc-card:hover {
   border-color: var(--nc-border-strong);
@@ -407,8 +446,10 @@ select.nc-input {
   display: flex;
   flex-wrap: wrap;
   gap: var(--nc-space-1);
-  margin: 0 0 var(--nc-space-3);
+  margin: 0 0 var(--nc-space-2);
   min-height: 22px;
+  overflow: hidden;
+  max-height: 22px;
 }
 .nc-card-foot {
   display: flex;
@@ -959,4 +1000,23 @@ select.nc-input {
 }
 .nc-account-row strong {
   font-weight: var(--nc-weight-semibold);
+}
+
+/* ---------- series detail: cover header ---------- */
+.nc-detail-head {
+  display: flex;
+  gap: var(--nc-space-4);
+  align-items: flex-start;
+  margin-bottom: var(--nc-space-3);
+}
+.nc-detail-headmeta {
+  flex: 1;
+  min-width: 0;
+}
+.nc-detail-headmeta .nc-series-title {
+  margin-bottom: var(--nc-space-2);
+}
+.nc-cover-hint {
+  margin: 0;
+  max-width: 44ch;
 }

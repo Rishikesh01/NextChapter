@@ -33,6 +33,11 @@ type SeriesSummary struct {
 	HighestChapter *float64   `json:"highest_chapter"`
 	EntryCount     int64      `json:"entry_count"`
 	LastCapturedAt *time.Time `json:"last_captured_at"`
+	// CoverUpdatedAt is nil when the series has no cover image. It is
+	// both the existence flag (so the grid renders a placeholder
+	// without issuing a doomed request per coverless series) and the
+	// cache-buster the client appends to the cover URL (ADR-0011 §6).
+	CoverUpdatedAt *time.Time `json:"cover_updated_at"`
 }
 
 // SeriesDetail is the wire shape for GET /series/{id}: the summary

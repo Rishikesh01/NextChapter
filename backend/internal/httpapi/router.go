@@ -116,6 +116,12 @@ func (d Deps) registerRoutes(r *gin.Engine) {
 	authed.GET("/series/:id", seriesDeps.Get)
 	authed.PATCH("/series/:id", seriesDeps.Patch)
 	authed.DELETE("/series/:id", seriesDeps.Delete)
+	// Cover images (ADR-0011). GET returns raw image bytes, not JSON —
+	// it is the URL the web UI puts in an <img src>, and same-origin
+	// means the session cookie rides along.
+	authed.GET("/series/:id/cover", seriesDeps.GetCover)
+	authed.PUT("/series/:id/cover", seriesDeps.PutCover)
+	authed.DELETE("/series/:id/cover", seriesDeps.DeleteCover)
 
 	entriesDeps := handlers.EntriesDeps{
 		Entries:       d.Entries,

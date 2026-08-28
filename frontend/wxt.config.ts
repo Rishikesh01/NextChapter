@@ -26,6 +26,11 @@ export default defineConfig({
       'activeTab',
       // storage: server settings, API token, and the site-rule cache.
       'storage',
+      // scripting: read the page's cover art on an explicit user gesture
+      // (ADR-0011 §7). activeTab already grants the host access this needs;
+      // `scripting` only unlocks the injection API itself, so this adds no
+      // new install-time permission warning and nothing runs unprompted.
+      'scripting',
     ],
     // The server URL is user-configured, so no concrete host can be listed at
     // install time. The options page requests exactly the user's server origin

@@ -69,6 +69,13 @@ func anyToTimePtr(v interface{}) *time.Time {
 		for _, layout := range []string{
 			time.RFC3339Nano,
 			time.RFC3339,
+			// modernc.org/sqlite hands back the result of an aggregate
+			// over a TIMESTAMP column (MAX(...) in the rollup
+			// subqueries) as TEXT in Go's time.Time.String() layout,
+			// not RFC3339 — a plain column read on the same column
+			// still scans as time.Time. Without this layout every
+			// rollup timestamp silently parsed to nil.
+			"2006-01-02 15:04:05.999999999 -0700 MST",
 			"2006-01-02 15:04:05.999999999-07:00",
 			"2006-01-02 15:04:05.999999999Z07:00",
 			"2006-01-02 15:04:05",

@@ -45,6 +45,20 @@ type Series struct {
 	UpdatedAt time.Time
 }
 
+type SeriesCover struct {
+	SeriesID  int64
+	UserID    int64
+	Bytes     []byte
+	Mime      string
+	ByteSize  int64
+	Width     int64
+	Height    int64
+	Etag      string
+	SourceUrl string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type SeriesTag struct {
 	SeriesID int64
 	TagID    int64

@@ -20,7 +20,8 @@ SELECT
     s.updated_at,
     (SELECT MAX(e.last_chapter) FROM entries e WHERE e.series_id = s.id) AS highest_chapter,
     CAST((SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) AS INTEGER) AS entry_count,
-    (SELECT MAX(e.last_captured_at) FROM entries e WHERE e.series_id = s.id) AS rollup_last_captured_at
+    (SELECT MAX(e.last_captured_at) FROM entries e WHERE e.series_id = s.id) AS rollup_last_captured_at,
+    (SELECT MAX(c.updated_at) FROM series_cover c WHERE c.series_id = s.id) AS cover_updated_at
 FROM series s
 WHERE s.user_id = ? AND s.status = ?
 ORDER BY s.updated_at DESC
@@ -38,7 +39,8 @@ SELECT
     s.updated_at,
     (SELECT MAX(e.last_chapter) FROM entries e WHERE e.series_id = s.id) AS highest_chapter,
     CAST((SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) AS INTEGER) AS entry_count,
-    (SELECT MAX(e.last_captured_at) FROM entries e WHERE e.series_id = s.id) AS rollup_last_captured_at
+    (SELECT MAX(e.last_captured_at) FROM entries e WHERE e.series_id = s.id) AS rollup_last_captured_at,
+    (SELECT MAX(c.updated_at) FROM series_cover c WHERE c.series_id = s.id) AS cover_updated_at
 FROM series s
 WHERE s.user_id = ?
 ORDER BY s.updated_at DESC
@@ -62,7 +64,8 @@ SELECT
     s.updated_at,
     (SELECT MAX(e.last_chapter) FROM entries e WHERE e.series_id = s.id) AS highest_chapter,
     CAST((SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) AS INTEGER) AS entry_count,
-    (SELECT MAX(e.last_captured_at) FROM entries e WHERE e.series_id = s.id) AS rollup_last_captured_at
+    (SELECT MAX(e.last_captured_at) FROM entries e WHERE e.series_id = s.id) AS rollup_last_captured_at,
+    (SELECT MAX(c.updated_at) FROM series_cover c WHERE c.series_id = s.id) AS cover_updated_at
 FROM series s
 WHERE s.id = ? AND s.user_id = ?;
 

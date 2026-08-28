@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import type { Entry, SeriesPatch } from '@nextchapter/api-client';
 import {
   useCreateSeries,
+  useDeleteCover,
   useDeleteEntry,
   useDeleteSeries,
   usePatchEntry,
@@ -10,7 +11,8 @@ import {
   useSeriesDetail,
   useSeriesList,
 } from '../lib/queries';
-import { STATUS_OPTIONS } from '../lib/format';
+import { coverUrl, STATUS_OPTIONS } from '../lib/format';
+import { CoverThumb } from '../components/CoverThumb';
 import { EntryRow } from '../components/EntryRow';
 import { ReassignEntryDialog } from '../components/ReassignEntryDialog';
 import { ConfirmInline } from '../components/ConfirmInline';
@@ -28,6 +30,7 @@ export function SeriesDetailPage() {
   const patchEntry = usePatchEntry();
   const deleteEntry = useDeleteEntry();
   const createSeries = useCreateSeries();
+  const deleteCover = useDeleteCover();
 
   const [notes, setNotes] = useState<string>();
   // Editors row and the notes card each get their own quiet save hint.
@@ -77,6 +80,10 @@ export function SeriesDetailPage() {
 
   const series = detail.data;
   const entries = series.entries ?? [];
+  // Null when the series has no cover. Also the null-safe read of
+  // cover_updated_at: the generated OpenAPI types mark it optional but
+  // never nullable, while the wire really does send null.
+  const cover = coverUrl(series.id, series.cover_updated_at);
   const mutationError =
     patchSeries.error ?? patchEntry.error ?? deleteEntry.error;
   const entryBusy =
@@ -99,68 +106,89 @@ export function SeriesDetailPage() {
       <Link className="nc-breadcrumb" to="/">
         ← Library
       </Link>
-      <h1 className="nc-series-title">{series.title}</h1>
+      <div className="nc-detail-head">
+        <CoverThumb src={cover} title={series.title ?? ''} large />
+        <div className="nc-detail-headmeta">
+          <h1 className="nc-series-title">{series.title}</h1>
 
-      {mutationError !== null && (
-        <ErrorBanner>{mutationError.message}</ErrorBanner>
-      )}
+          {mutationError !== null && (
+            <ErrorBanner>{mutationError.message}</ErrorBanner>
+          )}
 
-      <div className="nc-editors">
-        <select
-          className="nc-input"
-          aria-label="Status"
-          value={series.status ?? 'reading'}
-          onChange={(event) => {
-            patch({ status: event.target.value as SeriesPatch['status'] });
-          }}
-        >
-          {STATUS_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        {(series.rating ?? 0) > 0 || showRating ? (
-          <select
-            className="nc-input nc-rating-select"
-            aria-label="Rating"
-            value={series.rating ?? ''}
-            onChange={(event) => {
-              patch({ rating: Number(event.target.value) });
-            }}
-          >
-            {(series.rating ?? 0) === 0 && <option value="">–</option>}
-            {Array.from({ length: 10 }, (_, index) => index + 1).map(
-              (value) => (
-                <option key={value} value={value}>
-                  ★ {value}
+          <div className="nc-editors">
+            <select
+              className="nc-input"
+              aria-label="Status"
+              value={series.status ?? 'reading'}
+              onChange={(event) => {
+                patch({ status: event.target.value as SeriesPatch['status'] });
+              }}
+            >
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
-              ),
+              ))}
+            </select>
+            {(series.rating ?? 0) > 0 || showRating ? (
+              <select
+                className="nc-input nc-rating-select"
+                aria-label="Rating"
+                value={series.rating ?? ''}
+                onChange={(event) => {
+                  patch({ rating: Number(event.target.value) });
+                }}
+              >
+                {(series.rating ?? 0) === 0 && <option value="">–</option>}
+                {Array.from({ length: 10 }, (_, index) => index + 1).map(
+                  (value) => (
+                    <option key={value} value={value}>
+                      ★ {value}
+                    </option>
+                  ),
+                )}
+              </select>
+            ) : (
+              <button
+                className="nc-btn-link"
+                type="button"
+                onClick={() => {
+                  setShowRating(true);
+                }}
+              >
+                Rate
+              </button>
             )}
-          </select>
-        ) : (
-          <button
-            className="nc-btn-link"
-            type="button"
-            onClick={() => {
-              setShowRating(true);
-            }}
-          >
-            Rate
-          </button>
-        )}
-        <span className="nc-savehint" aria-live="polite">
-          {saveHint}
-        </span>
-      </div>
+            <span className="nc-savehint" aria-live="polite">
+              {saveHint}
+            </span>
+          </div>
 
-      <TagEditor
-        tags={series.tags ?? []}
-        busy={patchSeries.isPending}
-        onChange={(tags) => {
-          patch({ tags });
-        }}
-      />
+          <TagEditor
+            tags={series.tags ?? []}
+            busy={patchSeries.isPending}
+            onChange={(tags) => {
+              patch({ tags });
+            }}
+          />
+
+          {cover !== null ? (
+            <ConfirmInline
+              label="Remove cover"
+              question="Remove cover?"
+              busy={deleteCover.isPending}
+              onConfirm={() => {
+                deleteCover.mutate(seriesID);
+              }}
+            />
+          ) : (
+            <p className="nc-cover-hint nc-small">
+              No cover yet — set one from the extension on this series&rsquo;
+              chapter-list page.
+            </p>
+          )}
+        </div>
+      </div>
 
       <div className="nc-notes">
         <label htmlFor="notes">Notes</label>

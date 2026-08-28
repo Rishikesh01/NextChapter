@@ -27,11 +27,13 @@ type Querier interface {
 	DeleteAuthTokenByID(ctx context.Context, arg DeleteAuthTokenByIDParams) (int64, error)
 	DeleteEntry(ctx context.Context, arg DeleteEntryParams) (int64, error)
 	DeleteSeries(ctx context.Context, arg DeleteSeriesParams) (int64, error)
+	DeleteSeriesCover(ctx context.Context, arg DeleteSeriesCoverParams) (int64, error)
 	DeleteSiteRule(ctx context.Context, arg DeleteSiteRuleParams) (int64, error)
 	GetAuthTokenByHash(ctx context.Context, tokenHash string) (GetAuthTokenByHashRow, error)
 	GetEntryByID(ctx context.Context, arg GetEntryByIDParams) (Entry, error)
 	GetEntryByKey(ctx context.Context, arg GetEntryByKeyParams) (Entry, error)
 	GetSeriesByID(ctx context.Context, arg GetSeriesByIDParams) (Series, error)
+	GetSeriesCover(ctx context.Context, arg GetSeriesCoverParams) (SeriesCover, error)
 	GetSeriesSummary(ctx context.Context, arg GetSeriesSummaryParams) (GetSeriesSummaryRow, error)
 	GetSeriesTags(ctx context.Context, seriesID int64) ([]string, error)
 	GetSiteRuleByHost(ctx context.Context, arg GetSiteRuleByHostParams) (SiteRule, error)
@@ -62,6 +64,9 @@ type Querier interface {
 	UpdateEntry(ctx context.Context, arg UpdateEntryParams) (Entry, error)
 	UpdateSeries(ctx context.Context, arg UpdateSeriesParams) (Series, error)
 	UpdateSiteRule(ctx context.Context, arg UpdateSiteRuleParams) (SiteRule, error)
+	// series_id is the primary key, so ON CONFLICT replaces an existing cover
+	// in place and created_at is preserved from the original row.
+	UpsertSeriesCover(ctx context.Context, arg UpsertSeriesCoverParams) (UpsertSeriesCoverRow, error)
 	// Idempotent insert of a tag for (user_id, name). Returns the id either
 	// way thanks to the UNIQUE(user_id, name) index.
 	UpsertTag(ctx context.Context, arg UpsertTagParams) (int64, error)

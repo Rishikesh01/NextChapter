@@ -106,6 +106,30 @@ type Repository interface {
 	setSeriesTags(ctx context.Context, userID, seriesID int64, names []string) error
 	getSeriesTags(ctx context.Context, seriesID int64) ([]string, error)
 	listSeriesTagsBatch(ctx context.Context, seriesIDs []int64) (map[int64][]string, error)
+
+	// Cover operations (ADR-0011). The bytes live in their own table so
+	// the summary queries never load them; only getSeriesCover returns
+	// the image data.
+	upsertSeriesCover(ctx context.Context, p upsertCoverParams) (models.SeriesCoverMeta, error)
+	getSeriesCover(ctx context.Context, userID, seriesID int64) (models.SeriesCover, error)
+	deleteSeriesCover(ctx context.Context, userID, seriesID int64) (int64, error)
+}
+
+// upsertCoverParams is the repository input for storing a cover. The
+// service has already sniffed the MIME type, decoded the dimensions and
+// computed the ETag; the repository only persists.
+type upsertCoverParams struct {
+	SeriesID  int64
+	UserID    int64
+	Bytes     []byte
+	Mime      string
+	ByteSize  int64
+	Width     int64
+	Height    int64
+	ETag      string
+	SourceURL string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // listFilterArgs carries the inputs for the hand-rolled tag-filtered

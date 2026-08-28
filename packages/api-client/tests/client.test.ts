@@ -7,6 +7,8 @@ interface SeenRequest {
   url: string;
   headers: IncomingMessage['headers'];
   body: string;
+  /** Raw bytes, for the binary (cover upload) path. */
+  raw: Buffer;
 }
 
 // A real HTTP server standing in for the backend: it records every request
@@ -22,14 +24,16 @@ function makeClient(token?: string): ApiClient {
 
 beforeAll(async () => {
   server = createServer((req, res) => {
-    let body = '';
-    req.on('data', (chunk: Buffer) => (body += chunk.toString()));
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
     req.on('end', () => {
+      const raw = Buffer.concat(chunks);
       seen.push({
         method: req.method ?? '',
         url: req.url ?? '',
         headers: req.headers,
-        body,
+        body: raw.toString(),
+        raw,
       });
       res.writeHead(nextResponse.status, {
         'Content-Type': 'application/json',
@@ -388,5 +392,63 @@ describe('web data methods', () => {
 
     expect(seen[0]?.method).toBe('PATCH');
     expect(seen[0]?.url).toBe('/sites/rules/5');
+  });
+
+  it('uploads a cover as raw bytes, not JSON', async () => {
+    // Bytes that are not valid UTF-8 — they must survive the round trip
+    // untouched, which a JSON.stringify path would mangle.
+    const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0xfe]);
+    nextResponse = {
+      status: 200,
+      body: { series_id: 7, mime: 'image/png', width: 300, height: 450 },
+    };
+
+    const meta = await makeClient('nca_test').setSeriesCover(
+      7,
+      new Blob([bytes], { type: 'image/png' }),
+      'https://example.test/series/x',
+    );
+
+    expect(meta.width).toBe(300);
+    expect(seen[0]?.method).toBe('PUT');
+    expect(seen[0]?.url).toBe('/series/7/cover');
+    expect(seen[0]?.headers['content-type']).toBe('image/png');
+    expect(seen[0]?.headers['x-cover-source-url']).toBe(
+      'https://example.test/series/x',
+    );
+    expect(Uint8Array.from(seen[0]?.raw ?? Buffer.alloc(0))).toEqual(bytes);
+  });
+
+  it('omits the source header when no source url is given', async () => {
+    nextResponse = { status: 200, body: { series_id: 7 } };
+    await makeClient('nca_test').setSeriesCover(
+      7,
+      new Blob([new Uint8Array([1, 2, 3])]),
+    );
+
+    expect(seen[0]?.headers['x-cover-source-url']).toBeUndefined();
+    // A typeless Blob still declares something explicit rather than
+    // letting fetch guess.
+    expect(seen[0]?.headers['content-type']).toBe('application/octet-stream');
+  });
+
+  it('deletes a cover', async () => {
+    nextResponse = { status: 204 };
+    await makeClient('nca_test').deleteSeriesCover(7);
+    expect(seen[0]?.method).toBe('DELETE');
+    expect(seen[0]?.url).toBe('/series/7/cover');
+  });
+
+  it('builds a cover URL with the cache-buster, and without one', async () => {
+    const client = makeClient('nca_test');
+    expect(await client.seriesCoverUrl(7, '2026-08-28T10:00:00Z')).toBe(
+      `${baseUrl}/series/7/cover?v=2026-08-28T10%3A00%3A00Z`,
+    );
+    // A series with no cover has a null cover_updated_at; that must not
+    // produce a "?v=null" URL.
+    expect(await client.seriesCoverUrl(7, null)).toBe(
+      `${baseUrl}/series/7/cover`,
+    );
+    expect(await client.seriesCoverUrl(7)).toBe(`${baseUrl}/series/7/cover`);
   });
 });

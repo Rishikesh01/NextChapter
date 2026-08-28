@@ -73,4 +73,26 @@ var (
 	// a rule for the same (user, host) pair already exists. Handlers
 	// turn this into 422 with a field-level error on host.
 	ErrSiteRuleHostTaken = errors.New("sites: a rule for this host already exists")
+
+	// ErrCoverNotFound is returned by SeriesService.FindSeriesCover /
+	// RemoveSeriesCover when the series has no cover stored. Handlers
+	// turn this into 404.
+	ErrCoverNotFound = errors.New("series: cover not found")
+
+	// ErrCoverUnsupportedType is returned by
+	// SeriesService.SetSeriesCover when the uploaded bytes are not
+	// JPEG, PNG or WebP. The type is sniffed from the bytes, never
+	// taken from the request's Content-Type (ADR-0011 §4). Handlers
+	// turn this into 422.
+	ErrCoverUnsupportedType = errors.New("series: cover must be a JPEG, PNG or WebP image")
+
+	// ErrCoverUndecodable is returned by SeriesService.SetSeriesCover
+	// when the bytes sniff as a supported image type but the decoder
+	// cannot read their dimensions — a truncated or corrupt upload.
+	// Handlers turn this into 422.
+	ErrCoverUndecodable = errors.New("series: cover image could not be decoded")
+
+	// ErrCoverEmpty is returned by SeriesService.SetSeriesCover when
+	// the request body carried no bytes. Handlers turn this into 422.
+	ErrCoverEmpty = errors.New("series: cover image is empty")
 )

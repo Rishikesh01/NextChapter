@@ -179,8 +179,36 @@ definitions:
       updated_at:
         type: string
     type: object
+  models.SeriesCoverMeta:
+    properties:
+      byte_size:
+        type: integer
+      created_at:
+        type: string
+      etag:
+        type: string
+      height:
+        type: integer
+      mime:
+        type: string
+      series_id:
+        type: integer
+      source_url:
+        type: string
+      updated_at:
+        type: string
+      width:
+        type: integer
+    type: object
   models.SeriesDetail:
     properties:
+      cover_updated_at:
+        description: |-
+          CoverUpdatedAt is nil when the series has no cover image. It is
+          both the existence flag (so the grid renders a placeholder
+          without issuing a doomed request per coverless series) and the
+          cache-buster the client appends to the cover URL (ADR-0011 §6).
+        type: string
       created_at:
         type: string
       entries:
@@ -277,6 +305,13 @@ definitions:
     type: object
   models.SeriesSummary:
     properties:
+      cover_updated_at:
+        description: |-
+          CoverUpdatedAt is nil when the series has no cover image. It is
+          both the existence flag (so the grid renders a placeholder
+          without issuing a doomed request per coverless series) and the
+          cache-buster the client appends to the cover URL (ADR-0011 §6).
+        type: string
       created_at:
         type: string
       entry_count:
@@ -930,6 +965,108 @@ paths:
       - CookieAuth: []
       - BearerAuth: []
       summary: Update mutable fields on a tracked series
+      tags:
+      - series
+  /series/{id}/cover:
+    delete:
+      parameters:
+      - description: series id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: cover removed
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorBody'
+      security:
+      - CookieAuth: []
+      - BearerAuth: []
+      summary: Remove a series' cover image
+      tags:
+      - series
+    get:
+      description: Returns the raw image bytes (JPEG, PNG or WebP). Honours If-None-Match
+        with a strong ETag.
+      parameters:
+      - description: series id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - image/jpeg
+      - image/png
+      - image/webp
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "304":
+          description: cover unchanged
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorBody'
+      security:
+      - CookieAuth: []
+      - BearerAuth: []
+      summary: Fetch a series' cover image
+      tags:
+      - series
+    put:
+      consumes:
+      - application/octet-stream
+      description: Body is the raw image bytes (JPEG, PNG or WebP, max 5MiB). The
+        type is sniffed from the bytes; the request Content-Type is not trusted. Optional
+        X-Cover-Source-Url header records provenance.
+      parameters:
+      - description: series id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SeriesCoverMeta'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorBody'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.ErrorBody'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/handlers.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorBody'
+      security:
+      - CookieAuth: []
+      - BearerAuth: []
+      summary: Set a series' cover image
       tags:
       - series
   /sites:

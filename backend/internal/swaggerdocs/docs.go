@@ -860,6 +860,165 @@ const docTemplate = `{
                 }
             }
         },
+        "/series/{id}/cover": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    },
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the raw image bytes (JPEG, PNG or WebP). Honours If-None-Match with a strong ETag.",
+                "produces": [
+                    "image/jpeg",
+                    "image/png",
+                    "image/webp"
+                ],
+                "tags": [
+                    "series"
+                ],
+                "summary": "Fetch a series' cover image",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "series id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "304": {
+                        "description": "cover unchanged"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorBody"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorBody"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    },
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Body is the raw image bytes (JPEG, PNG or WebP, max 5MiB). The type is sniffed from the bytes; the request Content-Type is not trusted. Optional X-Cover-Source-Url header records provenance.",
+                "consumes": [
+                    "application/octet-stream"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "series"
+                ],
+                "summary": "Set a series' cover image",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "series id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SeriesCoverMeta"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorBody"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorBody"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorBody"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorBody"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    },
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "series"
+                ],
+                "summary": "Remove a series' cover image",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "series id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "cover removed"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorBody"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorBody"
+                        }
+                    }
+                }
+            }
+        },
         "/sites": {
             "get": {
                 "security": [
@@ -1324,9 +1483,45 @@ const docTemplate = `{
                 }
             }
         },
+        "models.SeriesCoverMeta": {
+            "type": "object",
+            "properties": {
+                "byte_size": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "etag": {
+                    "type": "string"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "mime": {
+                    "type": "string"
+                },
+                "series_id": {
+                    "type": "integer"
+                },
+                "source_url": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "width": {
+                    "type": "integer"
+                }
+            }
+        },
         "models.SeriesDetail": {
             "type": "object",
             "properties": {
+                "cover_updated_at": {
+                    "description": "CoverUpdatedAt is nil when the series has no cover image. It is\nboth the existence flag (so the grid renders a placeholder\nwithout issuing a doomed request per coverless series) and the\ncache-buster the client appends to the cover URL (ADR-0011 §6).",
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -1463,6 +1658,10 @@ const docTemplate = `{
         "models.SeriesSummary": {
             "type": "object",
             "properties": {
+                "cover_updated_at": {
+                    "description": "CoverUpdatedAt is nil when the series has no cover image. It is\nboth the existence flag (so the grid renders a placeholder\nwithout issuing a doomed request per coverless series) and the\ncache-buster the client appends to the cover URL (ADR-0011 §6).",
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },

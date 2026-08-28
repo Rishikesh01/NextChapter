@@ -12,6 +12,14 @@ export interface SeriesPickerProps {
   busy: boolean;
   onPick: (series: SeriesSummary) => void;
   onCreate: (title: string) => void;
+  /**
+   * Hides the pinned "create new series" row. The cover flow attaches an
+   * image to a series that already exists, so offering to create an empty
+   * one there would be a dead end.
+   */
+  hideCreate?: boolean;
+  /** Overrides the default question. */
+  heading?: string;
 }
 
 /**
@@ -29,6 +37,8 @@ export function SeriesPicker({
   busy,
   onPick,
   onCreate,
+  hideCreate,
+  heading,
 }: SeriesPickerProps) {
   const [filter, setFilter] = useState('');
 
@@ -44,9 +54,17 @@ export function SeriesPicker({
   return (
     <div>
       <div className="nc-picker-header">
-        <h1 className="nc-picker-title">Which series is this?</h1>
+        <h1 className="nc-picker-title">
+          {heading ?? 'Which series is this?'}
+        </h1>
         <p className="nc-picker-context nc-small">
-          <code>{seriesSlug}</code> on {siteHost}
+          {hideCreate === true ? (
+            siteHost
+          ) : (
+            <>
+              <code>{seriesSlug}</code> on {siteHost}
+            </>
+          )}
         </p>
       </div>
       <div className="nc-picker-search">
@@ -80,20 +98,22 @@ export function SeriesPicker({
         </div>
       ) : (
         <ul className="nc-series-list" aria-label="Choose a series">
-          <li>
-            <button
-              className="nc-series-row nc-series-row-create"
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                onCreate(createTitle);
-              }}
-            >
-              <span className="nc-series-row-title">
-                Create new series: “{createTitle}”
-              </span>
-            </button>
-          </li>
+          {hideCreate !== true && (
+            <li>
+              <button
+                className="nc-series-row nc-series-row-create"
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  onCreate(createTitle);
+                }}
+              >
+                <span className="nc-series-row-title">
+                  Create new series: “{createTitle}”
+                </span>
+              </button>
+            </li>
+          )}
           {visible.map((item) => (
             <li key={item.id}>
               <button

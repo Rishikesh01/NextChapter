@@ -11,6 +11,7 @@ import type {
   NewToken,
   Registration,
   Series,
+  SeriesCoverMeta,
   SeriesDetail,
   SeriesList,
   SeriesNew,
@@ -89,6 +90,28 @@ export interface ApiClient {
   /** Revoke an API token by id — used by Disconnect on its own token (ADR-0009). */
   revokeToken(tokenID: number): Promise<void>;
 
+  /**
+   * Cover images (ADR-0011). The CALLER fetches the image bytes — from
+   * the page it is already on, so the request carries that page's
+   * referer and cookies and hotlink protection does not apply. The
+   * server never dereferences a URL itself, so there is deliberately
+   * no "set cover from URL" method here.
+   *
+   * `sourceUrl` is recorded for provenance only and is never fetched.
+   */
+  setSeriesCover(
+    seriesID: number,
+    image: Blob,
+    sourceUrl?: string,
+  ): Promise<SeriesCoverMeta>;
+  deleteSeriesCover(seriesID: number): Promise<void>;
+  /**
+   * Absolute URL for an <img src>, not a fetch. Pass the series'
+   * `cover_updated_at` as `cacheKey` so replacing a cover busts the
+   * browser's cached image immediately.
+   */
+  seriesCoverUrl(seriesID: number, cacheKey?: string | null): Promise<string>;
+
   /** Cookie channel — onboarding only. credentials:"include", no Bearer header. */
   auth: {
     /** Sets the nc_session cookie on success. */
@@ -110,6 +133,13 @@ interface RequestOptions {
   channel: Channel;
   body?: unknown;
   query?: URLSearchParams;
+  /**
+   * Pre-encoded body sent verbatim, bypassing the JSON path — cover
+   * uploads are raw image bytes. Mutually exclusive with `body`.
+   */
+  rawBody?: Blob;
+  /** Extra request headers (cover uploads carry X-Cover-Source-Url). */
+  headers?: Record<string, string>;
 }
 
 export function createApiClient(getConfig: ConfigProvider): ApiClient {
@@ -124,6 +154,9 @@ export function createApiClient(getConfig: ConfigProvider): ApiClient {
     const headers = new Headers();
     if (opts.body !== undefined) {
       headers.set('Content-Type', 'application/json');
+    }
+    for (const [name, value] of Object.entries(opts.headers ?? {})) {
+      headers.set(name, value);
     }
     if (opts.channel === 'bearer' && !cookieMode) {
       if (config.token === undefined || config.token === '') {
@@ -141,7 +174,9 @@ export function createApiClient(getConfig: ConfigProvider): ApiClient {
         method: opts.method,
         headers,
         credentials: withCredentials ? 'include' : 'omit',
-        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+        body:
+          opts.rawBody ??
+          (opts.body !== undefined ? JSON.stringify(opts.body) : undefined),
       });
     } catch (cause) {
       throw new ApiError(
@@ -302,6 +337,42 @@ export function createApiClient(getConfig: ConfigProvider): ApiClient {
         path: `/auth/tokens/${String(tokenID)}`,
         channel: 'bearer',
       });
+    },
+
+    setSeriesCover: (seriesID, image, sourceUrl) =>
+      json<SeriesCoverMeta>({
+        method: 'PUT',
+        path: `/series/${String(seriesID)}/cover`,
+        channel: 'bearer',
+        rawBody: image,
+        headers: {
+          // The server sniffs the real type from the bytes and ignores
+          // this, but sending the Blob's own type keeps proxies and
+          // dev-tools honest.
+          'Content-Type':
+            image.type === '' ? 'application/octet-stream' : image.type,
+          ...(sourceUrl !== undefined && sourceUrl !== ''
+            ? { 'X-Cover-Source-Url': sourceUrl }
+            : {}),
+        },
+      }),
+
+    deleteSeriesCover: async (seriesID) => {
+      await request({
+        method: 'DELETE',
+        path: `/series/${String(seriesID)}/cover`,
+        channel: 'bearer',
+      });
+    },
+
+    seriesCoverUrl: async (seriesID, cacheKey) => {
+      const config = await getConfig();
+      const base = config.baseUrl.replace(/\/+$/, '');
+      const suffix =
+        cacheKey === undefined || cacheKey === null || cacheKey === ''
+          ? ''
+          : `?v=${encodeURIComponent(cacheKey)}`;
+      return `${base}/series/${String(seriesID)}/cover${suffix}`;
     },
 
     auth: {

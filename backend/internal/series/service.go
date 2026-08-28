@@ -52,6 +52,13 @@ type SeriesService interface {
 	InspectSeries(ctx context.Context, userID, seriesID int64) (models.SeriesDetail, error)
 	EditSeries(ctx context.Context, userID, seriesID int64, patch models.SeriesPatch) (models.Series, error)
 	UntrackSeries(ctx context.Context, userID, seriesID int64) error
+
+	// Cover images (ADR-0011). SetSeriesCover ingests bytes the
+	// extension fetched from the page; the backend never fetches a URL
+	// itself.
+	SetSeriesCover(ctx context.Context, userID, seriesID int64, up models.CoverUpload) (models.SeriesCoverMeta, error)
+	FindSeriesCover(ctx context.Context, userID, seriesID int64) (models.SeriesCover, error)
+	RemoveSeriesCover(ctx context.Context, userID, seriesID int64) error
 }
 
 // Service exposes the series domain to handlers.

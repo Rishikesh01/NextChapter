@@ -266,7 +266,8 @@ SELECT
     s.updated_at,
     (SELECT MAX(e.last_chapter) FROM entries e WHERE e.series_id = s.id) AS highest_chapter,
     (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id)::bigint AS entry_count,
-    (SELECT MAX(e.last_captured_at) FROM entries e WHERE e.series_id = s.id) AS rollup_last_captured_at
+    (SELECT MAX(e.last_captured_at) FROM entries e WHERE e.series_id = s.id) AS rollup_last_captured_at,
+    (SELECT MAX(c.updated_at) FROM series_cover c WHERE c.series_id = s.id) AS cover_updated_at
 FROM series s
 WHERE s.user_id = ` + userIDIdx + statusFrag + `
   AND s.id IN (
@@ -312,6 +313,7 @@ LIMIT ` + limitIdx + ` OFFSET ` + offsetIdx
 			&row.HighestChapter,
 			&row.EntryCount,
 			&row.RollupLastCapturedAt,
+			&row.CoverUpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("series: scan summary (tags): %w", err)
 		}
@@ -416,6 +418,7 @@ func summaryFromPostgresAllRow(r pg.ListSeriesAllRow) models.SeriesSummary {
 		HighestChapter: anyToFloatPtr(r.HighestChapter),
 		EntryCount:     r.EntryCount,
 		LastCapturedAt: anyToTimePtr(r.RollupLastCapturedAt),
+		CoverUpdatedAt: anyToTimePtr(r.CoverUpdatedAt),
 	}
 }
 
@@ -434,6 +437,7 @@ func summaryFromPostgresStatusRow(r pg.ListSeriesByStatusRow) models.SeriesSumma
 		HighestChapter: anyToFloatPtr(r.HighestChapter),
 		EntryCount:     r.EntryCount,
 		LastCapturedAt: anyToTimePtr(r.RollupLastCapturedAt),
+		CoverUpdatedAt: anyToTimePtr(r.CoverUpdatedAt),
 	}
 }
 
@@ -452,5 +456,76 @@ func summaryFromPostgresSummaryRow(r pg.GetSeriesSummaryRow) models.SeriesSummar
 		HighestChapter: anyToFloatPtr(r.HighestChapter),
 		EntryCount:     r.EntryCount,
 		LastCapturedAt: anyToTimePtr(r.RollupLastCapturedAt),
+		CoverUpdatedAt: anyToTimePtr(r.CoverUpdatedAt),
+	}
+}
+
+// --- cover storage (ADR-0011) ---------------------------------------------
+
+func (r *postgresRepo) upsertSeriesCover(ctx context.Context, p upsertCoverParams) (models.SeriesCoverMeta, error) {
+	row, err := r.q.UpsertSeriesCover(ctx, pg.UpsertSeriesCoverParams{
+		SeriesID:  p.SeriesID,
+		UserID:    p.UserID,
+		Bytes:     p.Bytes,
+		Mime:      p.Mime,
+		ByteSize:  p.ByteSize,
+		Width:     p.Width,
+		Height:    p.Height,
+		Etag:      p.ETag,
+		SourceUrl: p.SourceURL,
+		CreatedAt: p.CreatedAt,
+		UpdatedAt: p.UpdatedAt,
+	})
+	if err != nil {
+		return models.SeriesCoverMeta{}, fmt.Errorf("series: upsert cover: %w", err)
+	}
+	return coverMetaFromPostgresUpsertRow(row), nil
+}
+
+func (r *postgresRepo) getSeriesCover(ctx context.Context, userID, seriesID int64) (models.SeriesCover, error) {
+	row, err := r.q.GetSeriesCover(ctx, pg.GetSeriesCoverParams{SeriesID: seriesID, UserID: userID})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.SeriesCover{}, models.ErrCoverNotFound
+		}
+		return models.SeriesCover{}, fmt.Errorf("series: get cover: %w", err)
+	}
+	return models.SeriesCover{
+		Meta: models.SeriesCoverMeta{
+			SeriesID:  row.SeriesID,
+			UserID:    row.UserID,
+			Mime:      row.Mime,
+			ByteSize:  row.ByteSize,
+			Width:     row.Width,
+			Height:    row.Height,
+			ETag:      row.Etag,
+			SourceURL: row.SourceUrl,
+			CreatedAt: row.CreatedAt,
+			UpdatedAt: row.UpdatedAt,
+		},
+		Bytes: row.Bytes,
+	}, nil
+}
+
+func (r *postgresRepo) deleteSeriesCover(ctx context.Context, userID, seriesID int64) (int64, error) {
+	n, err := r.q.DeleteSeriesCover(ctx, pg.DeleteSeriesCoverParams{SeriesID: seriesID, UserID: userID})
+	if err != nil {
+		return 0, fmt.Errorf("series: delete cover: %w", err)
+	}
+	return n, nil
+}
+
+func coverMetaFromPostgresUpsertRow(r pg.UpsertSeriesCoverRow) models.SeriesCoverMeta {
+	return models.SeriesCoverMeta{
+		SeriesID:  r.SeriesID,
+		UserID:    r.UserID,
+		Mime:      r.Mime,
+		ByteSize:  r.ByteSize,
+		Width:     r.Width,
+		Height:    r.Height,
+		ETag:      r.Etag,
+		SourceURL: r.SourceUrl,
+		CreatedAt: r.CreatedAt,
+		UpdatedAt: r.UpdatedAt,
 	}
 }
