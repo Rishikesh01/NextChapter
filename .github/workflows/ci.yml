@@ -5,10 +5,32 @@ on:
     branches: [main]
     paths:
       - 'backend/**'
+      - 'frontend/**'
+      - 'packages/**'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - '.npmrc'
+      - '.nvmrc'
+      - 'eslint.config.js'
+      - '.prettierrc.json'
+      - '.prettierignore'
+      - 'tsconfig.base.json'
       - '.github/workflows/**'
   pull_request:
     paths:
       - 'backend/**'
+      - 'frontend/**'
+      - 'packages/**'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - '.npmrc'
+      - '.nvmrc'
+      - 'eslint.config.js'
+      - '.prettierrc.json'
+      - '.prettierignore'
+      - 'tsconfig.base.json'
       - '.github/workflows/**'
 
 permissions:
@@ -80,3 +102,60 @@ jobs:
 
       - name: test-postgres (testcontainer)
         run: make test-postgres
+
+  frontend:
+    # Lint, unit tests, codegen freshness, and both browser builds for the
+    # extension track (pnpm workspace at the repo root).
+    name: frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: install (frozen lockfile)
+        run: make install
+
+      - name: lint (eslint + prettier + tsc + depcheck)
+        run: make lint
+
+      - name: unit tests (vitest)
+        run: make test
+
+      - name: generated API types are up to date
+        run: |
+          make api-types
+          if ! git diff --exit-code -- ../packages/api-client/src/generated; then
+            echo "::error::packages/api-client/src/generated is stale — run 'make -C frontend api-types' locally and commit"
+            exit 1
+          fi
+
+      - name: build (chromium mv3)
+        run: make build
+
+      - name: build (firefox mv3)
+        run: make build-firefox
+
+  frontend-e2e:
+    # The QA gate: Playwright e2e against the real backend binary inside the
+    # pinned mcr.microsoft.com/playwright image (frontend/Dockerfile.test).
+    # Firefox e2e is deferred by ADR-0008; the frontend job's firefox build
+    # is the Firefox gate.
+    name: frontend (e2e)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: e2e in pinned Playwright image
+        run: make test-e2e-docker

@@ -1,0 +1,22 @@
+# Prettier owns the TypeScript workspace only.
+backend/
+docs/
+design/
+.claude/
+.github/
+LICENSE
+*.md
+docker-compose.yaml
+
+# Build output and lockfiles
+node_modules/
+.output/
+.wxt/
+playwright-report/
+test-results/
+blob-report/
+pnpm-lock.yaml
+
+# Generator output is the deterministic form
+packages/api-client/src/generated/
+packages/api-client/.cache/

@@ -1,0 +1,103 @@
+{
+  "comment": "defaultRules mirrors backend/internal/sites/defaults.go VERBATIM (Go regex syntax). A change to a default rule updates both sides or neither — the reviewer gate checks this.",
+  "defaultRules": [
+    {
+      "host": "reader.example.com",
+      "chapter_url_regex": "^/series/(?P<slug>[^/]+)/chapter-(?P<chapter>[0-9]+(?:\\.[0-9]+)?)$",
+      "slug_capture_group": "slug",
+      "chapter_capture_group": "chapter"
+    },
+    {
+      "host": "comics.example.org",
+      "chapter_url_regex": "^/comic/(?P<slug>[^/]+)/(?P<chapter>[^/]+-chapter-[0-9]+(?:\\.[0-9]+)?)$",
+      "slug_capture_group": "slug",
+      "chapter_capture_group": "chapter"
+    }
+  ],
+  "cases": [
+    {
+      "name": "reader integer chapter",
+      "url": "https://reader.example.com/series/solo-leveling/chapter-101",
+      "expect": {
+        "siteHost": "reader.example.com",
+        "seriesSlug": "solo-leveling",
+        "chapter": 101
+      }
+    },
+    {
+      "name": "reader fractional chapter",
+      "url": "https://reader.example.com/series/solo-leveling/chapter-45.5",
+      "expect": {
+        "siteHost": "reader.example.com",
+        "seriesSlug": "solo-leveling",
+        "chapter": 45.5
+      }
+    },
+    {
+      "name": "reader with www prefix and uppercase host",
+      "url": "https://WWW.reader.example.com/series/tbate/chapter-3",
+      "expect": {
+        "siteHost": "reader.example.com",
+        "seriesSlug": "tbate",
+        "chapter": 3
+      }
+    },
+    {
+      "name": "reader query string and hash do not affect the pathname match",
+      "url": "https://reader.example.com/series/solo-leveling/chapter-12?utm_source=x#comments",
+      "expect": {
+        "siteHost": "reader.example.com",
+        "seriesSlug": "solo-leveling",
+        "chapter": 12
+      }
+    },
+    {
+      "name": "reader series page without a chapter",
+      "url": "https://reader.example.com/series/solo-leveling",
+      "expect": null
+    },
+    {
+      "name": "reader trailing slash breaks the anchored match",
+      "url": "https://reader.example.com/series/solo-leveling/chapter-101/",
+      "expect": null
+    },
+    {
+      "name": "comics segment-captured fractional chapter",
+      "url": "https://comics.example.org/comic/the-beginning-after-the-end/en-chapter-45.5",
+      "expect": {
+        "siteHost": "comics.example.org",
+        "seriesSlug": "the-beginning-after-the-end",
+        "chapter": 45.5
+      }
+    },
+    {
+      "name": "comics integer chapter with language prefix",
+      "url": "https://comics.example.org/comic/omniscient-reader/en-chapter-200",
+      "expect": {
+        "siteHost": "comics.example.org",
+        "seriesSlug": "omniscient-reader",
+        "chapter": 200
+      }
+    },
+    {
+      "name": "host with no rule",
+      "url": "https://example.org/series/solo-leveling/chapter-101",
+      "expect": null
+    },
+    {
+      "name": "rule host does not leak across sites",
+      "url": "https://comics.example.org/series/solo-leveling/chapter-101",
+      "expect": null
+    },
+    {
+      "name": "non-http scheme",
+      "url": "chrome://extensions",
+      "expect": null
+    },
+    {
+      "name": "not a URL at all",
+      "url": "not a url",
+      "expect": null
+    }
+  ]
+}

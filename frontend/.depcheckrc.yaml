@@ -1,0 +1,4 @@
+# depcheck cannot see dependencies loaded by name from config strings.
+ignores:
+  # wxt.config.ts loads this via modules: ['@wxt-dev/module-react']
+  - '@wxt-dev/module-react'

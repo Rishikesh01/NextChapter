@@ -1,0 +1,118 @@
+/* Options page layout, lifted from design/components/options-form.html. */
+
+body {
+  padding: var(--nc-space-5) var(--nc-space-4);
+}
+
+.nc-options {
+  max-width: 480px;
+  margin: 0 auto;
+}
+.nc-options-title {
+  font-size: var(--nc-text-heading);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0 0 var(--nc-space-1);
+}
+.nc-options-sub {
+  font-size: var(--nc-text-body);
+  color: var(--nc-text-secondary);
+  margin: 0 0 var(--nc-space-5);
+}
+
+.nc-section {
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-card);
+  padding: var(--nc-space-4);
+  margin-bottom: var(--nc-space-4);
+  background: var(--nc-bg);
+}
+.nc-section-title {
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0 0 var(--nc-space-3);
+}
+.nc-section-title .nc-step {
+  color: var(--nc-text-secondary);
+  font-weight: var(--nc-weight-regular);
+}
+.nc-section[aria-disabled='true'] {
+  opacity: 0.55;
+}
+.nc-section[aria-disabled='true'] * {
+  pointer-events: none;
+}
+
+.nc-row {
+  display: flex;
+  gap: var(--nc-space-2);
+}
+.nc-row .nc-input {
+  flex: 1;
+}
+
+.nc-tabs {
+  display: flex;
+  gap: var(--nc-space-4);
+  border-bottom: 1px solid var(--nc-border);
+  margin-bottom: var(--nc-space-4);
+}
+.nc-tab {
+  background: none;
+  border: none;
+  padding: 0 0 var(--nc-space-2);
+  margin-bottom: -1px;
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  color: var(--nc-text-secondary);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
+}
+.nc-tab:hover {
+  color: var(--nc-text);
+}
+.nc-tab[aria-selected='true'] {
+  color: var(--nc-text);
+  font-weight: var(--nc-weight-semibold);
+  border-bottom-color: var(--nc-accent);
+}
+
+.nc-auth-toggle {
+  margin: var(--nc-space-3) 0 0;
+  text-align: center;
+}
+.nc-help {
+  margin: var(--nc-space-2) 0 0;
+}
+
+.nc-options-banner {
+  margin-bottom: var(--nc-space-4);
+}
+
+.nc-connected {
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-3);
+}
+.nc-connected-info {
+  flex: 1;
+  min-width: 0;
+}
+.nc-connected-line {
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-2);
+  font-size: var(--nc-text-body);
+  margin: 0;
+}
+.nc-connected-line strong {
+  font-weight: var(--nc-weight-semibold);
+}
+.nc-connected-server {
+  margin: 2px 0 0 calc(8px + var(--nc-space-2));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

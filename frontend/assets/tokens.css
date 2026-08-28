@@ -1,0 +1,154 @@
+/* ============================================================
+   NextChapter — design tokens
+   ------------------------------------------------------------
+   Single source of truth for color, type, spacing, and radii.
+   Both the extension popup and the options page consume these.
+
+   Rules baked in:
+   - Every color token is defined for light AND dark
+     (via prefers-color-scheme). Never hardcode a color in a
+     component; always reference a token.
+   - One accent (indigo). State colors (green/red/amber) are
+     reserved for status feedback only — never decoration.
+   - Two type sizes inside the popup body: --nc-text-body and
+     --nc-text-small. --nc-text-heading is for the options page
+     (a full browser tab) only.
+   ============================================================ */
+
+:root {
+  /* Let form controls, scrollbars, etc. follow the OS theme
+     natively — this is what makes native scrollbars come free. */
+  color-scheme: light dark;
+
+  /* ---------- typography ---------- */
+  --nc-font-family:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --nc-font-mono:
+    ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono',
+    monospace;
+
+  --nc-text-body: 13px; /* popup default: labels, titles, buttons */
+  --nc-text-small: 12px; /* popup secondary: hints, meta, captions */
+  --nc-text-heading: 17px; /* OPTIONS PAGE ONLY — never in the popup */
+
+  --nc-leading: 1.45;
+  --nc-weight-regular: 400;
+  --nc-weight-semibold: 600; /* only two weights in the product */
+
+  /* ---------- spacing (4px base) ---------- */
+  --nc-space-1: 4px;
+  --nc-space-2: 8px;
+  --nc-space-3: 12px;
+  --nc-space-4: 16px;
+  --nc-space-5: 24px;
+
+  /* ---------- radii ---------- */
+  --nc-radius-control: 6px; /* inputs, buttons, banners */
+  --nc-radius-card: 8px; /* cards, list containers */
+  --nc-radius-full: 999px; /* status dots, pills */
+
+  /* ---------- control sizing ---------- */
+  --nc-control-height: 32px; /* inputs, secondary buttons */
+  --nc-control-height-lg: 40px; /* the Capture button, and only it */
+
+  /* ---------- popup geometry ---------- */
+  --nc-popup-width: 380px; /* keep within 360–400 */
+
+  /* ============================================
+     LIGHT PALETTE (default)
+     ============================================ */
+
+  /* surfaces */
+  --nc-bg: #ffffff; /* popup / page background */
+  --nc-bg-subtle: #f4f4f5; /* wells, hover fills, skeletons */
+  --nc-border: #d4d4d8; /* hairlines around cards & controls */
+  --nc-border-strong: #a1a1aa; /* input borders on hover */
+
+  /* text */
+  --nc-text: #1f1f23;
+  --nc-text-secondary: #63636b;
+  --nc-text-disabled: #9c9ca3;
+
+  /* accent — indigo. Interactive fills, links, focus. */
+  --nc-accent: #4f46e5;
+  --nc-accent-hover: #4338ca;
+  --nc-accent-active: #3730a3;
+  --nc-on-accent: #ffffff; /* text/icon on accent fills */
+  --nc-accent-text: #4338ca; /* links & accent text on --nc-bg */
+  --nc-accent-subtle-bg: #eef0fe; /* "create new series" row */
+  --nc-accent-subtle-border: #c7cbfa;
+  --nc-focus-ring: rgba(79, 70, 229, 0.55);
+
+  /* state: success (green) */
+  --nc-success-fg: #166534;
+  --nc-success-bg: #f0fdf4;
+  --nc-success-border: #bbe7cb;
+  --nc-success-dot: #16a34a;
+
+  /* state: error (red) — auth failures, validation */
+  --nc-error-fg: #b42323;
+  --nc-error-bg: #fef2f2;
+  --nc-error-border: #f3c6c6;
+  --nc-error-dot: #dc2626;
+
+  /* state: warning (amber) — transient/retryable (network) */
+  --nc-warn-fg: #8a5a00;
+  --nc-warn-bg: #fffbeb;
+  --nc-warn-border: #f1dfa2;
+  --nc-warn-dot: #d97706;
+
+  /* neutral status dot ("not checked yet") */
+  --nc-neutral-dot: #a1a1aa;
+}
+
+/* ============================================
+   DARK PALETTE
+   Mirrors every color token above. Tints are
+   desaturated/darkened, foregrounds lifted, so
+   contrast stays AA on dark surfaces.
+   ============================================ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* surfaces */
+    --nc-bg: #1f2023;
+    --nc-bg-subtle: #2a2b2f;
+    --nc-border: #3c3d43;
+    --nc-border-strong: #55565e;
+
+    /* text */
+    --nc-text: #e7e7ea;
+    --nc-text-secondary: #a2a3ab;
+    --nc-text-disabled: #6e6f77;
+
+    /* accent */
+    --nc-accent: #5558d0;
+    --nc-accent-hover: #666ae0;
+    --nc-accent-active: #4a4dbd;
+    --nc-on-accent: #ffffff;
+    --nc-accent-text: #a3a8ff;
+    --nc-accent-subtle-bg: #26283c;
+    --nc-accent-subtle-border: #41448a;
+    --nc-focus-ring: rgba(163, 168, 255, 0.55);
+
+    /* state: success */
+    --nc-success-fg: #86dfa4;
+    --nc-success-bg: #17251b;
+    --nc-success-border: #2c4f37;
+    --nc-success-dot: #34d399;
+
+    /* state: error */
+    --nc-error-fg: #f0a3a3;
+    --nc-error-bg: #2b1c1c;
+    --nc-error-border: #5c3232;
+    --nc-error-dot: #f87171;
+
+    /* state: warning */
+    --nc-warn-fg: #e5c078;
+    --nc-warn-bg: #292214;
+    --nc-warn-border: #5a4a20;
+    --nc-warn-dot: #fbbf24;
+
+    --nc-neutral-dot: #6e6f77;
+  }
+}

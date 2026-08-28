@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NextChapter — series picker</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+/* ================================================================
+   DEMO HARNESS — do not lift.
+   ================================================================ */
+body {
+  margin: 0;
+  padding: var(--nc-space-5);
+  background: var(--nc-bg-subtle);
+  font-family: var(--nc-font-family);
+  color: var(--nc-text);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nc-space-5);
+  align-items: flex-start;
+}
+.demo-label {
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin-bottom: var(--nc-space-1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.popup {
+  width: var(--nc-popup-width);
+  box-sizing: border-box;
+  background: var(--nc-bg);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-card);
+  overflow: hidden;
+}
+
+/* ================================================================
+   COMPONENT STYLES — lift from here.
+   The picker appears after a capture returns 422 needs-series:
+   the (host, slug) pair is new, so the user assigns it to an
+   existing series or creates a new one. One click completes the
+   capture — no confirm step.
+   ================================================================ */
+* { box-sizing: border-box; }
+
+:focus-visible {
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 1px;
+}
+
+.nc-small {
+  font-size: var(--nc-text-small);
+  line-height: var(--nc-leading);
+  color: var(--nc-text-secondary);
+}
+
+.nc-input {
+  height: var(--nc-control-height);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  padding: 0 var(--nc-space-2);
+  transition: border-color 120ms ease;
+}
+.nc-input:hover { border-color: var(--nc-border-strong); }
+.nc-input:focus-visible {
+  border-color: var(--nc-accent);
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 0;
+}
+.nc-input::placeholder { color: var(--nc-text-disabled); }
+.nc-input:disabled {
+  background: var(--nc-bg-subtle);
+  color: var(--nc-text-disabled);
+}
+
+/* ---------- picker header ---------- */
+.nc-picker-header {
+  padding: var(--nc-space-3) var(--nc-space-3) 0;
+}
+.nc-picker-title {
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0;
+}
+.nc-picker-context {
+  margin: var(--nc-space-1) 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nc-picker-context code {
+  font-family: var(--nc-font-mono);
+  font-size: var(--nc-text-small);
+}
+.nc-picker-search {
+  padding: var(--nc-space-2) var(--nc-space-3) var(--nc-space-3);
+  border-bottom: 1px solid var(--nc-border);
+}
+.nc-picker-search .nc-input { width: 100%; }
+
+/* ---------- series list ---------- */
+/* Native scrolling, native scrollbar. Max height keeps the whole
+   popup under ~500px; the list scrolls, header + search stay put. */
+.nc-series-list {
+  list-style: none;
+  margin: 0;
+  padding: var(--nc-space-1) 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+/* Each row is a single button — clicking it completes the capture. */
+.nc-series-row {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  padding: var(--nc-space-2) var(--nc-space-3);
+  cursor: pointer;
+  transition: background-color 100ms ease;
+  color: var(--nc-text);
+}
+.nc-series-row:hover,
+.nc-series-row[aria-selected="true"] { background: var(--nc-bg-subtle); }
+
+.nc-series-row-title {
+  display: block;
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nc-series-row-meta {
+  display: block;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* "Create new series" — pinned first row, accent-tinted so it reads
+   as an action rather than a result. Prefilled from the page title
+   (or from the search text once the user types). */
+.nc-series-row-create {
+  background: var(--nc-accent-subtle-bg);
+  border-bottom: 1px solid var(--nc-accent-subtle-border);
+}
+.nc-series-row-create:hover,
+.nc-series-row-create[aria-selected="true"] { background: var(--nc-accent-subtle-bg); }
+.nc-series-row-create:hover .nc-series-row-title { text-decoration: underline; }
+.nc-series-row-create .nc-series-row-title { color: var(--nc-accent-text); }
+.nc-series-row-create .nc-series-row-title::before {
+  content: "+";
+  display: inline-block;
+  width: 14px;
+  font-weight: var(--nc-weight-semibold);
+}
+
+/* ---------- empty & loading states ---------- */
+.nc-list-empty {
+  padding: var(--nc-space-4) var(--nc-space-3);
+  text-align: center;
+  margin: 0;
+}
+
+/* Static skeleton rows — no shimmer animation, by design. */
+.nc-skeleton-row { padding: var(--nc-space-2) var(--nc-space-3); }
+.nc-skeleton-bar {
+  height: 12px;
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg-subtle);
+}
+.nc-skeleton-bar + .nc-skeleton-bar {
+  margin-top: 6px;
+  height: 10px;
+  width: 45%;
+}
+.nc-skeleton-row:nth-child(1) .nc-skeleton-bar:first-child { width: 60%; }
+.nc-skeleton-row:nth-child(2) .nc-skeleton-bar:first-child { width: 75%; }
+.nc-skeleton-row:nth-child(3) .nc-skeleton-bar:first-child { width: 50%; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     STATE 1 — list with results
+     Shown after 422 needs-series. Rows come from GET /series
+     (title, highest_chapter rollup, entry_count). The create row
+     is always first and prefilled from the prettified page title.
+     Keyboard: ArrowUp/Down move aria-selected, Enter picks,
+     typing filters. Esc returns to the capture card.
+     ============================================================ -->
+<div>
+  <div class="demo-label">Results — create row + existing series</div>
+  <div class="popup">
+    <div class="nc-picker-header">
+      <h1 class="nc-picker-title">Which series is this?</h1>
+      <p class="nc-picker-context nc-small">
+        <code>solo-leveling</code> on reader.example.com
+      </p>
+    </div>
+    <div class="nc-picker-search">
+      <input class="nc-input" type="search" placeholder="Filter your series"
+             aria-label="Filter your series" autocomplete="off" spellcheck="false">
+    </div>
+    <ul class="nc-series-list" role="listbox" aria-label="Choose a series">
+      <li>
+        <button class="nc-series-row nc-series-row-create" role="option" aria-selected="true" type="button">
+          <span class="nc-series-row-title">Create new series: &ldquo;Solo Leveling&rdquo;</span>
+          <span class="nc-series-row-meta">Starts tracking at ch 45.5</span>
+        </button>
+      </li>
+      <li>
+        <button class="nc-series-row" role="option" aria-selected="false" type="button">
+          <span class="nc-series-row-title">Solo Leveling: Ragnarok</span>
+          <span class="nc-series-row-meta">Read till ch 38 &middot; 1 site</span>
+        </button>
+      </li>
+      <li>
+        <button class="nc-series-row" role="option" aria-selected="false" type="button">
+          <span class="nc-series-row-title">Omniscient Reader&rsquo;s Viewpoint</span>
+          <span class="nc-series-row-meta">Read till ch 112 &middot; 2 sites</span>
+        </button>
+      </li>
+      <li>
+        <button class="nc-series-row" role="option" aria-selected="false" type="button">
+          <span class="nc-series-row-title">The Beginning After The End</span>
+          <span class="nc-series-row-meta">Read till ch 178.5 &middot; 3 sites</span>
+        </button>
+      </li>
+      <li>
+        <button class="nc-series-row" role="option" aria-selected="false" type="button">
+          <span class="nc-series-row-title">Lord of the Mysteries</span>
+          <span class="nc-series-row-meta">Read till ch 402 &middot; 1 site</span>
+        </button>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================================================
+     STATE 2 — filtered to empty
+     No series match the query. The create row stays visible and
+     adopts the typed text as the new title, so a dead-end filter
+     still offers a one-click way forward.
+     ============================================================ -->
+<div>
+  <div class="demo-label">Filtered to empty — create row adopts the query</div>
+  <div class="popup">
+    <div class="nc-picker-header">
+      <h1 class="nc-picker-title">Which series is this?</h1>
+      <p class="nc-picker-context nc-small">
+        <code>solo-leveling</code> on reader.example.com
+      </p>
+    </div>
+    <div class="nc-picker-search">
+      <input class="nc-input" type="search" value="Berserk"
+             aria-label="Filter your series" autocomplete="off" spellcheck="false">
+    </div>
+    <ul class="nc-series-list" role="listbox" aria-label="Choose a series">
+      <li>
+        <button class="nc-series-row nc-series-row-create" role="option" aria-selected="true" type="button">
+          <span class="nc-series-row-title">Create new series: &ldquo;Berserk&rdquo;</span>
+          <span class="nc-series-row-meta">Starts tracking at ch 45.5</span>
+        </button>
+      </li>
+      <li>
+        <p class="nc-list-empty nc-small">No series match &ldquo;Berserk&rdquo;.</p>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================================================
+     STATE 3 — loading
+     GET /series is in flight. Search input disabled, three static
+     skeleton rows (no shimmer — subtle transitions only). If the
+     user has zero series, this resolves to just the create row.
+     ============================================================ -->
+<div>
+  <div class="demo-label">Loading — static skeleton, no animation</div>
+  <div class="popup">
+    <div class="nc-picker-header">
+      <h1 class="nc-picker-title">Which series is this?</h1>
+      <p class="nc-picker-context nc-small">
+        <code>solo-leveling</code> on reader.example.com
+      </p>
+    </div>
+    <div class="nc-picker-search">
+      <input class="nc-input" type="search" placeholder="Filter your series"
+             aria-label="Filter your series" disabled>
+    </div>
+    <div class="nc-series-list" aria-busy="true" aria-label="Loading your series">
+      <div class="nc-skeleton-row">
+        <div class="nc-skeleton-bar"></div>
+        <div class="nc-skeleton-bar"></div>
+      </div>
+      <div class="nc-skeleton-row">
+        <div class="nc-skeleton-bar"></div>
+        <div class="nc-skeleton-bar"></div>
+      </div>
+      <div class="nc-skeleton-row">
+        <div class="nc-skeleton-bar"></div>
+        <div class="nc-skeleton-bar"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

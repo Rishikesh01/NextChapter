@@ -1,0 +1,13 @@
+# Context is the repo root; keep it lean.
+**/node_modules
+**/.output
+**/.wxt
+**/playwright-report
+**/test-results
+**/blob-report
+.git
+backend/bin
+backend/tests
+docs
+design
+*.db

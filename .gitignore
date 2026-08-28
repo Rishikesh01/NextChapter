@@ -19,5 +19,19 @@ backend/bin/
 *.out
 coverage.txt
 
-# Node (for the future frontend track)
+# Node / frontend track
 node_modules/
+*.tsbuildinfo
+
+# WXT build output
+.output/
+.wxt/
+
+# Playwright
+playwright-report/
+test-results/
+blob-report/
+web-ext-artifacts/
+
+# Generated intermediates (committed output lives in src/generated/)
+packages/api-client/.cache/

@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NextChapter — capture card</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+/* ================================================================
+   DEMO HARNESS — do not lift. Frames each variant at popup width.
+   ================================================================ */
+body {
+  margin: 0;
+  padding: var(--nc-space-5);
+  background: var(--nc-bg-subtle);
+  font-family: var(--nc-font-family);
+  color: var(--nc-text);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nc-space-5);
+  align-items: flex-start;
+}
+.demo-label {
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin-bottom: var(--nc-space-1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.popup {
+  width: var(--nc-popup-width);
+  box-sizing: border-box;
+  background: var(--nc-bg);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-card);
+  overflow: hidden;
+}
+
+/* ================================================================
+   COMPONENT STYLES — lift from here.
+   In the real popup, .popup styles above map to the <body> of the
+   popup document (no border/radius needed there; the browser
+   provides the popup chrome).
+   ================================================================ */
+
+/* ---------- shared primitives ---------- */
+* { box-sizing: border-box; }
+
+:focus-visible {
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 1px;
+}
+
+.nc-body {
+  font-size: var(--nc-text-body);
+  line-height: var(--nc-leading);
+}
+.nc-small {
+  font-size: var(--nc-text-small);
+  line-height: var(--nc-leading);
+  color: var(--nc-text-secondary);
+}
+
+/* Primary button — THE Capture button. Full width, tallest control
+   in the popup, only element with a solid accent fill. */
+.nc-btn-primary {
+  display: block;
+  width: 100%;
+  height: var(--nc-control-height-lg);
+  border: none;
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-accent);
+  color: var(--nc-on-accent);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.nc-btn-primary:hover { background: var(--nc-accent-hover); }
+.nc-btn-primary:active { background: var(--nc-accent-active); }
+.nc-btn-primary:disabled {
+  background: var(--nc-bg-subtle);
+  color: var(--nc-text-disabled);
+  cursor: default;
+}
+
+/* Text input */
+.nc-input {
+  height: var(--nc-control-height);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  padding: 0 var(--nc-space-2);
+  transition: border-color 120ms ease;
+}
+.nc-input:hover { border-color: var(--nc-border-strong); }
+.nc-input:focus-visible {
+  border-color: var(--nc-accent);
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 0;
+}
+.nc-input::placeholder { color: var(--nc-text-disabled); }
+
+/* Quiet icon button (settings gear) */
+.nc-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--nc-radius-control);
+  background: transparent;
+  color: var(--nc-text-secondary);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.nc-iconbtn:hover { background: var(--nc-bg-subtle); color: var(--nc-text); }
+
+/* ---------- popup header ---------- */
+/* Host on the left (small, secondary — context, not a headline),
+   settings gear on the right. Present in every popup state. */
+.nc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nc-space-2);
+  padding: var(--nc-space-2) var(--nc-space-2) var(--nc-space-2) var(--nc-space-3);
+  border-bottom: 1px solid var(--nc-border);
+}
+.nc-header-host {
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- capture card (detected state) ---------- */
+.nc-card { padding: var(--nc-space-3); }
+
+.nc-series-title {
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0;
+  /* long titles: wrap up to 2 lines, then clip */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.nc-series-note {
+  margin: var(--nc-space-1) 0 0;
+}
+
+/* Chapter row: label left, compact numeric input right */
+.nc-chapter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nc-space-2);
+  margin: var(--nc-space-3) 0;
+}
+.nc-chapter-row label {
+  font-size: var(--nc-text-body);
+  color: var(--nc-text);
+}
+.nc-input-chapter {
+  width: 96px;
+  text-align: right;
+  font-weight: var(--nc-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- empty / message states ---------- */
+.nc-empty {
+  padding: var(--nc-space-5) var(--nc-space-4);
+  text-align: center;
+}
+.nc-empty-title {
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0 0 var(--nc-space-1);
+}
+.nc-empty-text { margin: 0; }
+.nc-empty .nc-btn-primary { margin-top: var(--nc-space-4); }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     VARIANT 1 — detected
+     A known site rule matched the URL. Series title is the
+     prettified slug ("solo-leveling" -> "Solo Leveling"); the
+     chapter input is prefilled and editable (decimals allowed).
+     Enter anywhere in the card submits (same as clicking Capture).
+     ============================================================ -->
+<div>
+  <div class="demo-label">Detected — rule matched, chapter prefilled</div>
+  <div class="popup">
+    <header class="nc-header">
+      <span class="nc-header-host" title="reader.example.com">reader.example.com</span>
+      <button class="nc-iconbtn" type="button" aria-label="Settings" title="Settings">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M8 10.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z" stroke="currentColor" stroke-width="1.3"/>
+          <path d="M13.3 8c0-.4.5-.8.4-1.2-.1-.4-.7-.5-.9-.9-.2-.3 0-.9-.3-1.2-.3-.3-.9-.1-1.2-.3-.4-.2-.5-.8-.9-.9-.4-.1-.8.4-1.2.4h-.4c-.4 0-.8-.5-1.2-.4-.4.1-.5.7-.9.9-.3.2-.9 0-1.2.3-.3.3-.1.9-.3 1.2-.2.4-.8.5-.9.9-.1.4.4.8.4 1.2s-.5.8-.4 1.2c.1.4.7.5.9.9.2.3 0 .9.3 1.2.3.3.9.1 1.2.3.4.2.5.8.9.9.4.1.8-.4 1.2-.4h.4c.4 0 .8.5 1.2.4.4-.1.5-.7.9-.9.3-.2.9 0 1.2-.3.3-.3.1-.9.3-1.2.2-.4.8-.5.9-.9.1-.4-.4-.8-.4-1.2Z" stroke="currentColor" stroke-width="1.1"/>
+        </svg>
+      </button>
+    </header>
+    <form class="nc-card">
+      <h1 class="nc-series-title">Solo Leveling</h1>
+      <p class="nc-series-note nc-small">Detected from the page URL — edit if wrong.</p>
+      <div class="nc-chapter-row">
+        <label for="chapter">Chapter</label>
+        <input class="nc-input nc-input-chapter" id="chapter" type="text"
+               inputmode="decimal" value="45.5" autocomplete="off" spellcheck="false">
+      </div>
+      <button class="nc-btn-primary" type="submit">Capture chapter</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================
+     VARIANT 2 — uncapturable page
+     Non-http page (chrome://, about:, the new-tab page, a PDF…).
+     Quiet, centered, no button — there is nothing to do here
+     except close the popup or open settings via the gear.
+     ============================================================ -->
+<div>
+  <div class="demo-label">Uncapturable — non-http page</div>
+  <div class="popup">
+    <header class="nc-header">
+      <span class="nc-header-host">NextChapter</span>
+      <button class="nc-iconbtn" type="button" aria-label="Settings" title="Settings">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M8 10.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z" stroke="currentColor" stroke-width="1.3"/>
+          <path d="M13.3 8c0-.4.5-.8.4-1.2-.1-.4-.7-.5-.9-.9-.2-.3 0-.9-.3-1.2-.3-.3-.9-.1-1.2-.3-.4-.2-.5-.8-.9-.9-.4-.1-.8.4-1.2.4h-.4c-.4 0-.8-.5-1.2-.4-.4.1-.5.7-.9.9-.3.2-.9 0-1.2.3-.3.3-.1.9-.3 1.2-.2.4-.8.5-.9.9-.1.4.4.8.4 1.2s-.5.8-.4 1.2c.1.4.7.5.9.9.2.3 0 .9.3 1.2.3.3.9.1 1.2.3.4.2.5.8.9.9.4.1.8-.4 1.2-.4h.4c.4 0 .8.5 1.2.4.4-.1.5-.7.9-.9.3-.2.9 0 1.2-.3.3-.3.1-.9.3-1.2.2-.4.8-.5.9-.9.1-.4-.4-.8-.4-1.2Z" stroke="currentColor" stroke-width="1.1"/>
+        </svg>
+      </button>
+    </header>
+    <div class="nc-empty">
+      <p class="nc-empty-title">Nothing to capture here</p>
+      <p class="nc-empty-text nc-small">
+        Open a chapter page, then click the NextChapter button to save your spot.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     VARIANT 3 — not configured
+     No server URL / token stored yet. The only action is to open
+     the options page, so that button gets the primary style here.
+     ============================================================ -->
+<div>
+  <div class="demo-label">Not configured — first run</div>
+  <div class="popup">
+    <header class="nc-header">
+      <span class="nc-header-host">NextChapter</span>
+      <button class="nc-iconbtn" type="button" aria-label="Settings" title="Settings">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M8 10.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z" stroke="currentColor" stroke-width="1.3"/>
+          <path d="M13.3 8c0-.4.5-.8.4-1.2-.1-.4-.7-.5-.9-.9-.2-.3 0-.9-.3-1.2-.3-.3-.9-.1-1.2-.3-.4-.2-.5-.8-.9-.9-.4-.1-.8.4-1.2.4h-.4c-.4 0-.8-.5-1.2-.4-.4.1-.5.7-.9.9-.3.2-.9 0-1.2.3-.3.3-.1.9-.3 1.2-.2.4-.8.5-.9.9-.1.4.4.8.4 1.2s-.5.8-.4 1.2c.1.4.7.5.9.9.2.3 0 .9.3 1.2.3.3.9.1 1.2.3.4.2.5.8.9.9.4.1.8-.4 1.2-.4h.4c.4 0 .8.5 1.2.4.4-.1.5-.7.9-.9.3-.2.9 0 1.2-.3.3-.3.1-.9.3-1.2.2-.4.8-.5.9-.9.1-.4-.4-.8-.4-1.2Z" stroke="currentColor" stroke-width="1.1"/>
+        </svg>
+      </button>
+    </header>
+    <div class="nc-empty">
+      <p class="nc-empty-title">Set up NextChapter</p>
+      <p class="nc-empty-text nc-small">
+        Connect the extension to your NextChapter server to start capturing chapters.
+      </p>
+      <button class="nc-btn-primary" type="button">Open settings</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

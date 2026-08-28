@@ -1,0 +1,7 @@
+packages:
+  - frontend
+  - packages/*
+
+# pnpm 10 blocks dependency lifecycle scripts unless approved here.
+onlyBuiltDependencies:
+  - esbuild

@@ -1,0 +1,277 @@
+/* Shared UI primitives, lifted from design/components/ (the design/ files are
+   the source of truth — change them first, then mirror here). */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: var(--nc-font-family);
+  font-size: var(--nc-text-body);
+  line-height: var(--nc-leading);
+}
+
+:focus-visible {
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 1px;
+}
+
+a {
+  color: var(--nc-accent-text);
+}
+
+.nc-small {
+  font-size: var(--nc-text-small);
+  line-height: var(--nc-leading);
+  color: var(--nc-text-secondary);
+}
+
+/* ---------- buttons ---------- */
+
+.nc-btn-primary {
+  height: var(--nc-control-height);
+  padding: 0 var(--nc-space-4);
+  border: none;
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-accent);
+  color: var(--nc-on-accent);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.nc-btn-primary:hover {
+  background: var(--nc-accent-hover);
+}
+.nc-btn-primary:active {
+  background: var(--nc-accent-active);
+}
+.nc-btn-primary:disabled {
+  background: var(--nc-bg-subtle);
+  color: var(--nc-text-disabled);
+  cursor: default;
+}
+.nc-btn-primary-block {
+  display: block;
+  width: 100%;
+}
+/* THE Capture button: full width, the tallest control, the only solid accent
+   fill in the popup. */
+.nc-btn-capture {
+  display: block;
+  width: 100%;
+  height: var(--nc-control-height-lg);
+}
+
+.nc-btn-secondary {
+  height: var(--nc-control-height);
+  padding: 0 var(--nc-space-4);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+.nc-btn-secondary:hover {
+  background: var(--nc-bg-subtle);
+  border-color: var(--nc-border-strong);
+}
+.nc-btn-secondary:disabled {
+  color: var(--nc-text-disabled);
+  cursor: default;
+}
+.nc-btn-danger-quiet {
+  color: var(--nc-error-fg);
+}
+
+.nc-btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--nc-text-small);
+  color: var(--nc-accent-text);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.nc-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--nc-radius-control);
+  background: transparent;
+  color: var(--nc-text-secondary);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.nc-iconbtn:hover {
+  background: var(--nc-bg-subtle);
+  color: var(--nc-text);
+}
+
+/* ---------- inputs & fields ---------- */
+
+.nc-input {
+  height: var(--nc-control-height);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  padding: 0 var(--nc-space-2);
+  transition: border-color 120ms ease;
+}
+.nc-input:hover {
+  border-color: var(--nc-border-strong);
+}
+.nc-input:focus-visible {
+  border-color: var(--nc-accent);
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 0;
+}
+.nc-input::placeholder {
+  color: var(--nc-text-disabled);
+}
+.nc-input:disabled {
+  background: var(--nc-bg-subtle);
+  color: var(--nc-text-disabled);
+}
+.nc-input.is-invalid {
+  border-color: var(--nc-error-dot);
+}
+.nc-input.is-invalid:focus-visible {
+  border-color: var(--nc-error-dot);
+  outline: 2px solid var(--nc-error-border);
+  outline-offset: 0;
+}
+
+.nc-field {
+  margin-bottom: var(--nc-space-3);
+}
+.nc-field label {
+  display: block;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin-bottom: var(--nc-space-1);
+}
+.nc-field .nc-input {
+  width: 100%;
+}
+.nc-field-error {
+  margin: var(--nc-space-1) 0 0;
+  font-size: var(--nc-text-small);
+  color: var(--nc-error-fg);
+}
+
+/* Slugs and tokens are exact technical strings — monospace. */
+.nc-input-slug,
+.nc-input-token {
+  font-family: var(--nc-font-mono);
+  font-size: var(--nc-text-small);
+}
+.nc-input-chapter {
+  width: 96px;
+  text-align: right;
+  font-weight: var(--nc-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.nc-input-chapter-full {
+  font-weight: var(--nc-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- status banner ---------- */
+
+.nc-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--nc-space-2);
+  padding: var(--nc-space-2) var(--nc-space-3);
+  border: 1px solid;
+  border-radius: var(--nc-radius-control);
+  font-size: var(--nc-text-body);
+  line-height: var(--nc-leading);
+}
+.nc-banner svg {
+  flex: none;
+  margin-top: 2px;
+}
+.nc-banner-text {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.nc-banner-text strong {
+  font-weight: var(--nc-weight-semibold);
+}
+.nc-banner-action {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  font-weight: var(--nc-weight-semibold);
+  text-decoration: underline;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.nc-banner-success {
+  background: var(--nc-success-bg);
+  border-color: var(--nc-success-border);
+  color: var(--nc-success-fg);
+}
+.nc-banner-error {
+  background: var(--nc-error-bg);
+  border-color: var(--nc-error-border);
+  color: var(--nc-error-fg);
+}
+.nc-banner-warn {
+  background: var(--nc-warn-bg);
+  border-color: var(--nc-warn-border);
+  color: var(--nc-warn-fg);
+}
+
+/* ---------- status line (dot + text) ---------- */
+
+.nc-status {
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-2);
+  margin: var(--nc-space-2) 0 0;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+}
+.nc-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--nc-radius-full);
+  background: var(--nc-neutral-dot);
+  flex: none;
+}
+.nc-status-ok .nc-status-dot {
+  background: var(--nc-success-dot);
+}
+.nc-status-ok {
+  color: var(--nc-success-fg);
+}
+.nc-status-bad .nc-status-dot {
+  background: var(--nc-error-dot);
+}
+.nc-status-bad {
+  color: var(--nc-error-fg);
+}

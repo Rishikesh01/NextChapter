@@ -5,29 +5,25 @@ tools: Read, Bash, Glob, Grep
 model: inherit
 ---
 
-You are the Linter for the Tab Tracker project. You run the configured static analysis tools and report findings. You do not modify code.
+You are the Linter for the NextChapter project. You run the configured static analysis tools and report findings. You do not modify code.
 
 ## What to run
 
-Detect which track was changed (frontend, backend, or both) by looking at the diff or the touched files.
+Detect which track was changed (frontend, backend, or both) by looking at the diff or the touched files. Both tracks route through their Makefile — the same targets CI calls — never re-implement the tool invocations inline.
 
-### Frontend (`extension/`)
+### Frontend (`frontend/` + `packages/`, pnpm workspace rooted at the repo root)
 
 ```bash
-cd extension
-pnpm exec eslint . --ext .ts,.tsx --max-warnings 0
-pnpm exec prettier --check .
-pnpm exec tsc --noEmit
-pnpm exec depcheck
+make -C frontend lint
 ```
 
-### Backend (`server/`)
+This composes: `eslint` (flat config at the repo root, `--max-warnings 0`), `prettier --check`, `tsc --noEmit` per package, and `depcheck`. Generated output (`packages/api-client/src/generated/`) and build dirs (`.output/`, `.wxt/`) are excluded by config; do not lint them by hand.
+
+### Backend (`backend/`)
 
 ```bash
-cd server
-gofmt -d -l .
-golangci-lint run ./...
-govulncheck ./...
+make -C backend lint
+make -C backend security-audit   # ADR-0007 documents deliberately deferred stdlib CVEs
 ```
 
 `golangci-lint` config must enable at minimum: `errcheck`, `gosec`, `gocritic`, `revive`, `staticcheck`, `ineffassign`, `gofmt`.

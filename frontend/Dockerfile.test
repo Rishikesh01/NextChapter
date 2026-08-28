@@ -1,0 +1,46 @@
+# syntax=docker/dockerfile:1.7
+# The QA e2e gate: pinned Playwright browser image + the real backend binary.
+# Build from the REPO ROOT: docker build -f frontend/Dockerfile.test .
+# (make -C frontend test-e2e-docker does exactly that.)
+
+# Single source of truth is the Makefile's PLAYWRIGHT_VERSION (always passed
+# via --build-arg); this default only serves manual docker builds and is
+# itself asserted by make check-playwright-pin.
+ARG PLAYWRIGHT_VERSION=1.62.1
+
+# Stage 1 — backend binary, mirroring backend/Dockerfile (pure-Go, CGO off).
+FROM golang:1.26-alpine AS backend-build
+ENV CGO_ENABLED=0
+WORKDIR /src
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
+COPY backend/ ./
+RUN go build -trimpath -ldflags="-s -w" -o /out/nextchapter ./cmd/nextchapter
+
+# Stage 2 — the pinned browser environment. The tag MUST equal the
+# @playwright/test version (make check-playwright-pin asserts this).
+FROM mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION}-jammy
+WORKDIR /app
+
+RUN corepack enable
+
+# Workspace manifests first, for layer caching.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY frontend/package.json frontend/package.json
+COPY packages/api-client/package.json packages/api-client/package.json
+# wxt's postinstall (wxt prepare) needs sources; run install after the copy.
+COPY tsconfig.base.json ./
+COPY frontend/ frontend/
+COPY packages/ packages/
+RUN pnpm install --frozen-lockfile
+
+COPY --from=backend-build /out/nextchapter backend/bin/nextchapter
+ENV NC_BACKEND_BIN=/app/backend/bin/nextchapter
+
+RUN pnpm --filter @nextchapter/extension exec wxt build -b chrome --mode test
+
+# No xvfb: the fixtures launch Chromium's new headless mode (channel
+# 'chromium'), which supports --load-extension. xvfb-run also hangs as PID 1
+# after the suite exits, so headless is both sufficient and safer here.
+WORKDIR /app/frontend
+CMD ["pnpm", "exec", "playwright", "test"]

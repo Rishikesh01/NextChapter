@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NextChapter — options page</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+/* ================================================================
+   DEMO HARNESS — do not lift. The options page opens in a full
+   browser tab; content sits in a single centered column. The
+   variant blocks below show each state side by side — in the real
+   page only one state renders at a time.
+   ================================================================ */
+body {
+  margin: 0;
+  padding: var(--nc-space-5);
+  background: var(--nc-bg);
+  font-family: var(--nc-font-family);
+  color: var(--nc-text);
+}
+.demo-label {
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin: var(--nc-space-5) 0 var(--nc-space-1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ================================================================
+   COMPONENT STYLES — lift from here.
+   ================================================================ */
+* { box-sizing: border-box; }
+
+:focus-visible {
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 1px;
+}
+
+/* Single centered column. The options page is settings only —
+   narrow on purpose, no dashboard ambitions. */
+.nc-options {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.nc-options-title {
+  font-size: var(--nc-text-heading);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0 0 var(--nc-space-1);
+}
+.nc-options-sub {
+  font-size: var(--nc-text-body);
+  color: var(--nc-text-secondary);
+  margin: 0 0 var(--nc-space-5);
+}
+
+.nc-small {
+  font-size: var(--nc-text-small);
+  line-height: var(--nc-leading);
+  color: var(--nc-text-secondary);
+}
+a { color: var(--nc-accent-text); }
+
+/* Section card */
+.nc-section {
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-card);
+  padding: var(--nc-space-4);
+  margin-bottom: var(--nc-space-4);
+  background: var(--nc-bg);
+}
+.nc-section-title {
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0 0 var(--nc-space-3);
+}
+.nc-section-title .nc-step {
+  color: var(--nc-text-secondary);
+  font-weight: var(--nc-weight-regular);
+}
+/* Step 2 is inert until the server is reachable. */
+.nc-section[aria-disabled="true"] { opacity: 0.55; }
+.nc-section[aria-disabled="true"] * { pointer-events: none; }
+
+/* ---------- fields & buttons ---------- */
+.nc-field { margin-bottom: var(--nc-space-3); }
+.nc-field label {
+  display: block;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin-bottom: var(--nc-space-1);
+}
+.nc-input {
+  height: var(--nc-control-height);
+  width: 100%;
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  padding: 0 var(--nc-space-2);
+  transition: border-color 120ms ease;
+}
+.nc-input:hover { border-color: var(--nc-border-strong); }
+.nc-input:focus-visible {
+  border-color: var(--nc-accent);
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 0;
+}
+.nc-input::placeholder { color: var(--nc-text-disabled); }
+.nc-input-token {
+  font-family: var(--nc-font-mono);
+  font-size: var(--nc-text-small);
+}
+
+/* URL + Connect on one row */
+.nc-row {
+  display: flex;
+  gap: var(--nc-space-2);
+}
+.nc-row .nc-input { flex: 1; }
+
+.nc-btn-primary {
+  height: var(--nc-control-height);
+  padding: 0 var(--nc-space-4);
+  border: none;
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-accent);
+  color: var(--nc-on-accent);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.nc-btn-primary:hover { background: var(--nc-accent-hover); }
+.nc-btn-primary:active { background: var(--nc-accent-active); }
+.nc-btn-primary:disabled {
+  background: var(--nc-bg-subtle);
+  color: var(--nc-text-disabled);
+  cursor: default;
+}
+.nc-btn-primary-block { display: block; width: 100%; }
+
+/* Secondary (outline) button — Connect, Disconnect */
+.nc-btn-secondary {
+  height: var(--nc-control-height);
+  padding: 0 var(--nc-space-4);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.nc-btn-secondary:hover {
+  background: var(--nc-bg-subtle);
+  border-color: var(--nc-border-strong);
+}
+/* Destructive-quiet: Disconnect. Red text only, no red fill. */
+.nc-btn-danger-quiet { color: var(--nc-error-fg); }
+
+/* Text-link button ("create account instead" toggle) */
+.nc-btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--nc-text-small);
+  color: var(--nc-accent-text);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ---------- connection status line ---------- */
+.nc-status {
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-2);
+  margin: var(--nc-space-2) 0 0;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+}
+.nc-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--nc-radius-full);
+  background: var(--nc-neutral-dot);
+  flex: none;
+}
+.nc-status-ok .nc-status-dot { background: var(--nc-success-dot); }
+.nc-status-ok { color: var(--nc-success-fg); }
+.nc-status-bad .nc-status-dot { background: var(--nc-error-dot); }
+.nc-status-bad { color: var(--nc-error-fg); }
+
+/* ---------- auth tabs ---------- */
+.nc-tabs {
+  display: flex;
+  gap: var(--nc-space-4);
+  border-bottom: 1px solid var(--nc-border);
+  margin-bottom: var(--nc-space-4);
+}
+.nc-tab {
+  background: none;
+  border: none;
+  padding: 0 0 var(--nc-space-2);
+  margin-bottom: -1px;
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  color: var(--nc-text-secondary);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.nc-tab:hover { color: var(--nc-text); }
+.nc-tab[aria-selected="true"] {
+  color: var(--nc-text);
+  font-weight: var(--nc-weight-semibold);
+  border-bottom-color: var(--nc-accent);
+}
+
+.nc-auth-toggle {
+  margin: var(--nc-space-3) 0 0;
+  text-align: center;
+}
+.nc-help { margin: var(--nc-space-2) 0 0; }
+
+/* ---------- connected state ---------- */
+.nc-connected {
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-3);
+}
+.nc-connected-info { flex: 1; min-width: 0; }
+.nc-connected-line {
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-2);
+  font-size: var(--nc-text-body);
+  margin: 0;
+}
+.nc-connected-line strong { font-weight: var(--nc-weight-semibold); }
+.nc-connected-server {
+  margin: 2px 0 0 calc(8px + var(--nc-space-2)); /* align under text, past the dot */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     STATE A — setup in progress.
+     Two numbered sections. Step 2 stays visibly disabled until the
+     health check passes, so the order of operations is obvious.
+     The Connect click is the user gesture that triggers the
+     host-permission prompt (see flows/onboarding.md).
+     ============================================================ -->
+<div class="demo-label">State A — setup: server unchecked, auth locked</div>
+<main class="nc-options">
+  <h1 class="nc-options-title">NextChapter settings</h1>
+  <p class="nc-options-sub">Connect this extension to your self-hosted NextChapter server.</p>
+
+  <section class="nc-section">
+    <h2 class="nc-section-title"><span class="nc-step">1.</span> Server</h2>
+    <div class="nc-field">
+      <label for="server-url">Server URL</label>
+      <div class="nc-row">
+        <input class="nc-input" id="server-url" type="url"
+               placeholder="https://nextchapter.example.com"
+               autocomplete="off" spellcheck="false">
+        <button class="nc-btn-secondary" type="button">Connect</button>
+      </div>
+      <!-- status line: exactly one of the four variants below -->
+      <p class="nc-status"><span class="nc-status-dot"></span> Not checked yet</p>
+    </div>
+  </section>
+
+  <section class="nc-section" aria-disabled="true">
+    <h2 class="nc-section-title"><span class="nc-step">2.</span> Account</h2>
+    <p class="nc-small">Connect to your server first.</p>
+  </section>
+</main>
+
+<!-- ============================================================
+     Status line variants (swap into the section above).
+     ============================================================ -->
+<div class="demo-label">Status line — all four variants</div>
+<main class="nc-options">
+  <section class="nc-section">
+    <p class="nc-status"><span class="nc-status-dot"></span> Not checked yet</p>
+    <p class="nc-status"><span class="nc-status-dot"></span> Checking&hellip;</p>
+    <p class="nc-status nc-status-ok"><span class="nc-status-dot"></span> Server reachable</p>
+    <p class="nc-status nc-status-bad"><span class="nc-status-dot"></span> Could not reach server &mdash; check the URL and that the server is running</p>
+  </section>
+</main>
+
+<!-- ============================================================
+     STATE B — server reachable, "Sign in" tab active.
+     Signing in mints an extension token automatically; the user
+     never sees the token on this path. The toggle switches the
+     same form to registration (button label becomes
+     "Create account", nothing else changes).
+     ============================================================ -->
+<div class="demo-label">State B — auth: Sign in tab</div>
+<main class="nc-options">
+  <section class="nc-section">
+    <h2 class="nc-section-title"><span class="nc-step">1.</span> Server</h2>
+    <div class="nc-field">
+      <label for="server-url-b">Server URL</label>
+      <div class="nc-row">
+        <input class="nc-input" id="server-url-b" type="url"
+               value="https://next.example.com" spellcheck="false">
+        <button class="nc-btn-secondary" type="button">Connect</button>
+      </div>
+      <p class="nc-status nc-status-ok"><span class="nc-status-dot"></span> Server reachable</p>
+    </div>
+  </section>
+
+  <section class="nc-section">
+    <h2 class="nc-section-title"><span class="nc-step">2.</span> Account</h2>
+
+    <div class="nc-tabs" role="tablist" aria-label="Authentication method">
+      <button class="nc-tab" role="tab" aria-selected="true" type="button">Sign in</button>
+      <button class="nc-tab" role="tab" aria-selected="false" type="button">Paste token</button>
+    </div>
+
+    <form>
+      <div class="nc-field">
+        <label for="username">Username</label>
+        <input class="nc-input" id="username" type="text"
+               autocomplete="username" spellcheck="false">
+      </div>
+      <div class="nc-field">
+        <label for="password">Password</label>
+        <input class="nc-input" id="password" type="password"
+               autocomplete="current-password">
+      </div>
+      <button class="nc-btn-primary nc-btn-primary-block" type="submit">Sign in</button>
+      <p class="nc-auth-toggle">
+        <button class="nc-btn-link" type="button">New server? Create an account instead</button>
+      </p>
+    </form>
+  </section>
+</main>
+
+<!-- ============================================================
+     STATE C — "Paste token" tab active. Fallback for users who
+     minted a token themselves (or when auto-minting failed — the
+     page switches here on that error, see flows/onboarding.md).
+     ============================================================ -->
+<div class="demo-label">State C — auth: Paste token tab</div>
+<main class="nc-options">
+  <section class="nc-section">
+    <h2 class="nc-section-title"><span class="nc-step">2.</span> Account</h2>
+
+    <div class="nc-tabs" role="tablist" aria-label="Authentication method">
+      <button class="nc-tab" role="tab" aria-selected="false" type="button">Sign in</button>
+      <button class="nc-tab" role="tab" aria-selected="true" type="button">Paste token</button>
+    </div>
+
+    <form>
+      <div class="nc-field">
+        <label for="token">API token</label>
+        <input class="nc-input nc-input-token" id="token" type="password"
+               placeholder="paste your token" autocomplete="off" spellcheck="false">
+        <p class="nc-help nc-small">
+          Create one from your server&rsquo;s API docs at
+          <a href="https://next.example.com/swagger/index.html">next.example.com/swagger</a>
+          (<code>POST /auth/tokens</code>), then paste it here.
+        </p>
+      </div>
+      <button class="nc-btn-primary nc-btn-primary-block" type="submit">Save token</button>
+    </form>
+  </section>
+</main>
+
+<!-- ============================================================
+     STATE D — connected. Both setup sections collapse into a
+     single summary card. Disconnect clears the stored token and
+     returns to State A (server URL kept prefilled).
+     ============================================================ -->
+<div class="demo-label">State D — connected</div>
+<main class="nc-options">
+  <h1 class="nc-options-title">NextChapter settings</h1>
+  <p class="nc-options-sub">Connect this extension to your self-hosted NextChapter server.</p>
+
+  <section class="nc-section">
+    <div class="nc-connected">
+      <div class="nc-connected-info">
+        <p class="nc-connected-line nc-status-ok">
+          <span class="nc-status-dot"></span>
+          <span>Connected as <strong>rishikesh</strong></span>
+        </p>
+        <p class="nc-connected-server nc-small">https://next.example.com</p>
+      </div>
+      <button class="nc-btn-secondary nc-btn-danger-quiet" type="button">Disconnect</button>
+    </div>
+  </section>
+</main>
+
+</body>
+</html>

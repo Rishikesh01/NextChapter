@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NextChapter — status banners</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+/* ================================================================
+   DEMO HARNESS — do not lift.
+   ================================================================ */
+body {
+  margin: 0;
+  padding: var(--nc-space-5);
+  background: var(--nc-bg-subtle);
+  font-family: var(--nc-font-family);
+  color: var(--nc-text);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nc-space-5);
+  align-items: flex-start;
+}
+.demo-label {
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin-bottom: var(--nc-space-1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.popup {
+  width: var(--nc-popup-width);
+  box-sizing: border-box;
+  background: var(--nc-bg);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-card);
+  overflow: hidden;
+  padding: var(--nc-space-3);
+}
+
+/* ================================================================
+   COMPONENT STYLES — lift from here.
+
+   Banner rules:
+   - Rendered at the top of the popup body, above whatever state
+     the popup is in. One banner at a time.
+   - Exactly one hue per banner: green = success, red = needs the
+     user's attention (auth, validation), amber = transient and
+     retryable (network). No mixed colors, no icons in a second hue.
+   - Success banners are terminal: the capture is done, the user
+     closes the popup (or it stays until dismissed — no auto-close
+     animation).
+   - Validation is NOT a banner: it is a field-level message tied
+     to the input that failed (last variant below).
+   ================================================================ */
+* { box-sizing: border-box; }
+
+:focus-visible {
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 1px;
+}
+
+.nc-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--nc-space-2);
+  padding: var(--nc-space-2) var(--nc-space-3);
+  border: 1px solid;
+  border-radius: var(--nc-radius-control);
+  font-size: var(--nc-text-body);
+  line-height: var(--nc-leading);
+}
+.nc-banner svg {
+  flex: none;
+  margin-top: 2px; /* optically align icon with first text line */
+}
+.nc-banner-text { flex: 1; min-width: 0; }
+.nc-banner-text strong { font-weight: var(--nc-weight-semibold); }
+
+/* Inline action inside a banner (Retry, open settings). Text link,
+   same hue as the banner — one accent color per state. */
+.nc-banner-action {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  font-weight: var(--nc-weight-semibold);
+  text-decoration: underline;
+  cursor: pointer;
+  white-space: nowrap;
+}
+a.nc-banner-action { color: inherit; }
+
+.nc-banner-success {
+  background: var(--nc-success-bg);
+  border-color: var(--nc-success-border);
+  color: var(--nc-success-fg);
+}
+.nc-banner-error {
+  background: var(--nc-error-bg);
+  border-color: var(--nc-error-border);
+  color: var(--nc-error-fg);
+}
+.nc-banner-warn {
+  background: var(--nc-warn-bg);
+  border-color: var(--nc-warn-border);
+  color: var(--nc-warn-fg);
+}
+
+/* ---------- field-level validation ---------- */
+.nc-field { max-width: 200px; }
+.nc-field label {
+  display: block;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin-bottom: var(--nc-space-1);
+}
+.nc-input {
+  height: var(--nc-control-height);
+  width: 100%;
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  padding: 0 var(--nc-space-2);
+  transition: border-color 120ms ease;
+}
+.nc-input.is-invalid { border-color: var(--nc-error-dot); }
+.nc-input.is-invalid:focus-visible {
+  border-color: var(--nc-error-dot);
+  outline: 2px solid var(--nc-error-border);
+  outline-offset: 0;
+}
+.nc-field-error {
+  margin: var(--nc-space-1) 0 0;
+  font-size: var(--nc-text-small);
+  color: var(--nc-error-fg);
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     success-advanced — capture hit an existing entry (HTTP 200).
+     ============================================================ -->
+<div>
+  <div class="demo-label">Success — entry advanced (200)</div>
+  <div class="popup">
+    <div class="nc-banner nc-banner-success" role="status">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/>
+        <path d="M5.2 8.2l1.9 1.9 3.7-3.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <p class="nc-banner-text">
+        Advanced <strong>Solo Leveling</strong> to ch <strong>46</strong>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     success-created — first capture for this (host, slug); a new
+     entry (and possibly a new series) was created (HTTP 201).
+     ============================================================ -->
+<div>
+  <div class="demo-label">Success — started tracking (201)</div>
+  <div class="popup">
+    <div class="nc-banner nc-banner-success" role="status">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/>
+        <path d="M5.2 8.2l1.9 1.9 3.7-3.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <p class="nc-banner-text">
+        Started tracking <strong>Solo Leveling</strong> at ch <strong>45.5</strong>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     error-auth — 401 from any call. The token is bad or revoked;
+     the fix lives in settings, so the action link goes there.
+     ============================================================ -->
+<div>
+  <div class="demo-label">Error — token rejected (401)</div>
+  <div class="popup">
+    <div class="nc-banner nc-banner-error" role="alert">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/>
+        <path d="M8 4.8v3.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="8" cy="11.1" r="0.9" fill="currentColor"/>
+      </svg>
+      <p class="nc-banner-text">
+        Token rejected &mdash; <a class="nc-banner-action" href="#">open settings</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     error-network — fetch failed / server unreachable. Amber, not
+     red: transient and retryable, the user's data is fine. Retry
+     re-submits the exact same capture payload.
+     ============================================================ -->
+<div>
+  <div class="demo-label">Error — network, with retry</div>
+  <div class="popup">
+    <div class="nc-banner nc-banner-warn" role="alert">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M8 2.6 14.4 13H1.6L8 2.6Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+        <path d="M8 6.5v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="8" cy="11.2" r="0.8" fill="currentColor"/>
+      </svg>
+      <p class="nc-banner-text">
+        Couldn&rsquo;t reach your server &mdash;
+        <button class="nc-banner-action" type="button">Retry</button>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     error-validation — NOT a banner. The message sits under the
+     field that failed, the field border turns red, focus returns
+     to the field. Shown here on the chapter input.
+     ============================================================ -->
+<div>
+  <div class="demo-label">Error — field-level validation</div>
+  <div class="popup">
+    <div class="nc-field">
+      <label for="chapter">Chapter</label>
+      <input class="nc-input is-invalid" id="chapter" type="text"
+             inputmode="decimal" value="45.5.1"
+             aria-invalid="true" aria-describedby="chapter-error">
+      <p class="nc-field-error" id="chapter-error">
+        Chapter must be a number like 45 or 45.5.
+      </p>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

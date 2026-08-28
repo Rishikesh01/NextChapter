@@ -25,19 +25,21 @@ Serialised reading is messy. A single series shows up under different titles, on
 - `modernc.org/sqlite` (pure-Go) by default; Postgres as a production option.
 - `CGO_ENABLED=0` everywhere — pure-Go dependencies only.
 
-### Frontend (`frontend/`)
+### Frontend (`frontend/` + `packages/`)
 
-- TypeScript 5.x, strict mode.
-- Manifest V3 for Chrome and Firefox (v109+).
-- `webextension-polyfill` for cross-browser APIs.
-- pnpm for dependency management.
-- Playwright for e2e tests, Vitest for unit tests.
+- TypeScript 5.x, strict mode; React 19 on WXT.
+- Manifest V3 for Chrome and Firefox (v128+, for optional host permissions).
+- Browser APIs via `wxt/browser` (cross-browser).
+- pnpm workspace rooted at the repo root; `packages/api-client/` is the shared, generated-types API client (the future `web/` SPA reuses it).
+- Playwright for e2e tests (real browser, real backend binary — see ADR-0008), Vitest for unit tests.
 
 ## Status
 
 **Backend — implemented.** `backend/` is a complete Go JSON API: open registration, session-cookie and API-token auth, and CRUD for series (with tags and ratings), per-site reading entries, and site URL-rules. It runs on SQLite (pure-Go, the default) or Postgres, with goose migrations and sqlc-generated queries maintained for both engines. Tests run against real databases (testcontainers for Postgres) across a dual-engine CI matrix.
 
-**Frontend — not started.** The browser extension (`frontend/`) and the companion web library SPA are still to be built; the agent definitions under `.claude/agents/` describe the intended architecture for that work.
+**Extension — implemented.** `frontend/` is the MV3 extension: options-page onboarding (connect to your server, sign in, a token is minted automatically), and one-click capture from the popup — site rules parse the chapter from the URL, unknown sites get a manual form, and first-time captures go through a series picker. Design tokens and component specs live in `design/`.
+
+**Web library — not started.** The companion SPA (`web/`, per ADR-0004) is the next track: series browsing, statuses/tags/ratings, per-site breakdowns, entry reassignment, and site-rule management.
 
 ## License
 
