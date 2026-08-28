@@ -851,33 +851,7 @@ select.nc-input {
   gap: var(--nc-space-2);
 }
 
-/* ---------- rules & settings ---------- */
-.nc-rules-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.nc-rule-row {
-  display: flex;
-  align-items: center;
-  gap: var(--nc-space-3);
-  padding: var(--nc-space-2) 0;
-}
-.nc-rule-row + .nc-rule-row {
-  border-top: 1px solid var(--nc-border);
-}
-.nc-rule-info {
-  flex: 1;
-  min-width: 0;
-}
-.nc-rule-host {
-  margin: 0;
-  font-size: var(--nc-text-body);
-  font-weight: var(--nc-weight-semibold);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+/* ---------- rules ---------- */
 .nc-rule-pattern {
   margin: 2px 0 0;
   font-family: var(--nc-font-mono);
@@ -886,24 +860,6 @@ select.nc-input {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.nc-rule-hint-row {
-  color: var(--nc-text-secondary);
-}
-.nc-rule-form-groups {
-  display: flex;
-  gap: var(--nc-space-3);
-}
-.nc-rule-form-groups .nc-field {
-  flex: 1;
-}
-.nc-token-view {
-  display: flex;
-  gap: var(--nc-space-2);
-  align-items: center;
-}
-.nc-token-view .nc-input {
-  flex: 1;
 }
 
 /* ---------- rules page (design/web/rules.html) ---------- */

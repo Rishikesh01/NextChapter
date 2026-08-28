@@ -16,31 +16,31 @@ export function AppLayout() {
 
   return (
     <>
-      <header className="nc-topnav">
-        <div className="nc-topnav-inner">
-          <NavLink to="/" className="nc-topnav-brand">
+      <header className="nc-nav">
+        <div className="nc-nav-inner">
+          <NavLink to="/" className="nc-nav-brand">
             NextChapter
           </NavLink>
-          <nav className="nc-topnav-links" aria-label="Primary">
-            <NavLink to="/" end className="nc-topnav-link">
+          <nav className="nc-nav-links" aria-label="Primary">
+            <NavLink to="/" end className="nc-nav-link">
               Library
             </NavLink>
-            <NavLink to="/rules" className="nc-topnav-link">
+            <NavLink to="/rules" className="nc-nav-link">
               Site rules
             </NavLink>
-            <NavLink to="/settings" className="nc-topnav-link">
+            <NavLink to="/settings" className="nc-nav-link">
               Settings
             </NavLink>
           </nav>
-          <div className="nc-topnav-user">
-            <span className="nc-small">{me.data?.username}</span>
+          <div className="nc-nav-user">
+            <span className="nc-nav-username">{me.data?.username}</span>
             <button className="nc-btn-link" type="button" onClick={signOut}>
               Sign out
             </button>
           </div>
         </div>
       </header>
-      <main className="nc-page">
+      <main className="nc-content">
         <Outlet />
       </main>
     </>
