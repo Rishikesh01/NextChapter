@@ -11,12 +11,15 @@ into React components — open any file in `components/` in a browser
 |------|------------|
 | [`tokens.css`](tokens.css) | All CSS custom properties: color (light + dark), type, spacing, radii, control sizes. The only place colors are defined. |
 | [`components/capture-card.html`](components/capture-card.html) | The popup's main surface: detected state (host, prettified title, editable chapter, Capture button), uncapturable empty state, not-configured state. |
-| [`components/manual-form.html`](components/manual-form.html) | Unknown-site fallback: read-only host, slug + chapter inputs, same Capture button, "add a rule later" hint. Empty and filled variants. |
+| [`components/manual-form.html`](components/manual-form.html) | Unknown-site fallback: read-only host, slug + chapter inputs, same Capture button, "create a rule from this page" entry point. Empty and filled variants. |
+| [`components/rule-builder.html`](components/rule-builder.html) | Inline site-rule builder (ADR-0009): URL path as segment rows with Series/Chapter radio columns, live "Will detect" preview, "Save rule & capture". Collapsed / valid / invalid variants. |
 | [`components/series-picker.html`](components/series-picker.html) | Post-422 series assignment: filter input, create-new row (pinned, accent-tinted), series rows with "read till ch X · N sites". Results / filtered-empty / loading states. |
 | [`components/status-banner.html`](components/status-banner.html) | Success (advanced / created), auth error, network error with retry, and the field-level validation treatment. |
 | [`components/options-form.html`](components/options-form.html) | Options page: server URL + connect + 4 status-line variants, auth tabs (sign in / paste token), connected summary card. |
-| [`flows/capture.md`](flows/capture.md) | The popup state machine: loading → (not-configured \| uncapturable \| detected \| manual) → capture → 200/201/422/401/network, including the series-picker branch and every empty state. |
+| [`components/rules-list.html`](components/rules-list.html) | Options page "Site rules" section (connected only): host + truncated regex rows, quiet per-row delete with two-step inline confirm. List / empty / confirm variants. |
+| [`flows/capture.md`](flows/capture.md) | The popup state machine: loading → (not-configured \| uncapturable \| detected \| manual) → capture → 200/201/422/401/network, including the rule-builder and series-picker branches and every empty state. |
 | [`flows/onboarding.md`](flows/onboarding.md) | Options-page flow: URL → host permission → health check → sign-in/create → auto-minted token → verified → connected; paste-token fallback; failure handling. |
+| [`flows/rules.md`](flows/rules.md) | Site-rule lifecycle: regex generation from picked segments, create-from-popup, view/delete from options, write-through cache refresh, hosts-not-IPs constraint. |
 
 ## Rationale for the major choices
 
@@ -87,6 +90,34 @@ privileges nothing else gets:
   server should look like part of the browser, not like a landing
   page.
 
+### Site rules without regexes
+
+- Rules are regexes on the wire, but the popup never shows one. The
+  builder renders the current page's URL path as monospace segment
+  rows with two native-radio columns (*Series* / *Chapter*) — picking
+  segments **is** the mental model; the extension generates the
+  pattern. Radio-per-segment beat two dropdowns at 380px: the user
+  sees the whole URL structure at once, and long segments truncate
+  with the full value in `title`.
+- The builder is an inline mode of the manual state (fields swap
+  out, builder swaps in), never appended below it — one card, one
+  source of slug/chapter, popup stays under ~500px.
+- Its primary button is "Save rule & capture" with the Capture
+  button's full privileges (solid accent, 40px, same position),
+  because it *is* the capture — creating the rule is a side effect
+  the user gets for free.
+- The live "Will detect: `slug` · ch `n`" preview is the honesty
+  mechanism: the drafted rule applied to the real URL, with a red
+  in-well message (no banner) when the selection can't yield a
+  chapter number. It is deliberately not editable — it previews what
+  the *rule* extracts; the editable path is "Back to manual entry".
+- The options page shows rules as host + truncated regex (small
+  monospace — transparency, not interaction) with delete as the only
+  action. Delete is a two-step inline confirm, no modal: the row's
+  right side swaps to "Delete rule?" + Confirm/Cancel, with Cancel
+  placed where Delete was so double-clicks and Enter–Enter cancel
+  rather than destroy.
+
 ### Empty states are designed, not defaulted
 
 - Zero tracks/series: the series picker's pinned "Create new series"
@@ -113,4 +144,5 @@ privileges nothing else gets:
   `POST /entries/capture` (200 advanced / 201 created / 422
   needs-series), `GET /series`, `GET /healthz`, `POST /auth/login`,
   `POST /auth/register`, `POST /auth/tokens`, `GET /auth/me`,
-  `DELETE /auth/tokens/:id`.
+  `DELETE /auth/tokens/:id`, `GET /sites`, `POST /sites/rules`
+  (201 / 422 duplicate-host), `DELETE /sites/rules/:id` (204).

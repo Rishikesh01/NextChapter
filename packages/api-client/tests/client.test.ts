@@ -225,3 +225,66 @@ describe('errors', () => {
     expect((err as ApiError).status).toBe(0);
   });
 });
+
+describe('site rules and token revocation', () => {
+  it('creates a rule over the Bearer channel', async () => {
+    nextResponse = { status: 201, body: { id: 9, host: 'manhua.example.net' } };
+    const rule = await makeClient('nca_test').createSiteRule({
+      host: 'manhua.example.net',
+      chapter_url_regex:
+        '^/manga/(?P<slug>[^/]+)/chapter-(?P<chapter>[0-9]+(?:\\.[0-9]+)?)/?$',
+      slug_capture_group: 'slug',
+      chapter_capture_group: 'chapter',
+    });
+
+    expect(rule.id).toBe(9);
+    expect(seen[0]?.method).toBe('POST');
+    expect(seen[0]?.url).toBe('/sites/rules');
+    expect(seen[0]?.headers.authorization).toBe('Bearer nca_test');
+  });
+
+  it('deletes a rule by id', async () => {
+    nextResponse = { status: 204 };
+    await makeClient('nca_test').deleteSiteRule(9);
+
+    expect(seen[0]?.method).toBe('DELETE');
+    expect(seen[0]?.url).toBe('/sites/rules/9');
+  });
+
+  it('revokes a token by id', async () => {
+    nextResponse = { status: 204 };
+    await makeClient('nca_test').revokeToken(6);
+
+    expect(seen[0]?.method).toBe('DELETE');
+    expect(seen[0]?.url).toBe('/auth/tokens/6');
+    expect(seen[0]?.headers.authorization).toBe('Bearer nca_test');
+  });
+
+  it('surfaces the duplicate-host validation envelope', async () => {
+    nextResponse = {
+      status: 422,
+      body: {
+        error: {
+          code: 'validation',
+          message: 'validation failed',
+          fields: { host: 'already has a rule' },
+        },
+      },
+    };
+
+    const err = await makeClient('nca_test')
+      .createSiteRule({
+        host: 'comics.example.org',
+        chapter_url_regex: '^/x/(?P<slug>[^/]+)/(?P<chapter>[0-9]+)$',
+        slug_capture_group: 'slug',
+        chapter_capture_group: 'chapter',
+      })
+      .then(
+        () => null,
+        (e: unknown) => e,
+      );
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).fields?.host).toBe('already has a rule');
+  });
+});

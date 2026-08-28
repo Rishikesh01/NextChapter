@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NextChapter — rule builder</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+/* ================================================================
+   DEMO HARNESS — do not lift.
+   ================================================================ */
+body {
+  margin: 0;
+  padding: var(--nc-space-5);
+  background: var(--nc-bg-subtle);
+  font-family: var(--nc-font-family);
+  color: var(--nc-text);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nc-space-5);
+  align-items: flex-start;
+}
+.demo-label {
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin-bottom: var(--nc-space-1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.popup {
+  width: var(--nc-popup-width);
+  box-sizing: border-box;
+  background: var(--nc-bg);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-card);
+  overflow: hidden;
+}
+
+/* ================================================================
+   COMPONENT STYLES — lift from here.
+   Shares .nc-header, .nc-btn-primary, .nc-input, .nc-iconbtn,
+   .nc-field, .nc-form-intro, .nc-form-hint with manual-form.html
+   (duplicated so this file opens standalone).
+
+   The rule builder is an inline mode of the manual state, not a
+   separate screen: expanding it swaps the card body (the slug +
+   chapter fields hide, the builder shows). It never appends below
+   the manual fields — two competing sources of slug/chapter in one
+   card would be ambiguous, and the popup must stay under ~500px.
+
+   The user never sees a regex. The current page's URL path is
+   split into segments and rendered as monospace rows; the user
+   marks which segment is the series name and which contains the
+   chapter number. The extension generates the pattern (see
+   flows/rules.md for the generation mechanics).
+
+   Entry-point visibility: the "Create a rule from this page" link
+   renders only when (a) the host is a registrable name — the
+   backend rejects IP literals — and (b) at least one path segment
+   contains a digit (otherwise no valid rule can exist for this
+   URL). When hidden, the manual state shows no hint line at all.
+   ================================================================ */
+* { box-sizing: border-box; }
+
+:focus-visible {
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 1px;
+}
+
+.nc-small {
+  font-size: var(--nc-text-small);
+  line-height: var(--nc-leading);
+  color: var(--nc-text-secondary);
+}
+
+.nc-btn-primary {
+  display: block;
+  width: 100%;
+  height: var(--nc-control-height-lg);
+  border: none;
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-accent);
+  color: var(--nc-on-accent);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.nc-btn-primary:hover { background: var(--nc-accent-hover); }
+.nc-btn-primary:active { background: var(--nc-accent-active); }
+.nc-btn-primary:disabled {
+  background: var(--nc-bg-subtle);
+  color: var(--nc-text-disabled);
+  cursor: default;
+}
+
+.nc-input {
+  height: var(--nc-control-height);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  font-family: inherit;
+  font-size: var(--nc-text-body);
+  padding: 0 var(--nc-space-2);
+  transition: border-color 120ms ease;
+}
+.nc-input:hover { border-color: var(--nc-border-strong); }
+.nc-input:focus-visible {
+  border-color: var(--nc-accent);
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 0;
+}
+.nc-input::placeholder { color: var(--nc-text-disabled); }
+
+.nc-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--nc-radius-control);
+  background: transparent;
+  color: var(--nc-text-secondary);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.nc-iconbtn:hover { background: var(--nc-bg-subtle); color: var(--nc-text); }
+
+.nc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nc-space-2);
+  padding: var(--nc-space-2) var(--nc-space-2) var(--nc-space-2) var(--nc-space-3);
+  border-bottom: 1px solid var(--nc-border);
+}
+.nc-header-host {
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nc-card { padding: var(--nc-space-3); }
+
+.nc-form-intro {
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0 0 var(--nc-space-3);
+}
+
+.nc-field { margin-bottom: var(--nc-space-3); }
+.nc-field label {
+  display: block;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin-bottom: var(--nc-space-1);
+}
+.nc-field .nc-input { width: 100%; }
+
+.nc-input-slug {
+  font-family: var(--nc-font-mono);
+  font-size: var(--nc-text-small);
+}
+.nc-input-chapter-full {
+  font-weight: var(--nc-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.nc-form-hint {
+  margin: var(--nc-space-2) 0 0;
+  text-align: center;
+}
+
+/* Text-link button — same treatment as the options page's
+   "create account instead" toggle. */
+.nc-btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--nc-text-small);
+  color: var(--nc-accent-text);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Entry-point line under the hint. */
+.nc-rule-entry {
+  margin: var(--nc-space-1) 0 0;
+  text-align: center;
+}
+
+/* ---------- rule builder specifics ---------- */
+
+.nc-rule-caption {
+  margin: calc(-1 * var(--nc-space-2)) 0 var(--nc-space-3);
+}
+
+/* Segment grid: one bordered group; each row is a path segment
+   with two radio columns (Series / Chapter). Two independent
+   native radio groups — the OS draws the controls, dark mode
+   comes free via color-scheme.
+
+   Width budget at 380px: 24px card padding + 2 × 52px radio
+   columns + gaps leaves ~230px for the segment text, which
+   truncates with ellipsis (full value in the title attribute). */
+.nc-rulegrid {
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  margin-bottom: var(--nc-space-3);
+}
+.nc-rulegrid-head,
+.nc-rulegrid-row {
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-2);
+  padding: var(--nc-space-1) var(--nc-space-2);
+}
+.nc-rulegrid-head {
+  border-bottom: 1px solid var(--nc-border);
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+}
+.nc-rulegrid-row + .nc-rulegrid-row { border-top: 1px solid var(--nc-border); }
+.nc-rulegrid-row { min-height: 28px; }
+
+.nc-rulegrid-seg {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+code.nc-rulegrid-seg {
+  font-family: var(--nc-font-mono);
+  font-size: var(--nc-text-small);
+  color: var(--nc-text);
+}
+.nc-rulegrid-col {
+  flex: none;
+  width: 52px;
+  display: flex;
+  justify-content: center;
+}
+.nc-rulegrid input[type="radio"] {
+  accent-color: var(--nc-accent);
+  margin: 0;
+}
+
+/* Live preview: the drafted rule applied to the current URL.
+   Quiet well — no green; success color is reserved for post-action
+   feedback. Mark up with aria-live="polite" so selection changes
+   are announced.
+
+   Deliberate exception to "chapter editable wherever shown
+   pre-capture": this line previews what the RULE extracts. Making
+   the number editable would silently diverge this capture from
+   every future detection; the escape hatch for a wrong number is
+   "Back to manual entry", where the chapter input is editable. */
+.nc-rule-preview {
+  display: flex;
+  align-items: baseline;
+  gap: var(--nc-space-1);
+  margin: 0 0 var(--nc-space-3);
+  padding: var(--nc-space-2);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg-subtle);
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+}
+.nc-rule-preview-slug {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--nc-font-mono);
+  color: var(--nc-text);
+}
+.nc-rule-preview strong {
+  color: var(--nc-text);
+  font-weight: var(--nc-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+/* Invalid: chosen segments don't yield a chapter number (or the
+   same segment is picked for both roles). Red text in the same
+   quiet well — one hue, no banner; this is field-level feedback. */
+.nc-rule-preview-invalid {
+  display: block;
+  color: var(--nc-error-fg);
+}
+
+.nc-rule-back {
+  margin: var(--nc-space-2) 0 0;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     VARIANT 1 — collapsed: the manual state with the rule-builder
+     entry point. Identical to manual-form.html except the hint
+     line, which now explains rules and offers the inline builder
+     (the old "add a rule in your web library" copy is superseded
+     by ADR-0009 — rules are managed from the extension).
+     Clicking the link swaps the card body to variant 2/3.
+     ============================================================ -->
+<div>
+  <div class="demo-label">Collapsed — manual form with entry point</div>
+  <div class="popup">
+    <header class="nc-header">
+      <span class="nc-header-host" title="readnovel.example">readnovel.example</span>
+      <button class="nc-iconbtn" type="button" aria-label="Settings" title="Settings">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M8 10.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z" stroke="currentColor" stroke-width="1.3"/>
+          <path d="M13.3 8c0-.4.5-.8.4-1.2-.1-.4-.7-.5-.9-.9-.2-.3 0-.9-.3-1.2-.3-.3-.9-.1-1.2-.3-.4-.2-.5-.8-.9-.9-.4-.1-.8.4-1.2.4h-.4c-.4 0-.8-.5-1.2-.4-.4.1-.5.7-.9.9-.3.2-.9 0-1.2.3-.3.3-.1.9-.3 1.2-.2.4-.8.5-.9.9-.1.4.4.8.4 1.2s-.5.8-.4 1.2c.1.4.7.5.9.9.2.3 0 .9.3 1.2.3.3.9.1 1.2.3.4.2.5.8.9.9.4.1.8-.4 1.2-.4h.4c.4 0 .8.5 1.2.4.4-.1.5-.7.9-.9.3-.2.9 0 1.2-.3.3-.3.1-.9.3-1.2.2-.4.8-.5.9-.9.1-.4-.4-.8-.4-1.2Z" stroke="currentColor" stroke-width="1.1"/>
+        </svg>
+      </button>
+    </header>
+    <form class="nc-card">
+      <p class="nc-form-intro">No rule for this site &mdash; fill in the details</p>
+
+      <div class="nc-field">
+        <label for="slug">Series slug</label>
+        <input class="nc-input nc-input-slug" id="slug" type="text"
+               placeholder="solo-leveling" autocomplete="off"
+               spellcheck="false" autocapitalize="off">
+      </div>
+
+      <div class="nc-field">
+        <label for="chapter">Chapter</label>
+        <input class="nc-input nc-input-chapter-full" id="chapter" type="text"
+               inputmode="decimal" placeholder="45.5" autocomplete="off"
+               spellcheck="false">
+      </div>
+
+      <button class="nc-btn-primary" type="submit">Capture chapter</button>
+      <p class="nc-form-hint nc-small">
+        A rule lets NextChapter detect chapters here automatically.
+      </p>
+      <p class="nc-rule-entry">
+        <button class="nc-btn-link" type="button" aria-expanded="false">
+          Create a rule from this page
+        </button>
+      </p>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================
+     VARIANT 2 — expanded, valid selection.
+     Page URL: https://readnovel.example/manga/the-mad-dog-of-the-dukes-estate/chapter-54/
+     Path segments: manga / the-mad-dog-of-the-dukes-estate / chapter-54
+     The extension pre-guesses: chapter part = last digit-bearing
+     segment, preferring chapter-ish keywords ("chapter-3" beats a
+     later "page-2"); series part = the segment just before it
+     (else the longest remaining segment). Both pre-selections are
+     changeable — the guess is a head start, not a decision.
+
+     The preview applies the drafted rule to the current URL and
+     updates live (aria-live="polite"). "Save rule & capture" is
+     the state's primary action: same 40px, same position, same
+     solid accent as Capture everywhere else — because it IS the
+     capture, plus a saved rule. Height stays comfortable: with the
+     typical 2–4 segments the whole card is ~330px; even 7-segment
+     paths keep the popup under ~500px, so the grid never scrolls.
+     ============================================================ -->
+<div>
+  <div class="demo-label">Expanded — valid selection, live preview</div>
+  <div class="popup">
+    <header class="nc-header">
+      <span class="nc-header-host" title="readnovel.example">readnovel.example</span>
+      <button class="nc-iconbtn" type="button" aria-label="Settings" title="Settings">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M8 10.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z" stroke="currentColor" stroke-width="1.3"/>
+          <path d="M13.3 8c0-.4.5-.8.4-1.2-.1-.4-.7-.5-.9-.9-.2-.3 0-.9-.3-1.2-.3-.3-.9-.1-1.2-.3-.4-.2-.5-.8-.9-.9-.4-.1-.8.4-1.2.4h-.4c-.4 0-.8-.5-1.2-.4-.4.1-.5.7-.9.9-.3.2-.9 0-1.2.3-.3.3-.1.9-.3 1.2-.2.4-.8.5-.9.9-.1.4.4.8.4 1.2s-.5.8-.4 1.2c.1.4.7.5.9.9.2.3 0 .9.3 1.2.3.3.9.1 1.2.3.4.2.5.8.9.9.4.1.8-.4 1.2-.4h.4c.4 0 .8.5 1.2.4.4-.1.5-.7.9-.9.3-.2.9 0 1.2-.3.3-.3.1-.9.3-1.2.2-.4.8-.5.9-.9.1-.4-.4-.8-.4-1.2Z" stroke="currentColor" stroke-width="1.1"/>
+        </svg>
+      </button>
+    </header>
+    <form class="nc-card">
+      <p class="nc-form-intro">Create a rule for this site</p>
+      <p class="nc-rule-caption nc-small">
+        Mark which parts of the page address are the series name and the chapter.
+      </p>
+
+      <div class="nc-rulegrid" role="group" aria-label="Address parts">
+        <div class="nc-rulegrid-head" aria-hidden="true">
+          <span class="nc-rulegrid-seg">Address part</span>
+          <span class="nc-rulegrid-col">Series</span>
+          <span class="nc-rulegrid-col">Chapter</span>
+        </div>
+        <div class="nc-rulegrid-row">
+          <code class="nc-rulegrid-seg" title="manga">manga</code>
+          <span class="nc-rulegrid-col">
+            <input type="radio" name="series-part" aria-label="Series name part: manga">
+          </span>
+          <span class="nc-rulegrid-col">
+            <input type="radio" name="chapter-part" aria-label="Chapter part: manga">
+          </span>
+        </div>
+        <div class="nc-rulegrid-row">
+          <code class="nc-rulegrid-seg" title="the-mad-dog-of-the-dukes-estate">the-mad-dog-of-the-dukes-estate</code>
+          <span class="nc-rulegrid-col">
+            <input type="radio" name="series-part" checked
+                   aria-label="Series name part: the-mad-dog-of-the-dukes-estate">
+          </span>
+          <span class="nc-rulegrid-col">
+            <input type="radio" name="chapter-part"
+                   aria-label="Chapter part: the-mad-dog-of-the-dukes-estate">
+          </span>
+        </div>
+        <div class="nc-rulegrid-row">
+          <code class="nc-rulegrid-seg" title="chapter-54">chapter-54</code>
+          <span class="nc-rulegrid-col">
+            <input type="radio" name="series-part" aria-label="Series name part: chapter-54">
+          </span>
+          <span class="nc-rulegrid-col">
+            <input type="radio" name="chapter-part" checked aria-label="Chapter part: chapter-54">
+          </span>
+        </div>
+      </div>
+
+      <p class="nc-rule-preview" aria-live="polite">
+        <span>Will detect:</span>
+        <code class="nc-rule-preview-slug"
+              title="the-mad-dog-of-the-dukes-estate">the-mad-dog-of-the-dukes-estate</code>
+        <span>&middot; ch <strong>54</strong></span>
+      </p>
+
+      <button class="nc-btn-primary" type="submit">Save rule &amp; capture</button>
+      <p class="nc-rule-back">
+        <button class="nc-btn-link" type="button">Back to manual entry</button>
+      </p>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================
+     VARIANT 3 — expanded, invalid selection.
+     The chosen chapter part ("manga") contains no digit run, so
+     the drafted rule extracts nothing. The preview well swaps to
+     red field-level feedback (no banner — banners are for request
+     outcomes) and the primary button disables. The same treatment
+     covers picking one segment for both roles ("The series and
+     chapter must be different parts."). Fixing the radios flips
+     straight back to the valid preview.
+     ============================================================ -->
+<div>
+  <div class="demo-label">Expanded — invalid: chosen part has no chapter number</div>
+  <div class="popup">
+    <header class="nc-header">
+      <span class="nc-header-host" title="readnovel.example">readnovel.example</span>
+      <button class="nc-iconbtn" type="button" aria-label="Settings" title="Settings">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M8 10.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z" stroke="currentColor" stroke-width="1.3"/>
+          <path d="M13.3 8c0-.4.5-.8.4-1.2-.1-.4-.7-.5-.9-.9-.2-.3 0-.9-.3-1.2-.3-.3-.9-.1-1.2-.3-.4-.2-.5-.8-.9-.9-.4-.1-.8.4-1.2.4h-.4c-.4 0-.8-.5-1.2-.4-.4.1-.5.7-.9.9-.3.2-.9 0-1.2.3-.3.3-.1.9-.3 1.2-.2.4-.8.5-.9.9-.1.4.4.8.4 1.2s-.5.8-.4 1.2c.1.4.7.5.9.9.2.3 0 .9.3 1.2.3.3.9.1 1.2.3.4.2.5.8.9.9.4.1.8-.4 1.2-.4h.4c.4 0 .8.5 1.2.4.4-.1.5-.7.9-.9.3-.2.9 0 1.2-.3.3-.3.1-.9.3-1.2.2-.4.8-.5.9-.9.1-.4-.4-.8-.4-1.2Z" stroke="currentColor" stroke-width="1.1"/>
+        </svg>
+      </button>
+    </header>
+    <form class="nc-card">
+      <p class="nc-form-intro">Create a rule for this site</p>
+      <p class="nc-rule-caption nc-small">
+        Mark which parts of the page address are the series name and the chapter.
+      </p>
+
+      <div class="nc-rulegrid" role="group" aria-label="Address parts">
+        <div class="nc-rulegrid-head" aria-hidden="true">
+          <span class="nc-rulegrid-seg">Address part</span>
+          <span class="nc-rulegrid-col">Series</span>
+          <span class="nc-rulegrid-col">Chapter</span>
+        </div>
+        <div class="nc-rulegrid-row">
+          <code class="nc-rulegrid-seg" title="manga">manga</code>
+          <span class="nc-rulegrid-col">
+            <input type="radio" name="series-part2" aria-label="Series name part: manga">
+          </span>
+          <span class="nc-rulegrid-col">
+            <input type="radio" name="chapter-part2" checked aria-label="Chapter part: manga">
+          </span>
+        </div>
+        <div class="nc-rulegrid-row">
+          <code class="nc-rulegrid-seg" title="the-mad-dog-of-the-dukes-estate">the-mad-dog-of-the-dukes-estate</code>
+          <span class="nc-rulegrid-col">
+            <input type="radio" name="series-part2" checked
+                   aria-label="Series name part: the-mad-dog-of-the-dukes-estate">
+          </span>
+          <span class="nc-rulegrid-col">
+            <input type="radio" name="chapter-part2"
+                   aria-label="Chapter part: the-mad-dog-of-the-dukes-estate">
+          </span>
+        </div>
+        <div class="nc-rulegrid-row">
+          <code class="nc-rulegrid-seg" title="chapter-54">chapter-54</code>
+          <span class="nc-rulegrid-col">
+            <input type="radio" name="series-part2" aria-label="Series name part: chapter-54">
+          </span>
+          <span class="nc-rulegrid-col">
+            <input type="radio" name="chapter-part2" aria-label="Chapter part: chapter-54">
+          </span>
+        </div>
+      </div>
+
+      <p class="nc-rule-preview nc-rule-preview-invalid" aria-live="polite">
+        &ldquo;manga&rdquo; has no number &mdash; pick the part that contains the chapter.
+      </p>
+
+      <button class="nc-btn-primary" type="submit" disabled>Save rule &amp; capture</button>
+      <p class="nc-rule-back">
+        <button class="nc-btn-link" type="button">Back to manual entry</button>
+      </p>
+    </form>
+  </div>
+</div>
+
+</body>
+</html>

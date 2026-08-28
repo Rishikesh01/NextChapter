@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NextChapter — site rules list (options page)</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+/* ================================================================
+   DEMO HARNESS — do not lift. Same framing as options-form.html:
+   full browser tab, single centered 480px column. In the real
+   options page this section renders below the connected summary
+   card (options-form.html, State D) and ONLY when connected —
+   rules live on the server, so there is nothing to show before
+   auth. The variants below are alternatives, not a stack.
+   ================================================================ */
+body {
+  margin: 0;
+  padding: var(--nc-space-5);
+  background: var(--nc-bg);
+  font-family: var(--nc-font-family);
+  color: var(--nc-text);
+}
+.demo-label {
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  margin: var(--nc-space-5) 0 var(--nc-space-1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ================================================================
+   COMPONENT STYLES — lift from here.
+   Shares .nc-options, .nc-section, .nc-section-title, .nc-small
+   with options-form.html (duplicated so this file opens
+   standalone).
+
+   Rows come from GET /sites (the `rules` list; `tracked_hosts` is
+   not used here). Deleting calls DELETE /sites/rules/{id} and
+   write-through-updates the extension's cached rules immediately
+   (see flows/rules.md). Creation happens in the popup only
+   (rule-builder.html) — the options page is view + delete. There
+   is no edit UI in v1: a wrong rule is deleted here and recreated
+   from the popup in two clicks.
+   ================================================================ */
+* { box-sizing: border-box; }
+
+:focus-visible {
+  outline: 2px solid var(--nc-focus-ring);
+  outline-offset: 1px;
+}
+
+.nc-options {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.nc-small {
+  font-size: var(--nc-text-small);
+  line-height: var(--nc-leading);
+  color: var(--nc-text-secondary);
+}
+
+.nc-section {
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-card);
+  padding: var(--nc-space-4);
+  margin-bottom: var(--nc-space-4);
+  background: var(--nc-bg);
+}
+.nc-section-title {
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  margin: 0 0 var(--nc-space-3);
+}
+
+.nc-section-caption {
+  margin: calc(-1 * var(--nc-space-2)) 0 var(--nc-space-3);
+}
+
+/* ---------- rules list ---------- */
+.nc-rules-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.nc-rule-row {
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-3);
+  padding: var(--nc-space-2) 0;
+}
+.nc-rule-row + .nc-rule-row { border-top: 1px solid var(--nc-border); }
+
+.nc-rule-info {
+  flex: 1;
+  min-width: 0;
+}
+.nc-rule-host {
+  margin: 0;
+  font-size: var(--nc-text-body);
+  font-weight: var(--nc-weight-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The stored regex, shown for transparency (the user's server, the
+   user's data) but styled as machine detail: small monospace,
+   secondary, truncated — full value in the title attribute. Nobody
+   is expected to read it; deleting is the only interaction. */
+.nc-rule-pattern {
+  margin: 2px 0 0;
+  font-family: var(--nc-font-mono);
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Quiet per-row delete: text button, secondary until hovered —
+   three always-red Deletes in a list would shout. */
+.nc-rule-delete {
+  flex: none;
+  background: none;
+  border: none;
+  padding: var(--nc-space-1);
+  font: inherit;
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+.nc-rule-delete:hover {
+  color: var(--nc-error-fg);
+  text-decoration: underline;
+}
+
+/* ---------- two-step inline confirm ----------
+   Clicking Delete swaps the row's right side for a question and
+   two text buttons. No modal, no row removal animation. Layout
+   rules that make it safe:
+   - "Cancel" sits rightmost, exactly where "Delete" was, so an
+     accidental double-click cancels instead of destroying.
+   - Focus moves to "Cancel" for the same reason: Enter–Enter from
+     the keyboard must never delete data. Esc also cancels.
+   - Only one row can be in confirm mode at a time; starting a
+     second confirm (or clicking elsewhere) reverts the first. */
+.nc-rule-confirm {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-3);
+}
+.nc-rule-confirm-q {
+  color: var(--nc-text);
+}
+.nc-rule-confirm-yes,
+.nc-rule-confirm-no {
+  background: none;
+  border: none;
+  padding: var(--nc-space-1);
+  font: inherit;
+  font-size: var(--nc-text-small);
+  cursor: pointer;
+}
+.nc-rule-confirm-yes {
+  color: var(--nc-error-fg);
+  font-weight: var(--nc-weight-semibold);
+}
+.nc-rule-confirm-yes:hover { text-decoration: underline; }
+.nc-rule-confirm-no { color: var(--nc-text-secondary); }
+.nc-rule-confirm-no:hover {
+  color: var(--nc-text);
+  text-decoration: underline;
+}
+
+/* ---------- empty state ---------- */
+.nc-rules-empty {
+  margin: 0;
+  padding: var(--nc-space-4) 0;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     VARIANT 1 — list: the two seeded defaults plus one rule the
+     user created from the popup. Rows are indistinguishable on
+     purpose: after seeding, the server treats every rule as the
+     user's own, so the UI does too — any row can be deleted.
+     ============================================================ -->
+<div class="demo-label">Site rules — seeded defaults + one custom rule</div>
+<main class="nc-options">
+  <section class="nc-section">
+    <h2 class="nc-section-title">Site rules</h2>
+    <p class="nc-section-caption nc-small">
+      Chapter pages on these sites are detected automatically.
+      Create rules from the popup while on a chapter page.
+    </p>
+    <ul class="nc-rules-list">
+      <li class="nc-rule-row">
+        <div class="nc-rule-info">
+          <p class="nc-rule-host" title="reader.example.com">reader.example.com</p>
+          <p class="nc-rule-pattern"
+             title="^/series/(?P&lt;slug&gt;[^/]+)/chapter-(?P&lt;chapter&gt;[0-9]+(?:\.[0-9]+)?)$">^/series/(?P&lt;slug&gt;[^/]+)/chapter-(?P&lt;chapter&gt;[0-9]+(?:\.[0-9]+)?)$</p>
+        </div>
+        <button class="nc-rule-delete" type="button"
+                aria-label="Delete rule for reader.example.com">Delete</button>
+      </li>
+      <li class="nc-rule-row">
+        <div class="nc-rule-info">
+          <p class="nc-rule-host" title="comics.example.org">comics.example.org</p>
+          <p class="nc-rule-pattern"
+             title="^/comic/(?P&lt;slug&gt;[^/]+)/(?P&lt;chapter&gt;[^/]+-chapter-[0-9]+(?:\.[0-9]+)?)$">^/comic/(?P&lt;slug&gt;[^/]+)/(?P&lt;chapter&gt;[^/]+-chapter-[0-9]+(?:\.[0-9]+)?)$</p>
+        </div>
+        <button class="nc-rule-delete" type="button"
+                aria-label="Delete rule for comics.example.org">Delete</button>
+      </li>
+      <li class="nc-rule-row">
+        <div class="nc-rule-info">
+          <p class="nc-rule-host" title="readnovel.example">readnovel.example</p>
+          <p class="nc-rule-pattern"
+             title="^/manga/(?P&lt;slug&gt;[^/]+)/chapter-(?P&lt;chapter&gt;[0-9]+(?:\.[0-9]+)?)/?$">^/manga/(?P&lt;slug&gt;[^/]+)/chapter-(?P&lt;chapter&gt;[0-9]+(?:\.[0-9]+)?)/?$</p>
+        </div>
+        <button class="nc-rule-delete" type="button"
+                aria-label="Delete rule for readnovel.example">Delete</button>
+      </li>
+    </ul>
+  </section>
+</main>
+
+<!-- ============================================================
+     VARIANT 2 — empty state. All rules deleted (a fresh account
+     arrives seeded, so this is a deliberate state, not a first
+     run). Points back at the one place rules are created.
+     ============================================================ -->
+<div class="demo-label">Site rules — empty</div>
+<main class="nc-options">
+  <section class="nc-section">
+    <h2 class="nc-section-title">Site rules</h2>
+    <p class="nc-rules-empty nc-small">
+      No rules yet &mdash; create one from the popup while on a chapter page.
+    </p>
+  </section>
+</main>
+
+<!-- ============================================================
+     VARIANT 3 — confirm treatment. The comics.example.org row's Delete has
+     been clicked: its right side swaps to "Delete rule?" +
+     Confirm/Cancel. The left side stays put — the user can still
+     read exactly what they are about to remove. On Confirm:
+     DELETE /sites/rules/{id}, row disappears, cached rules
+     refresh. On failure: the row stays and the options page shows
+     its standard red status line below the list.
+     ============================================================ -->
+<div class="demo-label">Site rules — inline confirm on the middle row</div>
+<main class="nc-options">
+  <section class="nc-section">
+    <h2 class="nc-section-title">Site rules</h2>
+    <p class="nc-section-caption nc-small">
+      Chapter pages on these sites are detected automatically.
+      Create rules from the popup while on a chapter page.
+    </p>
+    <ul class="nc-rules-list">
+      <li class="nc-rule-row">
+        <div class="nc-rule-info">
+          <p class="nc-rule-host" title="reader.example.com">reader.example.com</p>
+          <p class="nc-rule-pattern"
+             title="^/series/(?P&lt;slug&gt;[^/]+)/chapter-(?P&lt;chapter&gt;[0-9]+(?:\.[0-9]+)?)$">^/series/(?P&lt;slug&gt;[^/]+)/chapter-(?P&lt;chapter&gt;[0-9]+(?:\.[0-9]+)?)$</p>
+        </div>
+        <button class="nc-rule-delete" type="button"
+                aria-label="Delete rule for reader.example.com">Delete</button>
+      </li>
+      <li class="nc-rule-row">
+        <div class="nc-rule-info">
+          <p class="nc-rule-host" title="comics.example.org">comics.example.org</p>
+          <p class="nc-rule-pattern"
+             title="^/comic/(?P&lt;slug&gt;[^/]+)/(?P&lt;chapter&gt;[^/]+-chapter-[0-9]+(?:\.[0-9]+)?)$">^/comic/(?P&lt;slug&gt;[^/]+)/(?P&lt;chapter&gt;[^/]+-chapter-[0-9]+(?:\.[0-9]+)?)$</p>
+        </div>
+        <span class="nc-rule-confirm" role="group" aria-label="Confirm deleting the rule for comics.example.org">
+          <span class="nc-rule-confirm-q nc-small">Delete rule?</span>
+          <button class="nc-rule-confirm-yes" type="button">Confirm</button>
+          <button class="nc-rule-confirm-no" type="button">Cancel</button>
+        </span>
+      </li>
+      <li class="nc-rule-row">
+        <div class="nc-rule-info">
+          <p class="nc-rule-host" title="readnovel.example">readnovel.example</p>
+          <p class="nc-rule-pattern"
+             title="^/manga/(?P&lt;slug&gt;[^/]+)/chapter-(?P&lt;chapter&gt;[0-9]+(?:\.[0-9]+)?)/?$">^/manga/(?P&lt;slug&gt;[^/]+)/chapter-(?P&lt;chapter&gt;[0-9]+(?:\.[0-9]+)?)/?$</p>
+        </div>
+        <button class="nc-rule-delete" type="button"
+                aria-label="Delete rule for readnovel.example">Delete</button>
+      </li>
+    </ul>
+  </section>
+</main>
+
+</body>
+</html>

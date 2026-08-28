@@ -8,6 +8,11 @@ export interface Settings {
   serverUrl: string;
   /** API token (nca_…). storage.local only — never storage.sync (ADR-0008 §6). */
   apiToken: string;
+  /**
+   * Id of the minted token, so Disconnect can revoke it (ADR-0009 §5).
+   * Absent for pasted tokens — those can't be revoked from here.
+   */
+  apiTokenId?: number;
   /** For display on the options page. */
   username: string;
 }
@@ -38,4 +43,9 @@ export function getRulesCache(): Promise<RulesCache | undefined> {
 
 export async function setRulesCache(cache: RulesCache): Promise<void> {
   await browser.storage.local.set({ [RULES_KEY]: cache });
+}
+
+/** Rules are per-account — Disconnect must not leak them into the next login. */
+export async function clearRulesCache(): Promise<void> {
+  await browser.storage.local.remove(RULES_KEY);
 }

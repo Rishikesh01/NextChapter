@@ -8,10 +8,20 @@ import {
 } from '@nextchapter/api-client';
 import { extensionApiClient } from '../../lib/api';
 import { getRulesCache, getSettings, setRulesCache } from '../../lib/storage';
-import { isFresh, toRulesCache } from '../../lib/rules-cache';
+import { isFresh } from '../../lib/rules-cache';
+import { refreshRulesCache } from '../../lib/rules-sync';
 import { detectPosition, normalizeHost } from '../../lib/url-detection';
 import { getCaptureTab, type CaptureTab } from '../../lib/tabs';
 import { prettifySlug, suggestSeriesTitle } from '../../lib/titles';
+import {
+  buildRule,
+  canOfferRuleBuilder,
+  guessDraft,
+  pathSegments,
+  previewRule,
+  type RuleDraft,
+} from '../../lib/rule-builder';
+import type { DetectedPosition } from '../../lib/url-detection';
 import { PopupHeader } from '../../components/popup/PopupHeader';
 import { EmptyState } from '../../components/popup/EmptyState';
 import { NotConfigured } from '../../components/popup/NotConfigured';
@@ -19,6 +29,7 @@ import { DetectedCapture } from '../../components/popup/DetectedCapture';
 import { ManualCaptureForm } from '../../components/popup/ManualCaptureForm';
 import { SeriesPicker } from '../../components/popup/SeriesPicker';
 import { StatusBanner } from '../../components/popup/StatusBanner';
+import { RuleBuilder } from '../../components/popup/RuleBuilder';
 import { parseChapterInput } from '../../components/popup/ChapterInput';
 
 type View =
@@ -51,6 +62,8 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [series, setSeries] = useState<SeriesSummary[]>([]);
   const [seriesLoading, setSeriesLoading] = useState(false);
+  /** Non-null while the inline rule builder replaces the manual form. */
+  const [ruleDraft, setRuleDraft] = useState<RuleDraft | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -70,18 +83,14 @@ export function App() {
       // popup open. Only a cold cache blocks on the network.
       let cache = await getRulesCache();
       if (!isFresh(cache, Date.now())) {
-        const refresh = client
-          .getSites()
-          .then((list) => setRulesCache(toRulesCache(list, Date.now())));
         if (cache === undefined) {
           try {
-            await refresh;
-            cache = await getRulesCache();
+            cache = await refreshRulesCache();
           } catch {
             // No rules available — manual capture still works.
           }
         } else {
-          refresh.catch(() => undefined); // keep the stale cache on failure
+          refreshRulesCache().catch(() => undefined); // keep the stale cache on failure
         }
       }
 
@@ -207,6 +216,117 @@ export function App() {
     submitCapture(payload, prettifySlug(slugValue));
   }, [view, slug, chapter, submitCapture]);
 
+  // ---- rule builder (ADR-0009) ----
+
+  const openRuleBuilder = () => {
+    if (view.kind !== 'capture') return;
+    const segments = pathSegments(view.tab.url);
+    const draft = segments !== null ? guessDraft(segments) : null;
+    if (draft !== null) setRuleDraft(draft);
+  };
+
+  // Capture with what the (just-saved or refetched) rule detects, exactly as
+  // a future auto-detection would.
+  const captureDetected = (position: DetectedPosition) => {
+    if (view.kind !== 'capture') return;
+    setRuleDraft(null);
+    setSlug(position.seriesSlug);
+    setChapter(String(position.chapter));
+    setView({ kind: 'capture', tab: view.tab, detected: true });
+    submitCapture(
+      {
+        site_host: position.siteHost,
+        series_slug: position.seriesSlug,
+        site_title: view.tab.title,
+        chapter: position.chapter,
+        url: view.tab.url,
+      },
+      prettifySlug(position.seriesSlug),
+    );
+  };
+
+  const saveRule = () => {
+    if (view.kind !== 'capture' || ruleDraft === null) return;
+    const url = view.tab.url;
+    const rule = buildRule(url, ruleDraft);
+    const position = rule !== null ? previewRule(url, rule) : null;
+    if (rule === null || position === null) return; // Save is disabled anyway
+
+    setBusy(true);
+    setBanner(null);
+    void (async () => {
+      try {
+        const created = await client.createSiteRule(rule);
+        // Write-through: insert the 201 body directly — a refetch could fail
+        // right after a successful create and leave a fresh-looking cache
+        // without the new rule (design/flows/rules.md). A background refetch
+        // still reconciles trackedHosts etc. when it can.
+        const cache = await getRulesCache();
+        await setRulesCache({
+          rules: [...(cache?.rules ?? []), created],
+          trackedHosts: cache?.trackedHosts ?? [],
+          fetchedAt: cache?.fetchedAt ?? 0,
+        });
+        refreshRulesCache().catch(() => undefined);
+        setBusy(false);
+        captureDetected(position);
+      } catch (err) {
+        setBusy(false);
+        if (
+          err instanceof ApiError &&
+          err.status === 422 &&
+          err.fields?.host !== undefined
+        ) {
+          // A host-field 422 is either "this host already has a rule" (our
+          // cache was stale) or the host failed server validation. Refetch:
+          // if the server's rule detects this page, capture with it; either
+          // way the builder closes back to the manual form
+          // (design/flows/capture.md §5a).
+          const cache = await refreshRulesCache().catch(() => undefined);
+          const detected =
+            cache !== undefined ? detectPosition(cache.rules, url) : null;
+          if (detected !== null) {
+            captureDetected(detected);
+            return;
+          }
+          setRuleDraft(null);
+          const pageHost = normalizeHost(new URL(url).hostname);
+          const hostHasRule =
+            cache?.rules.some(
+              (existing) =>
+                existing.host !== undefined &&
+                normalizeHost(existing.host) === pageHost,
+            ) ?? false;
+          setBanner({
+            kind: 'error',
+            text: hostHasRule
+              ? 'A rule for this site already exists — manage it in settings.'
+              : `Couldn't save the rule: ${err.fields.host}`,
+          });
+          return;
+        }
+        if (err instanceof ApiError && err.unauthorized) {
+          setBanner({
+            kind: 'error',
+            text: 'Token rejected —',
+            action: { label: 'open settings', run: openSettings },
+          });
+        } else if (err instanceof ApiError && err.status === 0) {
+          setBanner({
+            kind: 'warn',
+            text: 'Could not reach your server.',
+            action: { label: 'Retry', run: saveRule },
+          });
+        } else {
+          setBanner({
+            kind: 'error',
+            text: err instanceof ApiError ? err.message : String(err),
+          });
+        }
+      }
+    })();
+  };
+
   const host = (() => {
     switch (view.kind) {
       case 'capture':
@@ -251,6 +371,21 @@ export function App() {
             onChapterChange={setChapter}
             onCapture={capture}
           />
+        ) : ruleDraft !== null ? (
+          <RuleBuilder
+            segments={pathSegments(view.tab.url) ?? []}
+            draft={ruleDraft}
+            preview={(() => {
+              const rule = buildRule(view.tab.url, ruleDraft);
+              return rule !== null ? previewRule(view.tab.url, rule) : null;
+            })()}
+            busy={busy}
+            onDraftChange={setRuleDraft}
+            onSave={saveRule}
+            onBack={() => {
+              setRuleDraft(null);
+            }}
+          />
         ) : (
           <ManualCaptureForm
             slug={slug}
@@ -261,6 +396,9 @@ export function App() {
             onSlugChange={setSlug}
             onChapterChange={setChapter}
             onCapture={capture}
+            onCreateRule={
+              canOfferRuleBuilder(view.tab.url) ? openRuleBuilder : undefined
+            }
           />
         ))}
       {view.kind === 'pick-series' && (

@@ -1,14 +1,21 @@
 import { useEffect, useState } from 'react';
 import { browser } from 'wxt/browser';
-import { ApiError } from '@nextchapter/api-client';
-import { apiClientFor } from '../../lib/api';
-import { clearSettings, getSettings, setSettings } from '../../lib/storage';
+import { ApiError, type SiteRule } from '@nextchapter/api-client';
+import { apiClientFor, extensionApiClient } from '../../lib/api';
+import {
+  clearRulesCache,
+  clearSettings,
+  getSettings,
+  setSettings,
+} from '../../lib/storage';
 import { ServerStep } from '../../components/options/ServerStep';
 import { SignInStep } from '../../components/options/SignInStep';
 import { PasteTokenStep } from '../../components/options/PasteTokenStep';
 import { ConnectedCard } from '../../components/options/ConnectedCard';
+import { RulesSection } from '../../components/options/RulesSection';
 import { StatusBanner } from '../../components/popup/StatusBanner';
 import type { ConnectionState } from '../../components/options/ConnectionStatus';
+import { refreshRulesCache } from '../../lib/rules-sync';
 
 /**
  * Chrome and Firefox match patterns cannot carry a port, and a portless
@@ -32,6 +39,9 @@ export function App() {
   const [tab, setTab] = useState<'signin' | 'token'>('signin');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rules, setRules] = useState<SiteRule[] | null>(null);
+  const [rulesError, setRulesError] = useState<string>();
+  const [rulesBusy, setRulesBusy] = useState(false);
 
   useEffect(() => {
     void getSettings().then((settings) => {
@@ -45,6 +55,45 @@ export function App() {
       setLoaded(true);
     });
   }, []);
+
+  // Site rules for the connected account (view + delete; ADR-0009 §4).
+  useEffect(() => {
+    if (connected === null) {
+      setRules(null);
+      return;
+    }
+    setRulesError(undefined);
+    void extensionApiClient()
+      .getSites()
+      .then((list) => {
+        setRules(list.rules ?? []);
+      })
+      .catch((err: unknown) => {
+        setRules([]);
+        setRulesError(err instanceof ApiError ? err.message : String(err));
+      });
+  }, [connected]);
+
+  const deleteRule = (ruleID: number) => {
+    setRulesBusy(true);
+    setRulesError(undefined);
+    void (async () => {
+      try {
+        await extensionApiClient().deleteSiteRule(ruleID);
+        // One fetch serves both consumers: the detection cache and this list.
+        const cache = await refreshRulesCache();
+        setRules(cache.rules);
+      } catch (err) {
+        setRulesError(
+          err instanceof ApiError
+            ? `Couldn't delete the rule — ${err.message}`
+            : String(err),
+        );
+      } finally {
+        setRulesBusy(false);
+      }
+    })();
+  };
 
   // The Connect click is the user gesture that may show the browser's
   // host-permission prompt — everything here stays inside that handler.
@@ -94,10 +143,16 @@ export function App() {
     target: string,
     token: string,
     fallbackUsername: string,
+    tokenId?: number,
   ) => {
     const user = await apiClientFor(target, token).me();
     const username = user.username ?? fallbackUsername;
-    await setSettings({ serverUrl: target, apiToken: token, username });
+    await setSettings({
+      serverUrl: target,
+      apiToken: token,
+      apiTokenId: tokenId,
+      username,
+    });
     setConnected({ username, serverUrl: target });
   };
 
@@ -137,7 +192,7 @@ export function App() {
         if (minted.token === undefined || minted.token === '') {
           throw new ApiError(0, undefined, 'server returned no token');
         }
-        await finishOnboarding(origin, minted.token, username);
+        await finishOnboarding(origin, minted.token, username, minted.id);
       } catch {
         // The cookie channel can fail in some browser configurations
         // (ADR-0008 §6) — degrade to the paste-token path, never dead-end.
@@ -172,12 +227,23 @@ export function App() {
   };
 
   const disconnect = () => {
-    void clearSettings().then(() => {
+    void (async () => {
+      // Revoke the token this onboarding minted so disconnecting doesn't
+      // strand a never-expiring credential (ADR-0009 §5). Best-effort: a
+      // pasted token has no known id, and storage is wiped regardless.
+      const settings = await getSettings();
+      if (settings?.apiTokenId !== undefined) {
+        await extensionApiClient()
+          .revokeToken(settings.apiTokenId)
+          .catch(() => undefined);
+      }
+      await clearSettings();
+      await clearRulesCache(); // rules are per-account — don't leak them onward
       setConnected(null);
       setOrigin(null);
       setConnState('unchecked');
       setTab('signin');
-    });
+    })();
   };
 
   if (!loaded) return null;
@@ -196,11 +262,21 @@ export function App() {
       )}
 
       {connected !== null ? (
-        <ConnectedCard
-          username={connected.username}
-          serverUrl={connected.serverUrl}
-          onDisconnect={disconnect}
-        />
+        <>
+          <ConnectedCard
+            username={connected.username}
+            serverUrl={connected.serverUrl}
+            onDisconnect={disconnect}
+          />
+          {rules !== null && (
+            <RulesSection
+              rules={rules}
+              deleteError={rulesError}
+              busy={rulesBusy}
+              onDelete={deleteRule}
+            />
+          )}
+        </>
       ) : (
         <>
           <ServerStep

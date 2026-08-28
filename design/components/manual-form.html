@@ -158,6 +158,24 @@ body {
   margin: var(--nc-space-2) 0 0;
   text-align: center;
 }
+
+/* Rule-builder entry point (ADR-0009). Expands the inline builder
+   — see rule-builder.html for the expanded states and for when
+   this link is hidden (IP-literal hosts, digitless paths). */
+.nc-btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--nc-text-small);
+  color: var(--nc-accent-text);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.nc-rule-entry {
+  margin: var(--nc-space-1) 0 0;
+  text-align: center;
+}
 </style>
 </head>
 <body>
@@ -201,7 +219,12 @@ body {
 
       <button class="nc-btn-primary" type="submit">Capture chapter</button>
       <p class="nc-form-hint nc-small">
-        Add a URL rule for this site in your web library to auto-detect next time.
+        A rule lets NextChapter detect chapters here automatically.
+      </p>
+      <p class="nc-rule-entry">
+        <button class="nc-btn-link" type="button" aria-expanded="false">
+          Create a rule from this page
+        </button>
       </p>
     </form>
   </div>
@@ -240,7 +263,12 @@ body {
 
       <button class="nc-btn-primary" type="submit">Capture chapter</button>
       <p class="nc-form-hint nc-small">
-        Add a URL rule for this site in your web library to auto-detect next time.
+        A rule lets NextChapter detect chapters here automatically.
+      </p>
+      <p class="nc-rule-entry">
+        <button class="nc-btn-link" type="button" aria-expanded="false">
+          Create a rule from this page
+        </button>
       </p>
     </form>
   </div>

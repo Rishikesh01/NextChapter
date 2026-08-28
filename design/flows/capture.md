@@ -17,8 +17,15 @@ Component prototypes referenced below live in `design/components/`.
         ┌────────────┬────┴───────┬─────────────┐
         ▼            ▼            ▼             ▼
  [not-configured] [uncapturable] [detected]  [manual]
-                                     │            │
-                                     └── Capture ─┘
+                                     │         │  │
+                                     │         │  │ "Create a rule
+                                     │         │  │  from this page"
+                                     │         │  ▼
+                                     │         │ [rule-builder]
+                                     │         │  │ Save rule & capture
+                                     │         │  │ (POST /sites/rules,
+                                     │         │  │  then capture as usual)
+                                     └─ Capture ──┘
                                           │
               ┌───────────────┬───────────┼──────────────┬───────────┐
               ▼               ▼           ▼              ▼           ▼
@@ -96,8 +103,13 @@ Configured, http(s) page, no site rule matched. (`manual-form.html`.)
   *Series slug* (monospace — it's an identifier, matched verbatim) and
   *Chapter*, then the same Capture button in the same position and
   size as in `detected` — the core action never moves. Below the
-  button, one quiet hint: a URL rule can be added later in the web
-  library.
+  button, one quiet hint ("A rule lets NextChapter detect chapters
+  here automatically.") and the link-button **Create a rule from this
+  page**, which expands the inline rule builder (`rule-builder.html`).
+- **Entry-point visibility:** the hint + link render only when the
+  host is a registrable name (the backend rejects IP literals) *and*
+  at least one path segment contains a digit — otherwise no valid
+  rule can be built from this URL and the manual form stands alone.
 - **Empty state is the default state** here: both fields blank,
   focus in the slug field, Capture disabled until both fields are
   non-empty.
@@ -105,7 +117,67 @@ Configured, http(s) page, no site rule matched. (`manual-form.html`.)
   as a positive number with at most one decimal point. Failures render
   the field-level validation treatment (`status-banner.html`, last
   variant) — never a banner.
-- **Transitions:** Capture → `capturing`.
+- **Transitions:** Capture → `capturing`. "Create a rule from this
+  page" → `rule-builder` (anything typed into slug/chapter is kept in
+  memory for a possible return trip).
+
+## 5a. `rule-builder` (create a site rule inline)
+
+(`rule-builder.html`.) An inline mode of `manual`, not a separate
+screen: the slug/chapter fields swap out and the builder swaps in,
+same card, same header. The user never sees or writes a regex.
+
+- **On screen, top to bottom:**
+  - Intro "Create a rule for this site" + one small caption.
+  - The current page's URL path split into segments, rendered as a
+    bordered grid of monospace rows (truncated, full value in
+    `title`), each row with two native radios under *Series* /
+    *Chapter* column headers. Two radio groups over the same rows —
+    exactly one series part, exactly one chapter part.
+  - Pre-guess: chapter part = the last segment containing a digit,
+    preferring segments with a chapter-ish keyword (chapter/ch/ep) so
+    "chapter-3" beats a later "page-2"; series part = the segment just
+    before it (else the longest remaining segment). Both radios arrive pre-selected; the guess is
+    a head start, not a decision.
+  - Live preview well (`aria-live="polite"`): "Will detect:
+    `<slug>` · ch `<n>`" — the drafted rule applied to the current
+    URL. The chapter is the last numeric run in the chosen segment
+    (so `en-chapter-45.5` → 45.5), matching the runtime extractor.
+  - Primary **Save rule & capture** — the state's capture button:
+    same 40px, same position, same solid accent. One click saves the
+    rule *and* completes today's capture.
+  - Quiet centered link **Back to manual entry**.
+- **Invalid selection:** the chosen chapter segment has no digit run,
+  or the same segment is picked for both roles. The preview well
+  turns into red field-level feedback ("`manga` has no number — pick
+  the part that contains the chapter.") and Save disables. No banner
+  — banners are for request outcomes.
+- **Preview is not editable** — a deliberate exception to "chapter
+  editable wherever shown pre-capture". The line previews what the
+  *rule* extracts; editing the number would silently diverge this
+  capture from every future detection. A wrong number means a wrong
+  selection, or "Back to manual entry", where the chapter input is
+  editable as always.
+- **Transitions:**
+  - **Save rule & capture** → `POST /sites/rules` with the generated
+    rule (see `flows/rules.md` for pattern generation).
+    - `201` → write the new rule into the cached rules immediately,
+      then proceed to `capturing` with the slug + chapter the rule
+      extracts. From here everything is the normal pipeline — 422
+      needs-series still goes to the series picker, and success reads
+      exactly like a `detected` capture.
+    - `422` duplicate host (stale cache race — a rule for this host
+      already exists) → refetch `GET /sites`, re-run detection; if
+      the fresh rule matches the page, continue straight to
+      `capturing`. If it doesn't, red banner "A rule for this site
+      already exists — manage it in settings" over the manual form.
+    - Network failure / 5xx → amber banner with Retry (retries the
+      rule POST); the builder keeps its selections.
+    - Any other rejection → red banner "Couldn't save the rule";
+      builder stays populated, and `Back to manual entry` still
+      works — a rule failure never blocks a manual capture.
+  - **Back to manual entry** → `manual`, previously typed values
+    restored.
 
 ## 6. `capturing`
 
@@ -195,7 +267,9 @@ the popup body; the card below stays visible with its inputs disabled.
 
 - The Capture button is the only solid-accent control in the popup,
   always full-width, always 40px, always in the same position across
-  `detected` and `manual`.
+  `detected`, `manual`, and `rule-builder` (where its label is
+  "Save rule & capture" — it is still the capture).
+- The user never sees a regex anywhere in the popup.
 - Every state fits in a ~380px-wide, <500px-tall popup. Only the
   series list ever scrolls.
 - User input survives every error. The only things that clear a form

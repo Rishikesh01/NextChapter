@@ -10,6 +10,8 @@ export interface ManualCaptureFormProps {
   onSlugChange: (value: string) => void;
   onChapterChange: (value: string) => void;
   onCapture: () => void;
+  /** Opens the inline rule builder; absent when a rule can't be built here (ADR-0009). */
+  onCreateRule?: () => void;
 }
 
 /** The "manual" state: no site rule matched, the user fills in slug + chapter. */
@@ -22,6 +24,7 @@ export function ManualCaptureForm({
   onSlugChange,
   onChapterChange,
   onCapture,
+  onCreateRule,
 }: ManualCaptureFormProps) {
   const slugId = useId();
   const submit = (event: { preventDefault: () => void }) => {
@@ -69,10 +72,23 @@ export function ManualCaptureForm({
       >
         {busy ? 'Capturing…' : 'Capture chapter'}
       </button>
-      <p className="nc-form-hint nc-small">
-        Add a URL rule for this site in your web library to auto-detect next
-        time.
-      </p>
+      {onCreateRule !== undefined && (
+        <>
+          <p className="nc-form-hint nc-small">
+            A rule lets NextChapter detect chapters here automatically.
+          </p>
+          <p className="nc-rule-entry">
+            <button
+              className="nc-btn-link"
+              type="button"
+              aria-expanded="false"
+              onClick={onCreateRule}
+            >
+              Create a rule from this page
+            </button>
+          </p>
+        </>
+      )}
     </form>
   );
 }

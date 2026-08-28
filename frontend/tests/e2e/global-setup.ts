@@ -8,6 +8,7 @@ import { createServer, type Server } from 'node:http';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { createUserWithToken } from './api-helpers';
 
 const BACKEND_PORT = 18080;
 const SITE_PORT = 18081;
@@ -92,32 +93,7 @@ async function seed(backend: ChildProcess): Promise<() => Promise<void>> {
   await waitForHealthz();
   const site = await startFakeSite();
 
-  // Register the seed user; replay its session cookie manually (node's fetch
-  // has no cookie jar) to mint the API token — the same cookie channel the
-  // options page uses.
-  const username = `e2e-seed-${String(Date.now())}`;
-  const password = 'e2e-password';
-  const registerResponse = await fetch(`${SERVER_URL}/auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
-  });
-  await json(registerResponse);
-  const cookie = registerResponse.headers
-    .getSetCookie()
-    .map((value) => value.split(';')[0] ?? '')
-    .find((value) => value.startsWith('nc_session='));
-  if (cookie === undefined) throw new Error('register did not set nc_session');
-
-  const minted = (await json(
-    await fetch(`${SERVER_URL}/auth/tokens`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: cookie },
-      body: JSON.stringify({ label: 'e2e-seed' }),
-    }),
-  )) as { token?: string };
-  if (minted.token === undefined) throw new Error('mint returned no token');
-  const token = minted.token;
+  const { username, token } = await createUserWithToken(SERVER_URL, 'e2e-seed');
 
   // Site rule for the fake site, in Go syntax — the extension must translate it.
   await json(

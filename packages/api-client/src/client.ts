@@ -13,6 +13,8 @@ import type {
   SeriesNew,
   SeriesStatus,
   SiteList,
+  SiteRule,
+  SiteRuleNew,
   User,
 } from './types';
 
@@ -56,6 +58,10 @@ export interface ApiClient {
   createSeries(body: SeriesNew): Promise<Series>;
   capture(body: EntryCapture): Promise<CaptureResult>;
   getSites(): Promise<SiteList>;
+  createSiteRule(body: SiteRuleNew): Promise<SiteRule>;
+  deleteSiteRule(ruleID: number): Promise<void>;
+  /** Revoke an API token by id — used by Disconnect on its own token (ADR-0009). */
+  revokeToken(tokenID: number): Promise<void>;
 
   /** Cookie channel — onboarding only. credentials:"include", no Bearer header. */
   auth: {
@@ -180,6 +186,30 @@ export function createApiClient(getConfig: ConfigProvider): ApiClient {
 
     getSites: () =>
       json<SiteList>({ method: 'GET', path: '/sites', channel: 'bearer' }),
+
+    createSiteRule: (body) =>
+      json<SiteRule>({
+        method: 'POST',
+        path: '/sites/rules',
+        channel: 'bearer',
+        body,
+      }),
+
+    deleteSiteRule: async (ruleID) => {
+      await request({
+        method: 'DELETE',
+        path: `/sites/rules/${String(ruleID)}`,
+        channel: 'bearer',
+      });
+    },
+
+    revokeToken: async (tokenID) => {
+      await request({
+        method: 'DELETE',
+        path: `/auth/tokens/${String(tokenID)}`,
+        channel: 'bearer',
+      });
+    },
 
     auth: {
       register: (body) =>

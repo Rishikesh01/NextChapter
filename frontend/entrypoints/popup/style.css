@@ -197,3 +197,90 @@ body {
 .nc-skeleton-row:nth-child(3) .nc-skeleton-bar:first-child {
   width: 50%;
 }
+
+/* ---------- rule builder (design/components/rule-builder.html) ---------- */
+.nc-rule-entry {
+  margin: var(--nc-space-1) 0 0;
+  text-align: center;
+}
+.nc-rule-caption {
+  margin: calc(-1 * var(--nc-space-2)) 0 var(--nc-space-3);
+}
+.nc-rulegrid {
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-control);
+  margin-bottom: var(--nc-space-3);
+}
+.nc-rulegrid-head,
+.nc-rulegrid-row {
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-2);
+  padding: var(--nc-space-1) var(--nc-space-2);
+}
+.nc-rulegrid-head {
+  border-bottom: 1px solid var(--nc-border);
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+}
+.nc-rulegrid-row + .nc-rulegrid-row {
+  border-top: 1px solid var(--nc-border);
+}
+.nc-rulegrid-row {
+  min-height: 28px;
+}
+.nc-rulegrid-seg {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+code.nc-rulegrid-seg {
+  font-family: var(--nc-font-mono);
+  font-size: var(--nc-text-small);
+  color: var(--nc-text);
+}
+.nc-rulegrid-col {
+  flex: none;
+  width: 52px;
+  display: flex;
+  justify-content: center;
+}
+.nc-rulegrid input[type='radio'] {
+  accent-color: var(--nc-accent);
+  margin: 0;
+}
+.nc-rule-preview {
+  display: flex;
+  align-items: baseline;
+  gap: var(--nc-space-1);
+  margin: 0 0 var(--nc-space-3);
+  padding: var(--nc-space-2);
+  border-radius: var(--nc-radius-control);
+  background: var(--nc-bg-subtle);
+  font-size: var(--nc-text-small);
+  color: var(--nc-text-secondary);
+}
+.nc-rule-preview-slug {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--nc-font-mono);
+  color: var(--nc-text);
+}
+.nc-rule-preview strong {
+  color: var(--nc-text);
+  font-weight: var(--nc-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.nc-rule-preview-invalid {
+  display: block;
+  color: var(--nc-error-fg);
+}
+.nc-rule-back {
+  margin: var(--nc-space-2) 0 0;
+  text-align: center;
+}

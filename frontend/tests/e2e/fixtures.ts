@@ -41,6 +41,13 @@ export interface SeededSettings {
   username: string;
 }
 
+export interface SeededRule {
+  host: string;
+  chapter_url_regex: string;
+  slug_capture_group: string;
+  chapter_capture_group: string;
+}
+
 export interface Fixtures {
   context: BrowserContext;
   extensionId: string;
@@ -49,6 +56,12 @@ export interface Fixtures {
    * overrides to seed a broken one (e.g. a revoked token).
    */
   seedSettings: (overrides?: Partial<SeededSettings>) => Promise<void>;
+  /**
+   * Plant a FRESH-stamped rules cache with exactly these rules — the tool for
+   * staging a stale-cache race (a fresh cache is never refetched on popup
+   * open, so the popup believes it over the server).
+   */
+  seedRulesCache: (rules: SeededRule[]) => Promise<void>;
   /** Open a fake-site chapter page and the popup so the popup "sees" it. */
   openPopupOver: (sitePath: string) => Promise<Page>;
 }
@@ -92,6 +105,21 @@ export const test = base.extend<Fixtures>({
         // The key mirrors SETTINGS_KEY in lib/storage.ts.
         await chrome.storage.local.set({ 'settings:v1': value });
       }, settings);
+      await page.close();
+    });
+  },
+
+  seedRulesCache: async ({ context, extensionId }, use) => {
+    await use(async (rules: SeededRule[]) => {
+      const page = await context.newPage();
+      await page.goto(`chrome-extension://${extensionId}/options.html`);
+      await page.evaluate(
+        async (cache) => {
+          // The key mirrors RULES_KEY in lib/storage.ts.
+          await chrome.storage.local.set({ 'siteRules:v1': cache });
+        },
+        { rules, trackedHosts: [], fetchedAt: Date.now() },
+      );
       await page.close();
     });
   },
