@@ -77,9 +77,12 @@ function escapeRegex(literal: string): string {
 /**
  * Generate the rule in Go syntax (`(?P<name>…)` groups), mirroring the shape
  * of the shipped defaults: literal segments escaped, the chapter segment's
- * LAST numeric run generalized, optional trailing slash. Null for an invalid
- * draft (same segment twice, out-of-range index, chapter segment without a
- * number).
+ * LAST numeric run generalized, optional trailing slash. Text before a
+ * chapter keyword inside the chapter segment is generalized too —
+ * "en-chapter-45.5" becomes `[^/]+-chapter-…` so a language prefix doesn't
+ * pin the rule to one translation (the shipped comics.example.org default's shape).
+ * Null for an invalid draft (same segment twice, out-of-range index, chapter
+ * segment without a number).
  */
 export function buildRule(url: string, draft: RuleDraft): SiteRuleNew | null {
   const segments = pathSegments(url);
@@ -92,8 +95,17 @@ export function buildRule(url: string, draft: RuleDraft): SiteRuleNew | null {
   const lastRun = numericRuns(chapterSegment).at(-1);
   if (lastRun?.index === undefined) return null;
   const runStart = lastRun.index;
+  const literalPrefix = chapterSegment.slice(0, runStart);
+  // "en-chapter-" → "[^/]+-chapter-": anything before the keyword varies
+  // (language, volume), the keyword and number structure don't.
+  const keywordMatch = /^.+-(chapter|ch|episode|ep)-$/i.exec(literalPrefix);
+  const keyword = keywordMatch?.[1];
+  const prefixPattern =
+    keyword !== undefined
+      ? `[^/]+-${escapeRegex(keyword)}-`
+      : escapeRegex(literalPrefix);
   const chapterPattern =
-    escapeRegex(chapterSegment.slice(0, runStart)) +
+    prefixPattern +
     '(?P<chapter>[0-9]+(?:\\.[0-9]+)?)' +
     escapeRegex(chapterSegment.slice(runStart + lastRun[0].length));
 

@@ -134,16 +134,57 @@ describe('buildRule', () => {
     ).toBeNull();
   });
 
-  it('keeps literal text around the chapter number', () => {
+  it('generalizes a variable prefix before the chapter keyword (comics-default shape)', () => {
     const url = 'https://comics.example.org/comic/orv/en-chapter-45.5';
     const rule = mustBuild(url, { slugIndex: 1, chapterIndex: 2 });
     expect(rule.chapter_url_regex).toBe(
-      '^/comic/(?P<slug>[^/]+)/en-chapter-(?P<chapter>[0-9]+(?:\\.[0-9]+)?)/?$',
+      '^/comic/(?P<slug>[^/]+)/[^/]+-chapter-(?P<chapter>[0-9]+(?:\\.[0-9]+)?)/?$',
     );
     expect(previewRule(url, rule)).toMatchObject({
       seriesSlug: 'orv',
       chapter: 45.5,
     });
+    // The whole point: the rule built from an "en-" page also detects other
+    // languages and volume prefixes on the same site.
+    expect(
+      previewRule('https://comics.example.org/comic/orv/fr-chapter-12', rule),
+    ).toMatchObject({
+      seriesSlug: 'orv',
+      chapter: 12,
+    });
+    expect(
+      previewRule('https://comics.example.org/comic/orv/vol-2-ch-chapter-3', rule),
+    ).toMatchObject({ chapter: 3 });
+  });
+
+  it('generalizes ch/ep keyword variants too', () => {
+    const rule = mustBuild('https://example.org/read/orv/en-ch-7', {
+      slugIndex: 1,
+      chapterIndex: 2,
+    });
+    expect(rule.chapter_url_regex).toBe(
+      '^/read/(?P<slug>[^/]+)/[^/]+-ch-(?P<chapter>[0-9]+(?:\\.[0-9]+)?)/?$',
+    );
+  });
+
+  it('keeps a non-keyword prefix literal', () => {
+    const rule = mustBuild('https://example.org/read/orv/part-45', {
+      slugIndex: 1,
+      chapterIndex: 2,
+    });
+    expect(rule.chapter_url_regex).toBe(
+      '^/read/(?P<slug>[^/]+)/part-(?P<chapter>[0-9]+(?:\\.[0-9]+)?)/?$',
+    );
+  });
+
+  it('keeps a bare chapter keyword literal (reader-default shape, no variable prefix)', () => {
+    const rule = mustBuild('https://example.org/series/orv/chapter-9', {
+      slugIndex: 1,
+      chapterIndex: 2,
+    });
+    expect(rule.chapter_url_regex).toBe(
+      '^/series/(?P<slug>[^/]+)/chapter-(?P<chapter>[0-9]+(?:\\.[0-9]+)?)/?$',
+    );
   });
 
   it('handles a bare-number chapter segment', () => {

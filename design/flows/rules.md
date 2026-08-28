@@ -23,8 +23,12 @@ the pattern:
   literal.
 - The series segment becomes `(?P<slug>[^/]+)`.
 - In the chapter segment, the last numeric run is replaced with
-  `(?P<chapter>[0-9]+(?:\.[0-9]+)?)`; any literal text around it is
-  escaped and kept (so `chapter-54` → `chapter-(?P<chapter>…)`).
+  `(?P<chapter>[0-9]+(?:\.[0-9]+)?)`; literal text around it is
+  escaped and kept (so `chapter-54` → `chapter-(?P<chapter>…)`) —
+  EXCEPT that variable text before a chapter keyword generalizes to
+  `[^/]+-` (so `en-chapter-45.5` → `[^/]+-chapter-(?P<chapter>…)`,
+  the shipped comics.example.org default's shape: a language or volume prefix
+  must not pin the rule to one translation).
 - The whole pattern is anchored `^…/?$` — tolerant of a trailing
   slash, nothing else.
 

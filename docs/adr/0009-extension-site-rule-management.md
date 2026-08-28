@@ -23,7 +23,9 @@ cycle), and abandoned sign-in attempts can leave session rows behind until their
    extension pre-guesses which segment is the series slug and which carries the chapter number,
    and the user confirms or re-picks. A pure module (`frontend/lib/rule-builder.ts`) generates
    the rule regex in Go syntax — `(?P<name>…)` groups, literal segments regexp-escaped, the
-   chapter's numeric run replaced by `[0-9]+(?:\.[0-9]+)?` with surrounding literal text kept,
+   chapter's numeric run replaced by `[0-9]+(?:\.[0-9]+)?` with surrounding literal text kept
+   (except a variable prefix before a chapter keyword, which generalizes to `[^/]+-` so
+   "en-chapter-45.5" doesn't pin the rule to one translation — the comics.example.org default's shape),
    and an optional trailing slash — so a rule built here round-trips through
    `POST /sites/rules` validation and matches what `defaults.go`-style rules look like. The
    draft rule is verified locally by running it through the same `detectPosition` pipeline
