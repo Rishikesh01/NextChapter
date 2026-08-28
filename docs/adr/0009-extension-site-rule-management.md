@@ -57,3 +57,10 @@ cycle), and abandoned sign-in attempts can leave session rows behind until their
 - Hosts remain registrable names (the backend's host validation rejects IP literals) — the
   builder surfaces that error field like any other validation failure.
 - The `web/` library remains the place for bulk rule management and regex-level editing.
+- Known URL-shape limits of the builder, deferred to the `web/` track by operator decision
+  (2026-08-28): variable middle segments (`/vol-2/chapter-5` pins to `vol-2`), slug+chapter in
+  a single segment (`/read/orv-chapter-101`), and query-string chapters (`?id=orv&ch=101` —
+  would touch the pathname-only detection contract). The entry point already hides on shapes
+  it can't express, so these degrade to manual capture, never a dead end. The bigger lever is
+  shared/preset rules (community rules or richer `defaults.go`) so most users never need the
+  builder — a `web/`-track + backend ADR candidate.
