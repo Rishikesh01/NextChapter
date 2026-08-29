@@ -37,10 +37,18 @@ LDFLAGS  := -s -w -X $(GO_PKG)/internal/config.defaultVersion=$(VERSION)
 # Binary release matrix. linux/arm builds GOARM=7 — Raspberry Pi 2 and newer.
 PLATFORMS        ?= linux/amd64 linux/arm64 linux/arm darwin/amd64 darwin/arm64 windows/amd64
 
-# The container image ships fewer architectures than the binaries: these are
-# the two anyone self-hosts on.
-DOCKER_PLATFORMS ?= linux/amd64,linux/arm64
+# The container image now matches the Linux binaries arch-for-arch, including
+# 32-bit ARM for a Pi on a 32-bit OS. The distroless base publishes all three.
+DOCKER_PLATFORMS ?= linux/amd64,linux/arm64,linux/arm/v7
 DOCKER_TAGS      ?= $(VERSION)
+
+# OCI metadata baked into the image. REVISION/CREATED are resolved here rather
+# than in the Dockerfile so a build from a tarball without git still works.
+REVISION ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
+CREATED  ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+IMAGE_BUILD_ARGS = --build-arg VERSION='$(VERSION)' \
+                   --build-arg REVISION='$(REVISION)' \
+                   --build-arg CREATED='$(CREATED)'
 
 .DEFAULT_GOAL := help
 
@@ -160,7 +168,7 @@ checksums: | $(DIST)  ## sha256 every artefact in dist/ into dist/checksums.txt
 docker-build:  ## Build the release image for the host arch, SPA embedded
 	$(MAKE) -C frontend web-embed
 	@trap '$(MAKE) -C frontend web-unembed' EXIT; \
-	docker build --build-arg VERSION='$(VERSION)' -t '$(IMAGE):$(VERSION)' backend
+	docker build $(IMAGE_BUILD_ARGS) -t '$(IMAGE):$(VERSION)' backend
 
 .PHONY: docker-push
 docker-push:  ## Build and push the multi-arch image (requires a logged-in registry)
@@ -168,7 +176,7 @@ docker-push:  ## Build and push the multi-arch image (requires a logged-in regis
 	@trap '$(MAKE) -C frontend web-unembed' EXIT; \
 	docker buildx build --push \
 	  --platform '$(DOCKER_PLATFORMS)' \
-	  --build-arg VERSION='$(VERSION)' \
+	  $(IMAGE_BUILD_ARGS) \
 	  $(foreach t,$(DOCKER_TAGS),-t '$(IMAGE):$(t)') \
 	  backend
 

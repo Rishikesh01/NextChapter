@@ -43,7 +43,7 @@ docker run -d --name nextchapter \
   ghcr.io/rishikesh01/nextchapter:latest
 ```
 
-Open <http://localhost:8080>, register an account, and you're running. Images are multi-arch (`linux/amd64`, `linux/arm64`) and run as a non-root user on a distroless base.
+Open <http://localhost:8080>, register an account, and you're running. Images are multi-arch (`linux/amd64`, `linux/arm64`, `linux/arm/v7`) and run as a non-root user on a distroless base. Every tag is also published as `:latest` for stable releases, and carries OCI metadata — `docker inspect` reports the exact version and commit it was built from.
 
 ### Binary
 

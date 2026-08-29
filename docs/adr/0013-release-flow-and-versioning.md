@@ -54,7 +54,9 @@ release does must be expressible as targets a developer can also run locally.
 
 6. **Release artefacts, and what each is for.** Server archives per platform
    (`linux/{amd64,arm64,arm}`, `darwin/{amd64,arm64}`, `windows/amd64` — arm is GOARM=7, for a
-   Pi) with the SPA embedded; a multi-arch `linux/{amd64,arm64}` image on GHCR; both extension
+   Pi) with the SPA embedded; a multi-arch `linux/{amd64,arm64,arm/v7}` image on GHCR,
+   carrying OCI labels so `docker inspect` reports its version and revision and so
+   GHCR links the package to this repository; both extension
    zips plus the sources zip AMO requires; and the SPA alone as a tarball, for the operator who
    fronts the API with nginx or a CDN rather than serving the UI from the binary. Plus
    `checksums.txt` over all of it.
