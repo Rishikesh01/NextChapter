@@ -8,6 +8,23 @@ import { defineConfig } from 'wxt';
 const CHROMIUM_ID_KEY =
   'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA6PV5XeHfl4sZvPFYdt0bMLZ8wANKnS2XTek0CysHq34rAyckPX0LQIVxMSi9kJ8BaUFcd+QWTmDv5+zRFt0Vy6f6reHf0QTGiTnP0PdpZe1qMQ+uYzLkc2wLSU38LTvYolRRVRTRS9didEBy7ABbz2B9L0j5Cs/A34Ahgyovxgs7d15eVgpIO/o98R8ryQpGb7lgqisVyctmhJ5KIDE/9TrbQczplhJ0BH7TPMeDMutXFLO3w5rm3aZMsqrhxIZgJNRws637oCm+PB7QdxauIWPUHo+ZqUHWhBMaH3hHAjYyTaJxYZ+Mh4pR26b/zs4KFqr/OIv5hnpnUoHjFDjncwIDAQAB';
 
+// Release builds stamp the manifest from the git tag: the repository-root
+// Makefile exports NEXTCHAPTER_VERSION into every `wxt build`/`wxt zip`.
+// Both stores accept only 1-4 dot-separated integers for `version`, so a
+// tag's `v` prefix and any prerelease/build metadata is stripped. The full
+// tag survives in `version_name`, which is Chromium-only — Firefox's
+// linter rejects the key. Anything that does not reduce to a valid version
+// ("dev", a bare commit sha, unset) falls through to WXT's default: the
+// version in package.json.
+const releaseVersion = process.env.NEXTCHAPTER_VERSION?.trim() ?? '';
+
+function toManifestVersion(raw: string): string | undefined {
+  const core = raw.replace(/^v/, '').split(/[-+]/)[0] ?? '';
+  return /^\d+(?:\.\d+){0,3}$/.test(core) ? core : undefined;
+}
+
+const stampedVersion = toManifestVersion(releaseVersion);
+
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   // Explicit imports keep eslint and depcheck honest (ADR-0008 §2).
@@ -19,6 +36,13 @@ export default defineConfig({
   manifest: ({ browser, mode }) => ({
     name: 'NextChapter',
     description: 'Capture your reading position on the current chapter page.',
+    // Present only on release builds; see toManifestVersion above.
+    ...(stampedVersion ? { version: stampedVersion } : {}),
+    ...(stampedVersion &&
+    browser === 'chrome' &&
+    releaseVersion !== stampedVersion
+      ? { version_name: releaseVersion }
+      : {}),
     permissions: [
       // activeTab: read the invoked tab's URL/title at the moment the user
       // clicks the toolbar button — the product's single opt-in capture
@@ -55,4 +79,38 @@ export default defineConfig({
       ? { host_permissions: ['http://localhost/*', 'http://127.0.0.1/*'] }
       : {}),
   }),
+  // Deterministic zip names: `make dist-extension` renames these into
+  // dist/ with the release version, so the templates must not depend on a
+  // version that is only present on stamped builds.
+  zip: {
+    artifactTemplate: '{{browser}}-mv3{{modeSuffix}}.zip',
+    sourcesTemplate: 'firefox-mv3-sources{{modeSuffix}}.zip',
+    // AMO reviewers must be able to rebuild from the sources zip, and the
+    // extension imports @nextchapter/api-client (workspace:*) — so the
+    // sources root is the pnpm workspace root, not frontend/.
+    sourcesRoot: '..',
+    includeSources: [
+      'frontend/**',
+      'packages/**',
+      'design/tokens.css',
+      'package.json',
+      'pnpm-workspace.yaml',
+      'pnpm-lock.yaml',
+      'tsconfig.base.json',
+      'eslint.config.js',
+      'LICENSE',
+      'README.md',
+    ],
+    excludeSources: [
+      '**/node_modules/**',
+      '**/.output/**',
+      '**/.wxt/**',
+      '**/dist/**',
+      '**/test-results/**',
+      '**/playwright-report/**',
+      '**/blob-report/**',
+      'frontend/tests/**',
+      '**/*.db',
+    ],
+  },
 });

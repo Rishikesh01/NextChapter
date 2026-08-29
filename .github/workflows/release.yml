@@ -1,0 +1,205 @@
+name: release
+
+# Tag-driven, one version for all three artefacts (ADR-0013).
+#
+#   git tag -a v1.2.3 -m 'v1.2.3' && git push origin v1.2.3
+#
+# produces, on the GitHub Release for that tag:
+#   * nextchapter_v1.2.3_<os>_<arch>.tar.gz|zip — the server, SPA embedded
+#   * nextchapter-extension-v1.2.3-{chrome,firefox}-mv3.zip (+ sources zip)
+#   * nextchapter-web-v1.2.3.tar.gz — the SPA alone, for standalone hosting
+#   * checksums.txt
+# and pushes ghcr.io/<owner>/nextchapter:v1.2.3 (+ :latest for stable tags).
+#
+# workflow_dispatch is a rehearsal: it builds and uploads the same artefacts
+# as workflow artifacts, but publishes no release and pushes no image.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to stamp into the rehearsal build (e.g. v1.2.3)'
+        required: true
+        default: 'v0.0.0-rehearsal'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # The tag is the single source of truth; a rehearsal uses the typed input.
+  VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+
+jobs:
+  verify:
+    # A tag is normally cut from a green main, but the release is the last
+    # place to catch a bad one — so lint and unit tests gate it. The Docker
+    # e2e suites are not repeated here; ci.yml already ran them on the commit.
+    name: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.2'
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: install workspace
+        run: make setup-node
+
+      - name: lint (both tracks)
+        run: make lint
+
+      - name: test (both tracks)
+        run: make test
+
+  artifacts:
+    name: artifacts
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.2'
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: install workspace
+        run: make setup-node
+
+      - name: build every artefact
+        run: make dist VERSION="$VERSION"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nextchapter-${{ env.VERSION }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  image:
+    name: image (ghcr)
+    needs: verify
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: install workspace
+        run: make setup-node
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: resolve image name and tags
+        run: |
+          # GHCR rejects uppercase; the owner login may contain it.
+          echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+          # A prerelease tag (v1.2.3-rc.1) must never move :latest.
+          if [[ "$VERSION" == *-* ]]; then
+            echo "DOCKER_TAGS=$VERSION" >> "$GITHUB_ENV"
+          else
+            echo "DOCKER_TAGS=$VERSION latest" >> "$GITHUB_ENV"
+          fi
+
+      - name: build and push multi-arch image
+        run: make docker-push VERSION="$VERSION" IMAGE="$IMAGE" DOCKER_TAGS="$DOCKER_TAGS"
+
+  publish:
+    name: publish release
+    needs: [artifacts, image]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nextchapter-${{ env.VERSION }}
+          path: dist
+
+      - name: create the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_REF: ghcr.io/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # A bare `[[ ]] && x=y` would abort the step under `set -e` on the
+          # false branch, so this stays an if.
+          prerelease=()
+          if [[ "$VERSION" == *-* ]]; then
+            prerelease=(--prerelease)
+          fi
+
+          image="${IMAGE_REF,,}"
+          cat > notes.md <<EOF
+          ## Install
+
+          **Container** (the SPA is embedded — one image serves the API and the UI):
+
+          \`\`\`
+          docker run -d -p 8080:8080 -v nextchapter:/data \\
+            -e NEXTCHAPTER_DATABASE_URL=sqlite:///data/nextchapter.db \\
+            $image:$VERSION
+          \`\`\`
+
+          **Binary**: download the \`nextchapter_${VERSION}_<os>_<arch>\` archive below, extract, run.
+          Verify it against \`checksums.txt\` first.
+
+          **Extension**: \`nextchapter-extension-${VERSION}-chrome-mv3.zip\` or the Firefox build.
+          Load it unpacked (Chromium) or sideload it (Firefox 128+), then point it at your server
+          from the options page.
+
+          ---
+          EOF
+
+          gh release create "$VERSION" \
+            --title "$VERSION" \
+            --notes-file notes.md \
+            --generate-notes \
+            "${prerelease[@]}" \
+            dist/*

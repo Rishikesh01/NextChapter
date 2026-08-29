@@ -34,9 +34,20 @@ type Config struct {
 	// same-origin production deployments behind TLS should set
 	// NEXTCHAPTER_COOKIE_SECURE=true (ADR-0010 §5).
 	CookieSecure *bool
-	// Version is the build version; surfaced from /healthz.
+	// Version is the build version; surfaced from /healthz. Defaults to
+	// defaultVersion (linker-stamped at release time), overridable at
+	// runtime with NEXTCHAPTER_VERSION.
 	Version string
 }
+
+// defaultVersion is the version reported by /healthz when
+// NEXTCHAPTER_VERSION is unset. Release builds stamp it with the git tag
+// through the linker (see the repository-root Makefile's LDFLAGS):
+//
+//	go build -ldflags "-X github.com/enable-it/nextchapter/backend/internal/config.defaultVersion=v1.2.3"
+//
+// Every unstamped build — go run, go test, a bare go build — reports "dev".
+var defaultVersion = "dev"
 
 // Default returns the zero-value defaults applied before env vars are read.
 func Default() Config {
@@ -44,7 +55,7 @@ func Default() Config {
 		ListenAddr:  ":8080",
 		DatabaseURL: "sqlite://./nextchapter.db",
 		LogLevel:    zapcore.InfoLevel,
-		Version:     "dev",
+		Version:     defaultVersion,
 	}
 }
 

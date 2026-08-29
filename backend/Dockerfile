@@ -4,6 +4,9 @@
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
 ARG TARGETOS
 ARG TARGETARCH
+# Stamped into the binary and reported by /healthz. The repository-root
+# Makefile passes the git tag; an unstamped build reports "dev" (ADR-0013).
+ARG VERSION=dev
 
 ENV CGO_ENABLED=0 \
     GOOS=$TARGETOS \
@@ -17,7 +20,9 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -trimpath -ldflags="-s -w" -o /out/nextchapter ./cmd/nextchapter
+RUN go build -trimpath \
+    -ldflags="-s -w -X github.com/enable-it/nextchapter/backend/internal/config.defaultVersion=$VERSION" \
+    -o /out/nextchapter ./cmd/nextchapter
 
 # Final stage: distroless static, runs as nonroot per the ADR-mandated
 # security posture for self-hosted deploys.
