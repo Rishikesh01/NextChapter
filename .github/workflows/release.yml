@@ -169,10 +169,11 @@ jobs:
         run: |
           set -euo pipefail
           # A bare `[[ ]] && x=y` would abort the step under `set -e` on the
-          # false branch, so this stays an if.
-          prerelease=()
+          # false branch, so this stays an if. Passed as an explicit
+          # true/false so the edit path can also clear the flag.
+          prerelease=false
           if [[ "$VERSION" == *-* ]]; then
-            prerelease=(--prerelease)
+            prerelease=true
           fi
 
           image="${IMAGE_REF,,}"
@@ -197,9 +198,25 @@ jobs:
           ---
           EOF
 
-          gh release create "$VERSION" \
-            --title "$VERSION" \
-            --notes-file notes.md \
-            --generate-notes \
-            "${prerelease[@]}" \
-            dist/*
+          # `gh release create` fails outright when the release already
+          # exists, which makes re-running this job impossible — and a
+          # re-run is an ordinary thing to want after a transient upload
+          # failure or a re-triggered workflow. Create only when missing,
+          # then upload with --clobber, so the job converges to the same
+          # end state however many times it runs.
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "release $VERSION already exists — updating it in place"
+            gh release edit "$VERSION" \
+              --title "$VERSION" \
+              --notes-file notes.md \
+              --prerelease="$prerelease"
+            # --clobber replaces same-named assets rather than erroring.
+            gh release upload "$VERSION" dist/* --clobber
+          else
+            gh release create "$VERSION" \
+              --title "$VERSION" \
+              --notes-file notes.md \
+              --generate-notes \
+              --prerelease="$prerelease" \
+              dist/*
+          fi
