@@ -25,7 +25,7 @@ Everything under `backend/`:
 
 ## Recommended stack
 
-- Go 1.26 (pinned — match the `go` directive in `go.mod` and the toolchain used by the local `golangci-lint`, which is built against go1.26.2).
+- Go 1.27 (pinned — match the `go` directive in `go.mod`; `golangci-lint` v2.13.0 is the first release that understands go1.27).
 - `github.com/gin-gonic/gin` for HTTP routing and middleware. Use `gin.New()` (not `gin.Default()`) and wire `gin.Recovery()` plus a structured logging middleware explicitly so logs are JSON, not Gin's default text format. Auth, request ID, and CORS go through `engine.Use(...)` middleware — not per-handler.
 - `sqlc` for type-safe SQL.
 - `modernc.org/sqlite` (pure-Go SQLite) as default. Postgres via the same `database/sql` interface as a production option.
@@ -97,7 +97,7 @@ Detailed rationale and supporting examples live in the operator-side memory at `
    - `gofmt -w .` — formats every Go file in place. Idempotent; safe to run unconditionally.
    - `gofmt -l .` — sanity check; must print no files.
    - `go vet ./...`
-   - `golangci-lint run ./...` — the local install (v2.x, built against go1.26.x) is on `PATH`; do not `go install` a different version.
+   - `make lint` — pins golangci-lint v2.13.0 via `go run`; do not `go install` a different version.
    - `go test -race ./...`
 4. Hand off to `linter` and `qa`.
 
