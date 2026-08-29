@@ -1,6 +1,6 @@
 module github.com/enable-it/nextchapter/backend
 
-go 1.26
+go 1.27.0
 
 require (
 	github.com/gin-gonic/gin v1.12.0

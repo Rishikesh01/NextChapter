@@ -48,11 +48,11 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.26.2'
+          go-version: '1.27.0'
           cache: true
           cache-dependency-path: backend/go.sum
 
@@ -78,11 +78,11 @@ jobs:
             exit 1
           fi
 
-      # govulncheck is intentionally NOT run in CI yet: the reachable
-      # findings are stdlib CVEs fixable only by a toolchain patch
-      # release. See ADR-0007 (docs/adr/0007-deferred-stdlib-cves.md)
-      # for the current deferred list and the re-enable condition;
-      # `make security-audit` is the manual backstop.
+      # Re-enabled by the go1.27 bump: the 13 stdlib CVEs ADR-0007
+      # deferred were all fixed in go1.26.3-go1.26.6, so the documented
+      # re-enable condition is met and govulncheck now reports clean.
+      - name: security audit (govulncheck)
+        run: make security-audit
 
   backend-postgres:
     # Dual-engine coverage. The default `backend` job exercises the
@@ -96,11 +96,11 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.26.2'
+          go-version: '1.27.0'
           cache: true
           cache-dependency-path: backend/go.sum
 
@@ -116,11 +116,11 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -162,7 +162,7 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: e2e in pinned Playwright image
         run: make test-e2e-docker
@@ -177,7 +177,7 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: web e2e in pinned Playwright image
         run: make web-test-e2e-docker

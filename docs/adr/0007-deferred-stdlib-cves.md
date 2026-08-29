@@ -55,3 +55,22 @@ every audit run, not assumed.
   `GOTOOLCHAIN=auto`) and the deferred stdlib findings clear (13 as of
   the 2026-08-28 refresh above). At that point `govulncheck` should move
   into the `backend` job alongside `make lint`.
+
+## Resolution (2026-08-29)
+
+**Done — the gate is on.** The toolchain moved to `go1.27.0`, which is
+past every fix version the deferred findings needed (`go1.26.3` through
+`go1.26.6`). `govulncheck` now reports **0 vulnerabilities affecting this
+code**: no reachable stdlib findings remain, and the two advisories still
+matched against required modules are unreachable — nothing in
+NextChapter calls them.
+
+`govulncheck` therefore runs in the `backend` CI job as a blocking step,
+exactly as this ADR specified, and `make security-audit` pins it to
+`golang.org/x/vuln@v1.7.0` rather than resolving whatever binary happens
+to be on `PATH` — a `PATH` govulncheck built against an older toolchain
+fails outright on a go1.27 source tree.
+
+The deferral in this ADR is spent. What survives it is the standing rule
+from the decision above: the "no bumpable module" premise is re-checked
+on every audit, never assumed.
