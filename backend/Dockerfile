@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # Build stage: pure-Go (CGO disabled), multi-arch friendly.
-FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:4c9fe60190a2a3350ddc51de80d0224b8a6698d12bdfc999fee45ea9d6c46dbc AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.0-alpine3.24 AS build
 ARG TARGETOS
 ARG TARGETARCH
 # 32-bit ARM ships as linux/arm/v7 (Raspberry Pi 2 and up on a 32-bit OS);
@@ -34,7 +34,15 @@ RUN case "$TARGETVARIANT" in \
 
 # Final stage: distroless static, runs as nonroot per the ADR-mandated
 # security posture for self-hosted deploys.
-FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+#
+# This is the one base with no version tag to pin to — distroless publishes
+# only `nonroot`/`latest`/`debug` plus tags named after its own source
+# commits, which are no more readable than a digest. Floating `nonroot` is
+# the right call anyway: this stage is CA certs, /etc/passwd and tzdata with
+# no shell and no package manager, so tracking it means picking up cert and
+# CVE updates rather than freezing them. Everything that determines the
+# binary — the Go toolchain image, go.mod and go.sum — is pinned above.
+FROM gcr.io/distroless/static-debian12:nonroot
 ARG VERSION=dev
 ARG REVISION=unknown
 ARG CREATED=unknown
