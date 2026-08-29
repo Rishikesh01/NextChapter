@@ -179,6 +179,21 @@ docker-push:  ## Build and push the multi-arch image (requires a logged-in regis
 	  $(IMAGE_BUILD_ARGS) \
 	  $(foreach t,$(DOCKER_TAGS),-t '$(IMAGE):$(t)') \
 	  backend
+	@$(MAKE) --no-print-directory verify-image-tags
+
+.PHONY: verify-image-tags
+verify-image-tags:  ## Assert every DOCKER_TAGS tag really resolves in the registry
+	@echo "verifying pushed tags:"; \
+	for t in $(DOCKER_TAGS); do \
+	  if docker buildx imagetools inspect "$(IMAGE):$$t" >/dev/null 2>&1; then \
+	    echo "  ok      $(IMAGE):$$t"; \
+	  else \
+	    echo "  MISSING $(IMAGE):$$t"; exit 1; \
+	  fi; \
+	done; \
+	echo "platforms on $(IMAGE):$(VERSION):"; \
+	docker buildx imagetools inspect "$(IMAGE):$(VERSION)" \
+	  | sed -n 's/^ *Platform: */  /p' | sort -u
 
 ##@ Disk hygiene
 
