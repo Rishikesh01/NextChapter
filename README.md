@@ -51,7 +51,7 @@ It listens on `:8080` and creates `./nextchapter.db` next to itself. The web UI 
 
 ### From source
 
-Needs Go 1.26+, Node 24+ and pnpm 10+.
+Needs Go 1.27+, Node 24+ and pnpm 10+.
 
 ```sh
 git clone https://github.com/Rishikesh01/NextChapter.git
@@ -103,7 +103,7 @@ Registration is open regardless of bootstrap — anyone who can reach the server
 
 ### Prerequisites
 
-Go 1.26+, Node 24 (`.nvmrc`), pnpm 10+, and Docker for the e2e gates and the Postgres tests.
+Go 1.27+, Node 24 (`.nvmrc`), pnpm 10+, and Docker for the e2e gates and the Postgres tests.
 
 ```sh
 make setup          # Go modules + pnpm workspace (frozen lockfile)
@@ -160,7 +160,7 @@ scripts/           repo tooling (disk-report)
 
 ### Stack
 
-**Backend** — Go 1.26, `gin` for routing, `sqlc` for type-safe SQL, goose for migrations, `modernc.org/sqlite` (pure Go) by default with Postgres as a production option. `CGO_ENABLED=0` everywhere; pure-Go dependencies only. Tests run against real databases — testcontainers for Postgres, across a dual-engine CI matrix.
+**Backend** — Go 1.27, `gin` for routing, `sqlc` for type-safe SQL, goose for migrations, `modernc.org/sqlite` (pure Go) by default with Postgres as a production option. `CGO_ENABLED=0` everywhere; pure-Go dependencies only. Tests run against real databases — testcontainers for Postgres, across a dual-engine CI matrix.
 
 **Frontend** — TypeScript 5.9 strict, React 19, WXT, Manifest V3 for both Chrome and Firefox. Browser APIs through `wxt/browser`. pnpm workspace rooted at the repo. Vitest for units; Playwright against a real browser and a real backend binary for e2e (ADR-0008).
 
@@ -235,14 +235,6 @@ The `docs/adr/` records are the reasoning behind the shape of this codebase — 
 | [0011](docs/adr/0011-series-cover-images.md) | Series cover art (the extension fetches; the backend never does) |
 | [0012](docs/adr/0012-auto-tracking.md) | Auto-tracking: per-host opt-in, advance-only capture |
 | [0013](docs/adr/0013-release-flow-and-versioning.md) | Release flow: one tag, three artefacts |
-
-## Status
-
-**Backend — implemented.** A complete Go JSON API: open registration, session-cookie and API-token auth, CRUD for series (with tags and ratings), per-site reading entries, and site URL-rules. SQLite or Postgres, with goose migrations and sqlc queries maintained for both.
-
-**Extension — implemented.** MV3 for Chrome and Firefox: options-page onboarding, one-click capture with URL-rule parsing, a no-regex rule builder for unknown sites, a series picker for first-time captures, cover art, and opt-in per-host auto-tracking.
-
-**Web library — implemented.** Sign in with the same account, browse with status and tag filters, open a series for its per-site breakdown, edit statuses/ratings/tags/notes, move entries between series, manage site rules down to the regex, and mint extension tokens.
 
 ## License
 
