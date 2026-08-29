@@ -39,6 +39,9 @@ packages/api-client/.cache/
 # Web SPA build output
 web/dist/
 
+# Release artefacts (make dist)
+/dist/
+
 # Embedded copy of the web build (make -C frontend web-embed) — only the
 # committed placeholder index.html stays in git; a locally-embedded real
 # build shows index.html as modified on purpose (web-unembed restores it).
