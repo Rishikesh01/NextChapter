@@ -26,7 +26,7 @@ describe('suggestSeriesTitle', () => {
   it('handles pipe separators and fractional chapters', () => {
     expect(
       suggestSeriesTitle(
-        'TBATE Ch. 45.5 | comics',
+        'TBATE Ch. 45.5 | Comics',
         'the-beginning-after-the-end',
       ),
     ).toBe('TBATE');

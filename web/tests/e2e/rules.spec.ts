@@ -17,8 +17,7 @@ test('lists the seeded defaults and surfaces tracked hosts without rules', async
   });
 
   await authedPage.goto('/rules');
-  await expect(authedPage.getByText('reader.example.com')).toBeVisible();
-  await expect(authedPage.getByText('comics.example.org')).toBeVisible();
+  await expect(authedPage.getByText('wuxiaworld.com')).toBeVisible();
 
   const hintRow = authedPage.getByRole('row', {
     name: /no-rule-site\.example/,
@@ -76,7 +75,7 @@ test('server validation errors render field-level', async ({ authedPage }) => {
   );
 
   // Fix the regex but collide with a seeded host → field-level error on host.
-  await authedPage.getByLabel('Host').fill('reader.example.com');
+  await authedPage.getByLabel('Host').fill('wuxiaworld.com');
   await authedPage
     .getByLabel('Chapter URL pattern')
     .fill('^/x/(?P<slug>[^/]+)/(?P<chapter>[0-9]+)$');

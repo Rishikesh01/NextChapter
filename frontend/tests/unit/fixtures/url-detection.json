@@ -35,7 +35,7 @@
     },
     {
       "name": "reader with www prefix and uppercase host",
-      "url": "https://WWW.reader.example.com/series/tbate/chapter-3",
+      "url": "https://WWW.Reader.Example.com/series/tbate/chapter-3",
       "expect": {
         "siteHost": "reader.example.com",
         "seriesSlug": "tbate",

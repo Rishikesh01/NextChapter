@@ -79,7 +79,7 @@ export function RuleForm({
           className={`nc-input${fieldError('host') !== undefined ? ' is-invalid' : ''}`}
           id="rule-host"
           type="text"
-          placeholder="e.g. scans.example.org"
+          placeholder="e.g. wuxiaworld.com"
           autoComplete="off"
           spellCheck={false}
           value={host}

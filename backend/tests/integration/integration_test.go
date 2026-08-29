@@ -889,7 +889,7 @@ func TestPatchSeriesFieldSemantics(t *testing.T) {
 // before the (user_id, site_host, series_slug) upsert key is computed.
 // Two captures against the same logical site must therefore hit the
 // same entry row regardless of whether the client sends
-// "WWW.reader.example.com" or the canonical "reader.example.com".
+// "WWW.Reader.Example.com" or the canonical "reader.example.com".
 func TestCaptureNormalisesSiteHost(t *testing.T) {
 	t.Parallel()
 	r := require.New(t)
@@ -914,7 +914,7 @@ func TestCaptureNormalisesSiteHost(t *testing.T) {
 		Method: http.MethodPost,
 		Path:   "/entries/capture",
 		Body: models.EntryCapture{
-			SiteHost:   "WWW.reader.example.com",
+			SiteHost:   "WWW.Reader.Example.com",
 			SeriesSlug: "solo-leveling-host-norm",
 			SiteTitle:  "Solo Leveling",
 			Chapter:    &c1,

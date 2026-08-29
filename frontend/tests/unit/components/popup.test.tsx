@@ -236,7 +236,9 @@ describe('StatusBanner', () => {
       />,
     );
 
-    const toggle = screen.getByRole('checkbox', { name: /reader\.example\.com/ });
+    const toggle = screen.getByRole('checkbox', {
+      name: /reader\.example\.com/,
+    });
     expect(toggle).not.toBeChecked();
     expect(
       screen.getByText(/Asks for access to this site/),
@@ -261,7 +263,9 @@ describe('StatusBanner', () => {
       />,
     );
 
-    const toggle = screen.getByRole('checkbox', { name: /reader\.example\.com/ });
+    const toggle = screen.getByRole('checkbox', {
+      name: /reader\.example\.com/,
+    });
     expect(toggle).toBeChecked();
     await userEvent.click(toggle);
     expect(onToggle).toHaveBeenCalledWith(false);

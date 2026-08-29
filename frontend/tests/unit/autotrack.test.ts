@@ -10,7 +10,9 @@ describe('originPatternFor', () => {
   it('covers both schemes for exactly one host', () => {
     // Not `*://*.host/*`: a rule for reader.example.com must not hand the
     // extension access to every subdomain of it.
-    expect(originPatternFor('reader.example.com')).toBe('*://reader.example.com/*');
+    expect(originPatternFor('reader.example.com')).toBe(
+      '*://reader.example.com/*',
+    );
   });
 });
 

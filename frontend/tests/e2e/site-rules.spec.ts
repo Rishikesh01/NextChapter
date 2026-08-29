@@ -52,24 +52,34 @@ test('options page lists the rules and deletes one behind the inline confirm', a
   extensionId,
   seedSettings,
 }) => {
-  const user = await createUserWithToken(
-    process.env.NC_E2E_SERVER ?? '',
-    'e2e-ruledel',
-  );
+  const serverUrl = process.env.NC_E2E_SERVER ?? '';
+  const user = await createUserWithToken(serverUrl, 'e2e-ruledel');
+  // Deleting one rule and asserting the other survives needs two. Registration
+  // seeds one, so this creates the second explicitly rather than relying on the
+  // seed list's contents — the subject here is the delete flow, not the seeds.
+  await apiFetch(serverUrl, user.token, 'POST', '/sites/rules', {
+    host: 'comics.example.org',
+    chapter_url_regex:
+      '^/comic/(?P<slug>[^/]+)/chapter-(?P<chapter>[0-9]+(?:\\.[0-9]+)?)$',
+    slug_capture_group: 'slug',
+    chapter_capture_group: 'chapter',
+  });
   await seedSettings({ apiToken: user.token, username: user.username });
 
   const page = await context.newPage();
   await page.goto(`chrome-extension://${extensionId}/options.html`);
   await expect(page.getByRole('heading', { name: 'Site rules' })).toBeVisible();
-  await expect(page.getByText('reader.example.com')).toBeVisible();
+  await expect(page.getByText('wuxiaworld.com')).toBeVisible();
   await expect(page.getByText('comics.example.org')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Delete rule for comics.example.org' }).click();
+  await page
+    .getByRole('button', { name: 'Delete rule for comics.example.org' })
+    .click();
   await expect(page.getByText('Delete rule?')).toBeVisible();
   await page.getByRole('button', { name: 'Confirm' }).click();
 
   await expect(page.getByText('comics.example.org')).toHaveCount(0);
-  await expect(page.getByText('reader.example.com')).toBeVisible();
+  await expect(page.getByText('wuxiaworld.com')).toBeVisible();
 });
 
 // The stale-cache race (design/flows/capture.md §5a): the popup's fresh cache

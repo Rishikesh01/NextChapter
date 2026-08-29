@@ -93,7 +93,7 @@ describe('parseChapterNumber', () => {
 
 describe('normalizeHost', () => {
   it.each([
-    ['WWW.reader.example.com', 'reader.example.com'],
+    ['WWW.Reader.Example.com', 'reader.example.com'],
     ['comics.example.org', 'comics.example.org'],
     ['www.www.example.org', 'www.example.org'],
   ])('%s -> %s', (input, expected) => {

@@ -9,8 +9,8 @@ the library without compromising the backend's security posture or the single-bi
 
 Two facts, established by probing real sites before choosing:
 
-1. A chapter reader page's `og:image` is often a **social card**, not the cover. catalog serves
-   `https://og.catalog.example.org/og-image/manga/<id>` at 1200x630 — a landscape composite, not the
+1. A chapter reader page's `og:image` is often a **social card**, not the cover. One large
+   catalogue site serves a generated og-image at 1200x630 — a landscape composite, not the
    2:3 portrait art. Auto-detection alone therefore produces wrong-looking covers on real sites.
 2. Some sites return **nothing usable to a server-side fetch**. `tapas.io` served no `og:image`
    in its server HTML (client-rendered or bot-gated). A backend scraper gets nothing there; an

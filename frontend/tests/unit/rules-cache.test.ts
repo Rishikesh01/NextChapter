@@ -12,7 +12,10 @@ describe('toRulesCache', () => {
 
   it('carries rules and tracked hosts through', () => {
     const cache = toRulesCache(
-      { rules: [{ host: 'comics.example.org' }], tracked_hosts: ['comics.example.org'] },
+      {
+        rules: [{ host: 'comics.example.org' }],
+        tracked_hosts: ['comics.example.org'],
+      },
       42,
     );
     expect(cache.rules).toHaveLength(1);

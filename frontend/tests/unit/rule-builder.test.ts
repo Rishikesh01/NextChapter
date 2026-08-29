@@ -9,7 +9,7 @@ import {
   type RuleDraft,
 } from '../../lib/rule-builder';
 
-const manhua =
+const MANHUA =
   'https://manhua.example.net/manga/the-mad-dog-of-the-dukes-estate/chapter-54/';
 
 function mustBuild(url: string, draft: RuleDraft): SiteRuleNew {
@@ -20,7 +20,7 @@ function mustBuild(url: string, draft: RuleDraft): SiteRuleNew {
 
 describe('pathSegments', () => {
   it('splits and drops empty segments (trailing slash)', () => {
-    expect(pathSegments(manhua)).toEqual([
+    expect(pathSegments(MANHUA)).toEqual([
       'manga',
       'the-mad-dog-of-the-dukes-estate',
       'chapter-54',
@@ -75,7 +75,7 @@ describe('guessDraft', () => {
 
 describe('canOfferRuleBuilder', () => {
   it('offers on a registrable host with a guessable shape', () => {
-    expect(canOfferRuleBuilder(manhua)).toBe(true);
+    expect(canOfferRuleBuilder(MANHUA)).toBe(true);
     expect(
       canOfferRuleBuilder('http://localhost:18081/read/fresh-novel/7'),
     ).toBe(true);
@@ -99,7 +99,7 @@ describe('canOfferRuleBuilder', () => {
 
 describe('buildRule', () => {
   it('generates the defaults-shaped Go-syntax rule from a real URL', () => {
-    const rule = buildRule(manhua, { slugIndex: 1, chapterIndex: 2 });
+    const rule = buildRule(MANHUA, { slugIndex: 1, chapterIndex: 2 });
     expect(rule).toEqual({
       host: 'manhua.example.net',
       chapter_url_regex:
@@ -110,8 +110,8 @@ describe('buildRule', () => {
   });
 
   it('round-trips through detectPosition on the source URL (trailing slash kept)', () => {
-    const rule = mustBuild(manhua, { slugIndex: 1, chapterIndex: 2 });
-    expect(previewRule(manhua, rule)).toMatchObject({
+    const rule = mustBuild(MANHUA, { slugIndex: 1, chapterIndex: 2 });
+    expect(previewRule(MANHUA, rule)).toMatchObject({
       siteHost: 'manhua.example.net',
       seriesSlug: 'the-mad-dog-of-the-dukes-estate',
       chapter: 54,
@@ -119,7 +119,7 @@ describe('buildRule', () => {
   });
 
   it('matches sibling chapters, including fractional ones, but not other slugs paths', () => {
-    const rule = mustBuild(manhua, { slugIndex: 1, chapterIndex: 2 });
+    const rule = mustBuild(MANHUA, { slugIndex: 1, chapterIndex: 2 });
     expect(
       previewRule(
         'https://manhua.example.net/manga/solo-leveling/chapter-45.5',
@@ -127,7 +127,10 @@ describe('buildRule', () => {
       ),
     ).toMatchObject({ seriesSlug: 'solo-leveling', chapter: 45.5 });
     expect(
-      previewRule('https://manhua.example.net/novel/solo-leveling/chapter-2', rule),
+      previewRule(
+        'https://manhua.example.net/novel/solo-leveling/chapter-2',
+        rule,
+      ),
     ).toBeNull();
     expect(
       previewRule('https://other.site/manga/solo-leveling/chapter-2', rule),
@@ -153,7 +156,10 @@ describe('buildRule', () => {
       chapter: 12,
     });
     expect(
-      previewRule('https://comics.example.org/comic/orv/vol-2-ch-chapter-3', rule),
+      previewRule(
+        'https://comics.example.org/comic/orv/vol-2-ch-chapter-3',
+        rule,
+      ),
     ).toMatchObject({ chapter: 3 });
   });
 
@@ -208,10 +214,13 @@ describe('buildRule', () => {
   });
 
   it('normalizes the host (www., case)', () => {
-    const rule = mustBuild('https://WWW.manhua.example.net/manga/x-y/chapter-1', {
-      slugIndex: 1,
-      chapterIndex: 2,
-    });
+    const rule = mustBuild(
+      'https://WWW.Manhua.Example.net/manga/x-y/chapter-1',
+      {
+        slugIndex: 1,
+        chapterIndex: 2,
+      },
+    );
     expect(rule.host).toBe('manhua.example.net');
   });
 
@@ -233,8 +242,8 @@ describe('buildRule', () => {
   });
 
   it('rejects invalid drafts', () => {
-    expect(buildRule(manhua, { slugIndex: 2, chapterIndex: 2 })).toBeNull();
-    expect(buildRule(manhua, { slugIndex: 0, chapterIndex: 9 })).toBeNull();
+    expect(buildRule(MANHUA, { slugIndex: 2, chapterIndex: 2 })).toBeNull();
+    expect(buildRule(MANHUA, { slugIndex: 0, chapterIndex: 9 })).toBeNull();
     // chapter segment without a number
     expect(
       buildRule('https://example.org/manga/slug/extras', {

@@ -12,7 +12,11 @@ const rules: SiteRule[] = [
     host: 'reader.example.com',
     chapter_url_regex: '^/series/(?P<slug>[^/]+)$',
   },
-  { id: 2, host: 'comics.example.org', chapter_url_regex: '^/comic/(?P<slug>[^/]+)$' },
+  {
+    id: 2,
+    host: 'comics.example.org',
+    chapter_url_regex: '^/comic/(?P<slug>[^/]+)$',
+  },
 ];
 
 function renderSection(
@@ -42,7 +46,9 @@ describe('RulesSection', () => {
     const props = renderSection();
 
     await userEvent.click(
-      screen.getByRole('button', { name: 'Delete rule for comics.example.org' }),
+      screen.getByRole('button', {
+        name: 'Delete rule for comics.example.org',
+      }),
     );
     expect(props.onDelete).not.toHaveBeenCalled();
     expect(screen.getByText('Delete rule?')).toBeVisible();
@@ -57,13 +63,17 @@ describe('RulesSection', () => {
     const props = renderSection();
 
     await userEvent.click(
-      screen.getByRole('button', { name: 'Delete rule for comics.example.org' }),
+      screen.getByRole('button', {
+        name: 'Delete rule for comics.example.org',
+      }),
     );
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByText('Delete rule?')).not.toBeInTheDocument();
 
     await userEvent.click(
-      screen.getByRole('button', { name: 'Delete rule for comics.example.org' }),
+      screen.getByRole('button', {
+        name: 'Delete rule for comics.example.org',
+      }),
     );
     await userEvent.keyboard('{Escape}');
     expect(screen.queryByText('Delete rule?')).not.toBeInTheDocument();
