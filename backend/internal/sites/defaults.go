@@ -12,6 +12,13 @@
 // There is no admin "re-seed defaults" endpoint. If seeding fails on
 // either the /auth/register or env-var-bootstrap path the user
 // account still exists; they can add rules manually via the API.
+//
+// The list is deliberately short. A rule extracts the chapter number
+// from the URL path, and most licensed comic platforms are SPA readers
+// that keep the chapter in an opaque id, a query parameter, or nowhere
+// in the URL at all — none of which this shape can express. Sites that
+// do carry a chapter number in the path are the only ones worth
+// seeding; everything else is what the rule builder (ADR-0009) is for.
 package sites
 
 import "github.com/enable-it/nextchapter/backend/internal/models"
@@ -27,14 +34,13 @@ import "github.com/enable-it/nextchapter/backend/internal/models"
 // reproduced from the client.
 var Defaults = []models.SiteRuleNew{
 	{
-		Host:                "reader.example.com",
-		ChapterURLRegex:     `^/series/(?P<slug>[^/]+)/chapter-(?P<chapter>[0-9]+(?:\.[0-9]+)?)$`,
-		SlugCaptureGroup:    "slug",
-		ChapterCaptureGroup: "chapter",
-	},
-	{
-		Host:                "comics.example.org",
-		ChapterURLRegex:     `^/comic/(?P<slug>[^/]+)/(?P<chapter>[^/]+-chapter-[0-9]+(?:\.[0-9]+)?)$`,
+		// Wuxiaworld licenses its translations from the original
+		// Chinese and Korean publishers. Chapter segments look like
+		// "nshba-chapter-45" or "de-book-2-chapter-15";
+		// parseChapterNumber takes the LAST numeric run, so the
+		// book-prefixed form still yields the chapter.
+		Host:                "wuxiaworld.com",
+		ChapterURLRegex:     `^/novel/(?P<slug>[^/]+)/(?P<chapter>[^/]+-chapter-[0-9]+(?:\.[0-9]+)?)$`,
 		SlugCaptureGroup:    "slug",
 		ChapterCaptureGroup: "chapter",
 	},

@@ -80,7 +80,7 @@ function escapeRegex(literal: string): string {
  * LAST numeric run generalized, optional trailing slash. Text before a
  * chapter keyword inside the chapter segment is generalized too —
  * "en-chapter-45.5" becomes `[^/]+-chapter-…` so a language prefix doesn't
- * pin the rule to one translation (the shipped comics.example.org default's shape).
+ * pin the rule to one translation (the shipped default's shape).
  * Null for an invalid draft (same segment twice, out-of-range index, chapter
  * segment without a number).
  */

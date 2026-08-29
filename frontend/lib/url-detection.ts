@@ -29,9 +29,10 @@ export function goRegexToJs(pattern: string): string {
 }
 
 /**
- * A rule's chapter group may capture a whole path segment (comics.example.org's
- * default captures "en-chapter-45.5"), so take the LAST numeric run rather
- * than parseFloat-ing the front.
+ * A rule's chapter group may capture a whole path segment (the shipped
+ * wuxiaworld.com default captures "de-book-2-chapter-15"), so take the LAST
+ * numeric run rather than parseFloat-ing the front — that also picks the
+ * chapter rather than the book when both are present.
  */
 export function parseChapterNumber(captured: string): number | null {
   const runs = captured.match(/\d+(?:\.\d+)?/g);

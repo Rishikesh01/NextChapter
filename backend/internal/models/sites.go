@@ -26,7 +26,7 @@ type SiteRule struct {
 // SiteRuleNew is both the POST /sites/rules JSON body and the input
 // to the sites service's AddSiteRule method. `hostname` is the
 // validator/v10 built-in for RFC-952 syntactic host checks
-// (reader.example.com passes; "" / "not a host" fail). The two
+// (wuxiaworld.com passes; "" / "not a host" fail). The two
 // capture-group fields use `alphanum` — letters + digits only, no
 // underscores; pick capture-group names accordingly.
 type SiteRuleNew struct {
